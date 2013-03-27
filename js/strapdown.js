@@ -416,6 +416,7 @@ var PR=win['PR']={'createSimpleLexer':createSimpleLexer,'registerLangHandler':re
   //
 
   // Generate Markdown
+  marked.setOptions({breaks: true});
   var html = marked(markdown);
   document.getElementById('content').innerHTML = html;
 
