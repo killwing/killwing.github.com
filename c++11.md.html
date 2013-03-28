@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html>
+<title>C++11</title>
+<xmp theme="readable" style="display:none;">
+## ">>" as Nested Template Closer
+不必再加空格
+```
+std::vector<std::list<int>> vi1;
+```
+
+## auto for Type Declarations
+必须声明时同时初始化。
+可以使用const/volatile修饰。
+auto的类型推导类似模板参数。（就像一个不同scope但全局可用的T）
+auto&&经过reference collapsing，可能会变成左值引用auto&。
+```
+int x;
+auto&& a1 = x; // x is lvalue, so type of a1 is int&
+auto&& a2 = std::move(x); // std::move(x) is rvalue, so type of a2 is int&&
+```
+
+如果没有显式地声明称引用类型，则
+
+* 初始化类型的consts/volatiles会被忽略。（类似值传递）
+* 数组和函数名退化成指针类型。
+
+```
+const std::list<int> li;
+auto v1 = li; // v1: std::list<int>
+auto& v2 = li; // v2: const std::list<int>&
+float data[BufSize];
+auto v3 = data; // v3: float*
+auto& v4 = data; // v4: float (&)[BufSize]
+```
+
+比较模板参数的推导：
+```
+template<typename T>
+void f(T p);
+
+template<typename T>
+void g(T& p);
+
+int i;
+const int ci = 0;
+const int *pci = &i;
+
+f(i);    // calls f, i.e., T is int
+f(ci);   // also calls f, i.e., T is int
+f(*pci); // calls f once again, i.e., T is still int
+
+g(i);               // calls g<int>, i.e., T is int
+g(ci);              // now calls g<const int>, i.e., T is const int
+g(*pci);            // also calls g<const int>, i.e., T is const int
+```
+
+可以同时声明多个变量，但变量的类型要相同。
+两种初始化方式（Explicit / Assignment）都可以，和普通类型一样。
+不能用于模板参数类型。
+
+## Range-Based for Loops
+语法：`for (iterVarDeclaration : expression) statementToExecute`，相当于：
+```
+{
+    auto&& range = expression;
+    for (auto b = begin(range), e = end(range); b != e; ++b ) {
+        iterVarDeclaration = *b;
+        statementToExecute
+    }
+}
+```
+只适用于for循环，不适用于do/while循环。
+
+iterVarDeclaration可以使用引用，auto类型，const，volatile。
+expression只要支持range：begin(container), end(container)有效，包括：
+
+* 所有标准库的容器
+* Arrays和valarrays，包括普通C数组
+* 初始化列表
+* 正则表达式的匹配列表(std::match_results)
+* 任何用户自定义的类型，只要它支持begin/end返回合适的迭代器
+
+## nullptr
+一个新的关键词，表示空指针。类型：std::nullptr_t。
+在重载和forwarding templates上与0， NULL不同，是真正的指针类型。
+
+## Unicode Support
+两种新类型：char16_t, char32_t
+
+```
+// char:
+char c1 = 'x';
+wchar_t c2 = L'x';
+char16_t c3 = u'x' // using UCS-2, not fit UTF-16
+char32_t c4 = U'x' // using UCS-4/UTF-32
+
+// string:
+std::string s1 = "Ordinary/narrow string literal"; // std::basic_string<char>
+std::wstring s2 = L"Wide string literal"; // std::basic_string<wchar_t>
+std::u16string s3 = u"UCS-2 string literal"; // std::basic_string<char16_t>, UTF-16
+std::u32string s4 = U"UCS-4 string literal"; // std::basic_string<char32_t>, UTF-32
+std::string s5 = u8"UTF-8 string literal"; // std::basic_string<char>
+
+// code point:
+u8"G clef: \U0001D11E" // ��
+u"Thai character Khomut: \u0E5B" // ๛
+U"Skull and crossbones: \u2620" // ☠
+```
+
+### Conversions Among Encodings
+wchar_t ⇄ char (std::codecvt<wchar_t, char, std::mbstate_t>)
+UTF-16 ⇄ UTF-8 (std::codecvt<char16_t, char, std::mbstate_t>)
+UTF-32 ⇄ UTF-8 (std::codecvt<char32_t, char, std::mbstate_t>)
+UTF-8 ⇄ UCS-2, UTF-8 ⇄ UCS-4 (std::codecvt_utf8)
+UTF-16 ⇄ UCS-2, UTF-16 ⇄ UCS-4 (std::codecvt_utf16)
+UTF-8 ⇄ UTF-16 (std::codecvt_utf8_utf16) Behaves like std::codecvt<char16_t, char, std::mbstate_t>.
+
+std::wbuffer_convert: IO-based
+std::wstring_convert: in-memory
+
+### Raw String Literals
+```
+R"(\n\n)"
+
+// UTF-8：
+u8R"(Raw UTF-8 string literal \n (without a newline))"
+
+// 多行：(clang++3.1不支持)
+std::string withNewlines(R"(Line 1 of the string...
+    Line 2...
+    Line 3)");
+
+// 自定义分隔符（避免二义性，括号仍然需要）：
+std::regex re(R"xyz("\([A-Za-z_]\w*\)")xyz");
+```
+
+
+## Uniform Initialization Syntax
+原来(C++98)不支持成员数组和堆上数组的直接初始化。现在统一了初始化语法。
+大部分场合，可以加上"="。不过因为加上"="的初始化和explicit构造有关，不建议使用。
+```
+const int val1 {5};
+const int val2 {5};
+int a[] { 1, 2, val1, val1+val2 };
+
+struct Point1 { int x, y; };
+const Point1 p1 {10, 20};
+
+class Point2 {
+public:
+Point2(int x, int y);
+};
+const Point2 p2 {10, 20}; // calls Point2 ctor
+
+const std::vector<int> cv { a[0], 20, val2 };
+
+class Widget {
+public:
+Widget(): data {1, 2, a[3], 4, 5} {}
+private:
+const int data[5];
+};
+
+const float * pData = new const float[4] { 1.5, val1-val2, 3.5, 4.5 };
+
+Point2 makePoint() { return { 0, 0 }; } // return expression, calls Point2 ctor
+
+void f(const std::vector<int>& v);
+f({ val1, val2, 10, 20, 30 }); // function argument
+```
+
+### Brace-Initializing Aggregates
+const Point1 p1 = { 10 }; // same as { 10, 0 }
+从头到尾初始化成员/元素。
+多余初始化参数为错误。
+只有部分初始化参数或者只有"{ }"，则未指明剩下的是值初始化(value-initialized)：
+
+* 内置类型初始化为0
+* 有构造函数的自定义类型：调用默认构造函数（必须有无参或默参构造函数）
+* 无构造函数的自定义类型：所有成员值初始化
+
+### Brace-Initializing Non-Aggregates
+调用构造函数初始化。
+
+### Brace Initialization and Implicit Narrowing
+```
+int x { 2.5 }; // error
+int x(2.5); // ok
+```
+不再支持缩小范围转型的初始化，和C++98不兼容。注意和直接调用构造函数的区别。
+
+### Initializer Lists
+header: `<initializer_list>`
+初始化列表不仅仅可以用于初始化。只要可以接受std::initializer_list类型的地方。
+std::initializer_list的成员函数：size, begin/end（返回指向元素的指针）。
+非有限个数的初始化参数，需要类型有接受std::initializer_list类型参数的构造函数（拷贝所有元素到一个std::initializer_list里面，再传给构造函数）。
+"{...}"并不是std::initializer_list类型，只是可以转化为std::initializer_list类型。std::initializer_list里元素类型必须一样（可以有非损失的隐式转换），"{...}"则不一定。
+重载时"{...}"和std::initializer_list类型最匹配，也优先和std::initializer_list匹配。
+
+### Summary
+"{...}"初始化已经到处可用了。
+
+* 通过从头到尾（初始化内存）
+* 通过调用构造函数
+
+不允许Implicit Narrowing（有损的隐式转换）。
+使用std::initializer_list类型可以接受"{...}"参数。从而不仅限于初始化。
+
+
+## Lambda/Closure
+### Lambda Expressions
+```
+std::vector<int> v;
+auto it = std::find_if(v.cbegin(), v.cend(), [](int i) { return i > 0 && i < 10; });
+// 相当于：
+class MagicType {
+public:
+    bool operator()(int i) const { return i > 0 && i < 10; }
+};
+auto it = std::find_if(v.cbegin(), v.cend(), MagicType());
+```
+通过Lambda Expressions创建的函数对象称为闭包。
+闭包是prvalue。
+
+直接执行：
+```
+[] {
+    cout<< "ok" <<endl;
+}();
+```
+
+### Variable References in Lambdas
+Lambda中对外部变量的引用：（编译器保证）
+
+* 捕获：在Lambda调用上下文中，局部变量必须能够引用到。
+* 非局部变量（没有被销毁）总是能够被引用到，不必捕获。
+
+### Capturing Local Variables
+通过[v]拷贝，对于const变量，保持const属性。
+通过[&v]引用，注意被引用对象的生命周期。对于const变量一样，没有const引用，但本质上还是const引用。
+捕获默认值：[=]，[&]，针对全部引用的变量，不需要再列出变量名。
+混合使用：[=, &v], [&, v]。
+```
+const int minVal;
+double maxVal;
+auto it = std::find_if(v.cbegin(), v.cend(), [=, &maxVal](int i) { return i > minVal && i < maxVal; }); // default capture is by value, but maxVal is by reference
+// 相当于：
+class MagicType {
+public:
+    MagicType(int v1, double& v2): _minVal(v1), _maxVal(v2) {}
+    bool operator()(int i) const { return i > _minVal && i < _maxVal; }
+private:
+    const int _minVal;
+    double& _maxVal;
+};
+auto it = std::find_if(v.cbegin(), v.cend(), MagicType(minVal, maxVal));
+```
+
+operator()默认是const成员函数，_minVal和_maxVal都不能修改。要修改可以声明为mutable lambda。
+即使是mutable和值捕获，minVal也是不能修改的，因为它继承了外部的const属性，是一个const成员变量。
+```
+[=, &maxVal](int i) mutable { return i > minVal && i < maxVal; maxVal++; }
+```
+
+### Capturing Class Members
+在成员函数里捕获成员变量，传入this即可：[this]。
+用默认值[=], [&]也可以捕获this，因为是指针，用[=]即可，效率更高(reference requires double indirection (modulo compiler optimizations))。
+可以访问私有成员，因为closure类型相当于这个类的内部类。
+
+### Lambda Return Types
+返回类型可以省略，当：
+
+* 返回类型是void
+* Lambda体只有一行语句"return expr"，而返回类型就是expr的类型。
+
+否则必须指定返回类型。
+```
+[](double d)->double {
+    makeLogEntry("std::transform", d);
+    return std::sqrt(std::abs(d));
+});
+```
+
+### Trailing Return Types (->)
+指定Lambda的返回类型。
+常和decltype一起使用（见后）。
+指定返回类型是auto的类型的函数：`auto f() const -> bool;`（不常用）
+
+### Lambdas without Parameter Lists
+当没有参数时，小括号可以省略：`[] { doWork(10, 20); doMoreWork(); }`
+
+### Lambda Expression Complexity
+Lambda可以变得非常复杂，可以有：
+
+* 多条语句，多处return。
+* throw/catch异常。
+* 几乎任何可以在正常函数里面使用的东西。
+
+尽量写出简短，清晰，上下文密切相关的Lambda。否则用正常函数替代。
+
+### Storing Closures
+使用auto：`auto multipleOf5 = [](long x) { return x % 5 == 0; };`
+使用std::function：`std::function<bool(long)> multipleOf5 = [](long x) { return x % 5 == 0; };`
+使用模板参数也可以，但可能产生多个模板函数：`template<typename Func> void useIt(Func func);`
+Lambda本身不能递归，但是可以借助function对象：`std::function<int(int)> factorial = [&](int x) { return (x==1) ? 1 : (x * factorial(x-1)); };`
+auto虽然比std:function更有效更方便，但并不总可用：
+
+* 不能用在函数参数和返回类型上
+* 不能用在类的数据成员的类型上
+
+### Specifying Function Types
+一个函数的类型指：它的不带名字/形参的声明，如`bool f(long a);`的类型为bool (long)。
+std函数对象：`std::function<bool (long)>`或`std::function<auto (long)->bool>`
+
+### Stored Closures and Dangling References
+Closure可以保存着已销毁对象的指针或引用，但不能再被使用。应该避免出现这样的情形。
+
+### Lambdas as Container Comparison Functions
+要传递给容器的比较函数，使用decltype。
+```
+auto cmpFnc = [](int *pa, int *pb) { return *pa < *pb; }; // compare values, not pointers
+std::set<int*, decltype(cmpFnc)> s(cmpFnc); // sort s that way
+```
+decltype会取得变量的类型，这里返回Closure类型，Closure类型不能被默认构造出来，而std::function可以。
+
+### Summary
+Lambda表达式生成closure。
+调用时的状态可以通过传值或传引用被捕获。
+如果指定返回类型，使用尾指针语法。
+可以用auto或std::function存放closure，但要注意里面保存的指针或引用失效。
+简短，清晰，上下文密切相关的Lambda是最好的。
+
+### Functional Programming
+currying:
+```
+auto adder = [](int n) {
+    return [=](int x) {
+        return x + n;
+    };
+};
+auto add10 = adder(10);
+cout << add10(1) << endl; // 11
+cout << add10(10) << endl; // 20
+```
+
+[Y-Combinator](http://rosettacode.org/wiki/Y_combinator#C.2B.2B)
+
+
+## Template Aliases
+```
+template<typename T>
+using MyAllocVec = std::vector<T, MyAllocator>;
+MyAllocVec<int> v; // std::vector<int, MyAllocator>
+```
+可以针对某个类型特化起别名，但不能做局部特化。（可以用traits实现）
+如果没有模板化，using就和typedef效果一样。
+```
+typedef std::unordered_set<int> IntHash; // these 2 lines do
+using IntHash = std::unordered_set<int>; // the same thing
+
+typedef void (*CallBackPtr)(int); // func. ptr. typedef
+using CallBackPtr = void (*)(int); // equivalent using decl.
+```
+
+## Concurrency Support
+header: `<thread> <mutex> <condition_variable> <future>`
+
+### threads
+std::thread接受一个可调用对象（比如可以是一个闭包），在单独线程中执行。
+如果一个线程没能捕获到一个异常， std::terminate会被调用。
+如果main退出，而其他线程还在运行，则会导致未定义的行为。
+线程不能一开始运行就被挂起，但是可以设置std::thread::native_handle。
+线程不能被杀死，但是可以设置std::thread_handle。
+避免生命周期问题：
+
+* 异步调用时总是拷贝共享数据来使用（可以通过多参数thread构造，传值捕获的lambda，std::bind）。
+* 如果使用引用共享数据，保证生命周期足够长。
+
+std::thread拷贝（可以优化为move）其包括可调用对象在内的所有参数来执行。如果实在要用引用，可以使用std::ref/cref包裹。
+thread::join()等待线程执行完毕。
+
+### Asynchronous Calls
+#### async
+std::async: 异步执行一个调用。不像thread，async可以（通过std::future）得到返回值或捕获的异常。
+```
+std::future<double> f =  std::async( []{ return bestValue(10, 20); } );  // run λ asynch.;  get future for it
+// do other work
+double val = f.get();  // get result (or exception) from λ
+```
+
+启动策略（作为std::async第一个参数）：
+std::launch::async: 新起一个线程执行。
+std::launch::deferred: 在被调用线程执行。实际在std::future::get或std::future::wait的时候才进行同步调用。
+默认std::launch::async | std::launch::deferred，具体选择哪种由实现决定。
+
+#### future
+std::future: 表示异步调用的结果。
+
+std::future<T>: 结果只能被访问一次。
+
+* 适合大多数情况。
+* 可move不可copy。
+
+std::shared_future<T>: 结果能被访问多次。
+
+* 在多个线程访问一个单一结果时适用。
+* 可move可copy。
+* 可以从std::future构造（move）。非空的话只有从std::future构造。
+
+通过get得到结果：
+
+* 一直block直到得到结果。
+    * 对于std::future，move或copy结果。
+    * 对于std::shared_future，取得结果的引用。
+    * 返回的可能是个捕获的异常。
+* 多次调用std::future::get是未定义的行为。
+* 多次调用std::shared_future::get得到同样的结果。
+* 可以没有返回值(void)，get仅仅等待执行完成。（但可能捕获了异常）
+
+通过wait等待完成：
+
+* 一直block直到完成返回。
+* wait_for可以指定超时。
+* 不支持等待很多future的其中一个。
+
+```
+std::future<double> f = std::async(std::launch::async, []{ return bestValue(10, 20); });
+while (f.wait_for(std::chrono::seconds(0)) !=  std::future_status::ready) {  // if result of λ isn’t ready,
+    // do more work
+}
+double val = f.get();  // grab result
+```
+
+### Mutexes
+std::mutex
+std::timed_mutex
+std::recursive_mutex
+std::recursive_timed_mutex
+Mutex对象不可copy，也不可move。条件变量也一样。
+递归地lock在非递归锁上会导致未定义的行为。
+
+RAII classes:
+std::lock_guard: 构造lock，析构unlock。不可copy，也不可move。
+std::unique_lock: 可以构造后lock(使用std::defer_lock作为参数)，析构前unlock。不可copy，可以move。支持timed mutex操作(try, timeout...)。
+
+死锁：不按顺序锁会导致死锁，可以用std::lock解决。如果已经有锁锁住，std::lock会抛出异常。
+```
+{  // Thread 1
+    std::unique_lock<std::mutex> wt_lock(wt_mux, std::defer_lock);
+    std::unique_lock<std::mutex> val_lock(val_mux, std::defer_lock);
+    std::lock(wt_lock, val_lock);  // get mutexes w/o deadlock
+    // work with weight and value  // critical section
+}
+{  // Thread 2
+    std::unique_lock<std::mutex> val_lock(val_mux, std::defer_lock);
+    std::unique_lock<std::mutex> wt_lock(wt_mux, std::defer_lock);
+    std::lock(val_lock, wt_lock);  // get mutexes w/o deadlock
+    // work with weight and value  // critical section
+}
+```
+
+### Condition Variables
+规则：
+
+* 在锁住mutex的时候调用wait（notify时不需要）
+* wait会解锁mutex，锁住当前线程，进入队列等待通知
+* 收到通知时，解锁线程，同时再锁住mutex
+
+condition_variable: 在`std::unique_lock<std::mutex>`上等待，常用高效。
+condition_variable_any: 可以在任意mutex上等待。
+
+wait参数：
+
+* 共享数据的mutex，所有线程等待同一个条件变量也必须使用同一个mutex，否则是未定义的行为。
+* wait_for超时，wait_util定时（可选）。
+* 指明必须返回true，才能继续执行，否则继续等待（可选）。检查状态，为了避免被错误地唤醒。通常用lambda提供。
+
+通知选项：
+
+* notify_one: 通知一个等待线程。**但并不保证只有一个线程被唤醒。**
+* notify_all: 通知所有等待线程。但只有一个会得到mutex的锁。
+* notify调用不需要和mutex联用，但一般在不同线程操作共享数据时需要同一个mutex保护。
+
+### Thread-Local Data
+全局，命名空间内，静态，类静态，局部静态的变量都可以是thread_local的。比如可以用作thread name。
+
+### Other Concurrency Features
+* std::promise stores a value for asynchronous retrieval
+* Thread-safe initialization of objects of static storage duration.
+* Thread-safe one-time function invocation via std::call_once and std::once_flag.
+* Thread detachment when no join is needed.
+* Separation of task setup and invocation via std::packaged_task.
+* Support for mutex and lock UDTs via standard interfaces.
+* Atomic types (e.g., std::atomic<int>) with memory ordering options.
+* Operations on current thread, e.g., yield and sleep.
+* Query number of hardware-supported threads.
+* Library thread safety guarantees (e.g., for std::cin/std::cout, STL containers, std::shared_ptr, etc.)
+
+
+## New Features for Standard Containers
+General:
+
+* 支持初始化列表。
+* 支持Move语义。
+* const_iterator支持改进。
+* emplace/emplace_hint原地构造。
+
+特殊容器：
+
+* vector::shrink_to_fit, deque::shrink_to_fit, string::shrink_to_fit
+* vector::data
+* map::at
+* set和multiset的元素现在是官方规定地不可修改
+    * 修改会影响排序的顺序，会导致未定义的行为。
+
+## Smart Pointers
+header: `<memory>`
+
+### shared_ptr
+```
+std::shared_ptr<Widget> p1 = new Widget; // error! explicit ctor
+std::shared_ptr<const Widget> p2(new Widget); // add const
+std::shared_ptr<Base> p3(p1); // if Widget inherits Base
+if (p3) {...} // boolish check
+```
+
+使用shared_ptr不需要类型完整定义。
+默认的deleter仅调用delete，deleter是真正的资源释放者（由最初的shared_ptr对象调用），可以避免cross-DLL问题。
+
+从this构造：（已经不是第一个shared_ptr）
+
+* 继承std::enable_shared_from_this<Widget>
+* 使用shared_from_this()
+* 不能在构造函数里调用
+
+转型：static_pointer_cast, dynamic_pointer_cast, const_pointer_cast
+比较：==, !=, <, （是否指向同一个对象）
+输出：<<
+
+实现细节：
+
+* 两个指针：一个指向实际对象，一个指向引用计数结构
+* 引用计数结构（allocator和deleter可选）使用动态分配内存
+* 通过调用一个虚函数释放资源
+* 引用计数结构也包括一个weak_ptr的计数，即使没有用到（RC为0时释放资源但不会释放引用计数结构，只有当weak_ptr的计数也为0的时候才会释放）
+
+make_shared<T>/allocate_shared<T>
+
+* 一次性分配对象和引用计数结构内存，效率较高。
+* 使用构造函数语法，避免显式地使用new。
+* factory函数，意图明显。
+* 不支持使用自定义的deleter。
+
+### weak_ptr
+类似普通指针，不计引用计数，但可以知道资源是否有效（expired()）。当shared_ptr释放资源时会使所有对应的weak_ptr失效。
+避免循环引用。
+不能直接当指针使用，调用lock()返回其shared_ptr。
+
+### unique_ptr
+std::auto_ptr的继承者。可以移动(std::move)而不能拷贝（支持move语义，避免了“在真正需要move时而进行copy”）。
+支持在容器中使用。
+支持继承转换和自定义deleter。和shared_ptr不同，deleter是其类型的一部分（对于shared_ptr，deleter是构造函数的模板参数）。
+可以指向数组。shared_ptr不可。此时，没有继承转换，没有指针解引用，可以索引访问。语法：`std::unique_ptr<Derived[]> pa(new Widget[10]);`
+直接由factory函数返回的话比shared_ptr高效。
+不支持cast系列转型。
+没有make_shared/allocate_shared。
+在使用默认deleter的时候，和auto_ptr一样，类型定义有一定要求（所在类型要显式提供非inline析构函数）。自定义deleter无此限制。
+
+## Forward List
+header: `<forward_list>`
+
+一个单向链表。和纯用C手写的相比一样的高性能。
+作为STL容器：
+
+* insert_after/emplace_after/erase_after取代insert/emplace/erase。因为插在前面有较大的开销。
+* before_begin返回begin的前一个迭代器。用于插在最前面。
+* 没有size()和push_back()。性能考虑。
+* 只有前向迭代器。
+
+## Hash Tables
+header: `<unordered_set> <unordered_map> <functional>`
+
+键值是不可修改的(ordered和unordered)，否则会导致未定义的行为。
+可用：iterator/const_iterator, forward iteration, begin/end/cbegin/cend, insert/erase, size, swap, find, count, equal_range, operator[], at, ==, !=
+不可用：lower_bound/upper_bound, reverse_iterators, rbegin/rend/crbegin/crend, >, >=, <, <=
+
+关于std::error_code:
+> "The class error_code describes an object used to hold error code values, such as
+those originating from the operating system or other low-level application program
+interfaces. ... Class error_code is an adjunct to error reporting by exception."
+
+### Hashing
+参数：Hash（Hashing函数）, Pred
+Hashing函数：对于内置类型，string，智能指针，（以及std::vector<bool>, std::bitset, std::thread::id, std::error_code, std::type_index），默认提供。
+
+提供自己的Hashing函数：
+```
+template<>
+struct std::hash<Widget>: public std::unary_function< Widget, std::size_t> {
+   std::size_t operator()(const Widget& w) const { ... };
+};
+std::unordered_set<Widget> sw;
+
+struct IntHasher: public std::unary_function<int, std::size_t> {
+   std::size_t operator()(int i) const { ... };
+};
+std::unordered_map<int, std::string, IntHasher> mis;
+```
+
+### Bucket
+每个bucket有自己的元素链表。
+迭代：（常用于监测hashing函数的性能）
+```
+std::unordered_set<std::string> s;
+auto numBuckets = s.bucket_count();               // # buckets
+for (std::size_t b = 0; b < numBuckets; ++b) {
+  std::cout << "Bucket " << b << " has " << s.bucket_size(b) << " elements: "; // # elems in bucket b
+  std::copy(s.cbegin(b), s.cend(b), std::ostream_iterator<std::string>(std::cout, " ")); // iters for bucket b
+  std::cout << '\n';
+}
+```
+
+bucket数量可以动态改变：构造时可以设置最小bucket数目。用rehash()函数可以重新指定bucket数目（rehash会使迭代器失效）。
+load factor = container.size()/buckets，可以请求指定max_load_factor()。
+reserve()可以指定期望的元素个数。
+
+## Tuples
+header: `<tuple>`
+
+保存定长的不同类型的元素。可以从std::pair构造。
+不能迭代一个tuple（除非用TMP）。
+"=="使用等价测试。
+
+取：std::get<N>()，N是编译期常数，N用枚举值更有意义。get对std::pair也适用。
+分：std::tie()，`std::tie(empName, empAddr, std::ignore) = func_return_employeeInfo_tuple();`。tie对std::pair也适用。
+合：std::make_tuple()
+
+反射类型：
+```
+template<typename Tuple>
+void someFunc(Tuple t) {
+     std::size_t numElems =  std::tuple_size<Tuple>::value;   // # elems in Tuple
+     typedef typename std::tuple_element<0, Tuple>::type FirstType; // type of 1st elem
+}
+```
+
+
+## Fixed-Size Arrays
+header: `<array>`
+
+STL定长容器，有容器一样通用方法和性质，且有和C数组一样的性能。
+内存布局兼容C数组和std::vector，可以通过data()得到数组元素指针。（如果没有元素，则返回的指针未定义）
+arrays是集合(Aggregates)：没有初始化器"{...}"时为默认初始化（对于内置类型，在堆栈上是随机值），有初始化器时为值初始化。不支持Range构造。
+`std::array<T, n>`可以被当作`std::tuple<T, T, ..., T>`。
+有了array，vector，string，已经没有必要再使用C数组了。
+
+```
+std::array<int, 3> a1{ {1,2,3} };    // double-braces required
+std::array<int, 3> a2 = {1, 2, 3}; // except after =
+std::array<std::string, 2> a3 = { {std::string("a"), "b"} };
+```
+
+
+## Regular Expressions
+header: `<regex>`
+
+RE默认语法是类似ECMAScript(Perl RE)，其他(POSIX, grep etc.)可选。
+```
+std::regex filenameRegex(         // regex for some
+   R"(\w+\.((txt)|(dat)|(log)))", // .txt, .dat, and .log files;
+   std::regex::icase |            // ignore case during search;
+   std::regex::optimize           // match speed more important than regex ctor speed
+);
+```
+
+regex_match: RE匹配全部字符串
+regex_search: RE匹配部分字符串
+regex_replace: 替换RE匹配的字符串（返回新的）。没有regex_replace_if，需要自己迭代匹配结果。
+```
+text = std::regex_replace(text, SSNRegex, dashes); // move assignment
+```
+
+match: 匹配结果对象
+regex_iterator: 匹配结果的迭代器
+regex_token_iterator: 匹配及子匹配结果的迭代器
+这些是模板，使用特化好的：
+
+* string - smatch/sregex_iterator/sregex_token_iterator,
+* char* - cmatch/cregex_iterator/cregex_token_iterator
+
+得到匹配结果：
+```
+void possibleSSNs1(const std::string& text, std::list<std::string>& results) {
+    auto b(text.cbegin()), e(text.cend());
+    std::smatch match;
+    while (std::regex_search(b, e, match, SSNRegex)) {  // 空匹配会导致死循环
+        results.push_back(match.str());
+        b = match[0].second;
+    }
+
+    // 更好的方法，regex_iterator会有更好的处理
+    std::sregex_iterator b(text.cbegin(), text.cend(), SSNRegex);
+    std::sregex_iterator e;
+    for (auto it = b; it != e; ++it) {
+        results.push_back(it->str());
+    }
+}
+```
+
+捕获组: "( )"成组，"\N"引用。
+```
+std::size_t repWords(std::string::const_iterator b, std::string::const_iterator e) {
+  // same regex as before
+  std::regex wordRepeatRgx(R"(\b([A-Za-z_]\w*)\s+\1\b)");
+  std::size_t repCount = 0;
+  std::for_each (std::sregex_iterator(b, e, wordRepeatRgx), std::sregex_iterator(), [&](const std::smatch&) { ++repCount; });
+  return repCount;
+}
+```
+
+## Generalized Functors
+header: `<functional>`
+
+可调用实体: 函数，函数指针，可以转型为函数指针的类，函数对象，闭包（匿名函数对象）。
+std::function是可调用实体类型安全的封装。
+一个可调用实体要和一个std::function对象兼容：
+
+* std::function对象的参数类型可以转换为可调用实体的。
+* 可调用实体的返回值类型可以转换为std::function对象的，std::function对象返回void型则可以接受可调用实体的任意返回值类型。
+std::function支持空测试，不支持等同测试。
+
+
+## Generalized Binder
+header: `<functional>`
+
+std::bind把一个可调用实体转为一个函数对象(std::function)，支持参数绑定。
+对于非静态成员函数，第一个绑定的参数是this，可以支持对象的值，指针及智能指针（只要支持operator*，std::unique_ptr需要用std::ref包裹）。
+std::bind拷贝所有它所绑定的参数（值传递，可以用std::ref），但是std::placeholders::_N是引用传递。
+通过placeholder，std::bind可以重新排序参数和重复参数。
+lambda可以完成和bind类似的功能，而且具有更清晰和方便地调用，还支持内联，是更好的选择。
+
+
+## New Algorithms
+给定范围R，元素e和条件p(e)：
+all_of: 全为真
+any_of: 只要有一个为真
+none_of: 没有一个为真
+find_if_not: 找到第一个为假的元素
+copy_if: 拷贝所有为真的元素
+copy_n: 拷贝前n个元素
+iota: 所有元素增加一个值
+minmax: 给定输入返回std::pair(minVal, maxVal)
+minmax_element: 给定范围返回std::pair(min_element, max_element)，*_element指迭代器位置
+partition_copy: 把元素分为真假两组，分别copy
+is_partitioned: 是不是前面全为真，后面全为假
+partition_point: 返回前面全为真一组的最后一个元素位置
+is_sorted: 是否排好序
+is_sorted_until: 第一个违反顺序的元素位置
+is_heap: 是否是一个堆
+is_heap_until: 第一个违反堆的元素位置
+move: 就像std::copy，但是move元素
+move_backward: 就像copy_backward，但是move元素
+move_iterator: 可以把copy的算法变成move版本
+
+
+## Move Support and Rvalue References
+header: `<utility>`
+
+### Lvalues and Rvalues
+Lvalue: 可以取地址的东西，如有名字的对象，Lvalue的引用。右值引用变量本身也是一个左值（因为有名字）。
+PRvalue: 不能取地址的东西，如匿名临时对象。
+Xvalue: 可以被当成右值的左值（这个左值不会再被后面使用到），如std::move()。
+
+详解：
+[values](http://stackoverflow.com/questions/3601602/what-are-rvalues-lvalues-xvalues-glvalues-and-prvalues)
+[例子](http://stackoverflow.com/questions/6609968/real-life-examples-of-xvalues-glvalues-and-prvalues)
+
+move一个左值是不安全的，因为这个左值还可能会被后面使用到。
+move一个右值是安全的，因为语句结束时临时对象就销毁了。
+
+move一个对象不是线程安全的，因为move会修改原对象。
+copy一个对象有时候也不是线程安全的：
+
+* mutable成员
+* copy构造传入了非const的参数
+* copy了共享的对象（可能改变共享对象的状态）
+
+### Rvalue References
+语法：T&&，相比左值引用：T&
+和左值引用一样必须初始化，不能重新绑定。
+右值引用标识了可以被move的对象。
+右值引用被设计用来解决两个问题：move语义，完美转发(Perfect forwarding)。
+
+左值可以绑定到左值引用上。
+左值不可以绑定到右值引用上（否则就可能被move掉）。但可以用static_cast把T转为T&&。
+右值可以绑定到const左值引用上。
+右值可以绑定到右值引用上。相比const左值引用更匹配。
+
+const值只能绑定到const引用上。但是const右值引用没有用处，不建议使用。
+避免产生const右值，它们不能被绑定到右值引用上。比如函数返回const值类型。
+
+### Implementing Move Semantics
+move拷贝构造和move赋值：释放目标对象资源，转移原对象资源到目标对象，原对象仍处有效状态。
+```
+Widget(Widget&&);                 // move constuctor
+Widget& operator=(Widget&&);      // move assignment op
+```
+要避免移动同一个对象（等同测试）。
+要在一个左值上使用move，调用std::move（会把左值变成右值）。
+
+### std::move
+std::move使用隐式的类型推导（用static_cast也可以做到，但用std::move意图更明显和方便）。
+Reference Collapsing: 只要有一个&，最后都为T&。只有都为&&时，最后才为T&&。
+
+utils:
+std::remove_reference<T>::type: 把T&和T&&都变为T。
+std::remove_cv: 移除const和volatile。
+std::decay: remove_cv + remove_reference。
+std::is_same: 判断类型是否一样。
+
+右值引用模板参数(universal reference)的类型推导：
+如果给定：`template<typename T> void f(T&& param);`
+则如果param是左值，则T是一个左值引用（如果param是const左值，则T是一个const左值引用），最后变成（collapsing）一个左值引用；如果param是右值，则T是非引用类型，最后变成一个右值引用。
+T&&的模板参数可以接受任何类型值：左值/右值，const/非const（因为T最后的推导结果不会是一个&&类型）。
+必须是“T&&”形式，T必须是（此函数的）一个模板参数，中间可以有空格但前面不能有修饰符；T::value_type&&则是普通的右值引用，不是universal reference。
+auto&&的推导等同于T&&的推导。typedef和decltype也可以。
+```
+template<typename T> void f(T&& param);			// URef, not RRef
+for (auto&& i = factory()) ...			// URef, not RRef
+typedef Gadget::TMP::type&& GTType;	// URef, not RRef
+decltype(w)&& v = std::move(w);		// URef, not RRef
+```
+
+实现：
+```
+template<typename T>
+typename std::remove_reference<T>::type&&
+move(T&& obj) {
+    using ReturnType = typename std::remove_reference<T>::type&&;
+    return static_cast<ReturnType>(obj);
+}
+```
+
+### Move is an Optimization of Copy
+std::move返回的是一个右值(准确地说是xvalue)，当接受者没有move构造函数时，则调用其copy构造函数。
+std::move/forward只是copy的一种优化，当只需要引用而不需copy时，没必要使用。
+请求copy时，给一个类实现move构造可以提升性能，右值的拷贝可以自动变为move（N/RVO具有更高的优先级，会优先被使用）。
+请求move时(std::move)，是安全的，比如（内置）类型不支持move，就用copy代替。
+std::move_if_noexcept：如果move构造函数不抛异常就用move，否则用copy。
+只能move，不能copy：std::thread, std::unique_ptr。
+在setters里面也常用move操作提高效率。
+
+move构造和move赋值是特殊的，在以下情况下编译器会生成默认的：
+
+* 生成的move操作要move所有东西（不能move一部分，copy一部分）
+    * 所有数据成员和基类都是可以move的
+    * 可以是所有内置类型（move等同copy）和大部分标准库类型（所有容器）
+* 生成的move操作要维持类的不变性
+    * 没有用户定义的copy和move操作 （声明一个用户定义的move操作，编译器也不会生成默认的copy操作。）
+    * 没有用户定义的析构函数
+
+### std::forward
+Perfect forwarding: 当转发参数到其他函数时，保持其参数的左值性/右值性/常量性（仍有一些特殊参数不能被完美转发）。
+为了实现copy左值参数，move右值参数，同时避免使用多个函数重载不同值类型，要使用完美转发技术：
+
+* 使用函数模板
+* 使用万能的模板参数：T&&
+* 使用std::forward
+
+```
+// 重载
+void setName(const std::string& newName)
+{ name = newName; }                      // copy param
+void setName(std::string&& newName)
+{ name = std::move(newName); }           // move param
+
+// perfect forwarding
+template<typename T>
+void setName(T&& newName)
+{ name = std::forward<T>(newName); } // forward param
+```
+虽然使用了模板参数，但仍是类型安全的，更具有灵活性，支持所有std::string兼容的类型，比如`std::string`, `char*`, `const char*`。
+
+实现：
+```
+template<typename T>
+T&& std::forward(T&& param) {
+    return static_cast<T&&>(param);
+}
+```
+forward左值参数时：传递引用
+forward右值参数时：相当于调用std::move
+
+## default Member Functions
+可能隐式生成的默认成员函数：
+
+* 构造：没有声明用户自定义的构造/copy构造函数
+* 析构
+* copy操作（构造，赋值）：没有声明用户自定义的move操作
+* move操作（构造，赋值）：没有声明用户自定义的copy操作
+
+default关键字：用户声明+编译器实现。
+
+* 可以在编译器不生成的情况下，显式使用编译器的默认实现。
+* 可以改变一些特性：accessibility, explicitness, virtualness（默认：公有，非explicit，非virtual，内联）。（explicit copy构造函数没有实际用途。）
+
+## delete Functions
+delete关键字：显式禁止了函数的使用（没有编译器的默认实现）， 调用，取地址，sizeof等都不能使用。
+delete copy操作也禁止了生成默认move操作，反之亦然。
+模板函数可以被deleted。
+虚函数可以被deleted，那么所有基类和子类的版本都必须也deleted。在一个继承体系中的虚函数，要么全被删除要么一个也不被删除。
+非类的成员函数可以被deleted。
+因为被删除的函数虽然不能被调用，但是被声明，所以参与重载决议。
+
+## Default Member Initialization
+默认成员初始化：可以在类的非静态成员声明的同时用"="或者统一初始化符"{...}"初始化。
+初始化也可以使用前面已初始化过的变量，和在初始化列表里类似。
+const静态成员也可以使用类内初始化。不限定整形，可以是任意literal类型（std::is_literal_type）。
+构造函数的初始化列表会覆盖默认初始化的值。所以在成员不依赖于构造函数初始化时比较有用。
+使用默认成员初始化会把类变成non-aggregate的（影响统一初始化）。
+
+## Delegating Constructors
+可以在一个构造函数的初始化列表里调用其他构造函数。
+链式委托构造，被委托的还可以委托其他的构造函数。
+当被委托者返回时，自己的构造函数体才开始执行。
+
+## Inheriting Constructors
+使用"using Base::Base; "声明可以把基类的构造函数引入到子类，从而与子类构造函数发生重载。
+子类中如果有和基类签名一样的构造函数，则不继承（和非构造函数一样）。
+继承的构造函数保持其异常规范，explicit和constexpr。
+using只是声明，真正用到时才会被定义，其实是隐式声明了Derived::Derived，其中调用Base::Base，且Base版本不能是private。
+如果仅使用继承构造函数是有risk的，因为子类成员得不到初始化。可以用默认成员初始化解决。
+
+## Static Assertions
+编译期assert。可以用在任何可以声明的地方。
+经常用于检查模板相关参数。
+可以以任何字符串格式输出诊断信息。
+以条件作为诊断信息：
+```
+#define STATIC_ASSERT(condition) static_assert(condition, #condition)
+```
+
+## explicit Conversion Functions
+explicit可以用在operator转换函数上。防止隐式转换。
+explicit operator bool 比较特别：在“contextual conversions”情况下可以转为bool。比如条件表达式，布尔判断时等。
+
+## Variadic Templates
+任意多个的模板参数。模板元编程的基础。
+
+### Parameter Packs
+* 对于模板：接受多个模板参数（类模板最多只有一个且必须是最后一个参数，函数模板可以有多个）
+* 对于函数：接受多个函数实参（必须是最后一个参数）。
+
+```
+template <class... Types>
+class tuple;
+
+template<class T, class... Args>
+shared_ptr<T>
+make_shared(Args&&... params);
+
+std::tuple<int, int, std::string> t1; // Types = int, int, std::string
+std::make_shared<Widget>(10);   // Args/params = int/int&&
+```
+
+通过递归地first/rest来操作：
+
+* 用"Type..."来unpack
+* 用"sizeof...(Types)"来取大小
+* 用"func(params)..."作为函数入参
+* 用"func<Types>(params)..."作为模板函数类型，同时unpack Types和params
+
+```
+template<typename... Types>                       // declare list-walking template
+struct Count;
+
+template<typename T, typename... Rest>            // walk list
+struct Count<T, Rest...> {
+   const static int value = Count<Rest...>::value +1;
+};
+
+template<>
+struct Count<> {                      // recognize end of list
+   const static int value = 0;
+};
+auto count1 = Count<int, double, char>::value; // count1 = 3
+auto count2 = Count<>::value;                   // count2 = 0
+
+template<typename... Types>
+struct VerifyCount {
+   static_assert(Count<Types...>::value == sizeof...(Types), "Count<T>::value != sizeof...(T)");
+};
+```
+
+### Sketch of std::tuple
+前一个类型继承后一个类型，直至`class tuple<>`。
+```
+template <class... Types>    // declare primary template
+class tuple;
+
+template<> class tuple<>{};  // for empty tuples
+
+template<typename T, typename... TRest>  // class with data member for 1st T in pack
+class tuple<T, TRest...>: private tuple<TRest...> {   // inherits from class for rest of pack
+private:
+   T data;                   // data member of type T
+public:
+   tuple()                   // default ctor; all types must be default-constructible
+   : data() {};
+   ...                         // non-default ctors, etc.
+};
+```
+
+### forward
+```
+template<typename... Argument>
+void foo(Argument&&... args) {
+    bar(std::forward<Argument>(args)...);
+}
+```
+
+
+## decltype
+取得表达式的类型而不计算它。
+主要的使用场合：帮助声明模板函数的返回值类型，这个返回值类型依赖于模板的参数类型。注意T&&参数的完美转发。
+对原始数组，是数组元素的类型。
+加上括号对类型属性(const/volatile, reference)有影响。
+也可以起到和auto一样的作用。
+```
+template<typename T1, typename T2>
+auto mult(T1&& a, T2&& b) -> decltype(std::forward<T1>(a) * std::forward<T2>(b)) {
+    return std::forward<T1>(a) * std::forward<T2>(b);
+}
+```
+
+### Entity & Expression
+如果参数是非括号括起的实体（对象，函数，类成员对象或函数），decltype就是其声明的类型(declared type)。
+如果参数是一个类型T的表达式，对于xvalue，decltype是T&&；对于lvalue，decltype是T&；对于prvalue，decltype为T (effective type)。
+如果用括号括起一个实体，其就变为一个lvalue表达式。
+```
+struct A {
+    double x;
+    int f() const { return 1; }
+    const double& g() const { return x; }
+};
+
+const A* a = new A();
+decltype( a->x ) x3;       // type of x3 is double (declared type)
+decltype((a->x)) x4 = x3;  // type of x4 is const double& (lvalue expression)
+decltype( a->f() ) x5 = 0; // type of x5 is int
+decltype( a->g() ) x6 = x5;  // type of x6 is const double&
+```
+
+### std::declval
+常用在decltype的表达式中，用于取得返回值类型（但不求值）：对于T返回其右值引用T&&，对于引用类型返回T&。
+比如一个类型没有默认构造函数，但又想取得其成员函数的返回值类型。
+```
+struct NonDefault {
+     NonDefault(const NonDefault&) {}
+     int foo() const {return 1;}
+};
+
+//decltype(NonDefault().foo()) n2 = n1; // will not compile
+decltype(std::declval<NonDefault>().foo()) n2 = n1; // int n2
+```
+
+### std::result_of
+取得函数调用表达式的返回值类型。
+
+
+## Generalized constant expressions (constexpr)
+constexpr可以在编译期用来定义其他对象。因为constexpr保证在编译期计算出其要初始化的值。
+constexpr常量可以使用的必须是literal类型。
+
+literal type:
+
+* 算术类型(整数，浮点，字符，布尔)
+* 指针类型
+* literal类型的引用
+* literal类型的数组
+* literal类
+    * 它和基类没有用户自定义的析构函数
+    * 非静态数据成员和基类是literal的
+    * 所有非静态数据成员都用constexpr初始化了
+    * 满足以下条件之一：
+        * 没有用户自定义的构造函数，没有非静态数据成员的初始化器，没有私有和保护的非静态数据成员，没有基类，没有虚函数。
+        * 至少有一个constexpr构造函数或模板构造函数，除了可能的copy和move构造函数；有一个constexpr构造函数，函数体为空，但可以有初始化列表。
+
+constexpr常量如果用函数来初始化，必须是用constexpr函数：
+
+* 只有一个return语句，返回一个常量值，也可以返回调用其他constexpr函数。
+* 传入参数是constexpr常量。
+* 返回值类型用constexpr修饰。
+
+```
+constexpr double p = 7.2;
+int a[(int)p];
+
+template<class T, int N>
+constexpr int array_size(const T (&a)[N]) {
+    return N;
+}
+int b[] = {1,2,3};
+double c[array_size(b)];
+```
+
+
+## User-defined literals
+语法：
+```
+return decl operator"" name(unsigned long long n) { body }
+```
+类型可以是：unsigned long long, long double, char, const char*，名字必须以下划线开头。
+
+```
+// imaginary numbers
+std::complex<long double> operator "" _i(long double d) // cooked form {
+    return std::complex<long double>(0, d);
+}
+auto val = 3.14_i; // val = complex<long double>(0, 3.14)
+
+// binary values
+int operator "" _B(const char*); // raw form
+int answer = 101010_B; // answer = 42
+
+// std::string
+std::string operator "" _s(const char* str, size_t /*length*/) {
+    return std::string(str);
+}
+auto hi = "hello"_s + " world"; // + works, "hello"_s is a string not a pointer
+
+// units
+assert(1_kg == 2.2_lb); // give or take 0.00462262 pounds
+
+// itoa
+std::string operator"" _str(unsigned long long i) {
+    std::ostringstream o;
+    o << i;
+    return o.str();
+}
+std::string s = 100_str;
+```
+
+## Enum enhancements
+### Specification of underlying type
+可以指定enum的实际类型：`enum Bool : char {False, True};`，如果不指定则编译器会选择一个适合的类型，通常是int。
+enum class默认就是int型。
+
+### Enumerant names scoped to the enum
+加上class/struct关键字：
+```
+enum class Color {
+    Bronze,
+    Silver,
+    Gold
+};
+```
+作用域相当于放到class内，不和其他冲突。
+引用时也要带类名引用。
+不能隐式转换到int，可以用static_cast。
+
+### Forward declaration
+```
+enum Enum1;                   //Illegal in C++ and C++11; no size is explicitly specified.
+enum Enum2 : unsigned int;    //Legal in C++11.
+enum class Enum3;             //Legal in C++11, because enum class declarations have a default type of "int".
+enum class Enum4: unsigned int; //Legal C++11.
+enum Enum2 : unsigned short;  //Illegal in C++11, because Enum2 was previously declared with a different type.
+```
+
+## More
+* Unrestricted unions (members may be any non-reference type).
+* Time library supportings clocks, durations, points in time.
+* Local types allowed as template arguments.
+* C99 compatibility, e.g., `long long`, `__func__`, etc.
+* Inline namespaces facilitate library versioning.
+* Scoped allocators allow containers and their elements to use different allocators, e.g., `vector<string>`.
+* Relaxed POD type definition; new standard layout types.
+* extern templates for control of implicit template instantiation.
+* sizeof applicable to class data members alone (e.g., sizeof(C::m)).
+* & and && member functions.
+* Relaxed rules for in-class initialization of static data members.
+* Contextual keywords for alignment control and constraining virtual function overrides.
+* Attributes express special optimization opportunities and provide a standard syntax for platform-specific extensions.
+
+
+## Removed and Deprecated
+removed:
+
+* auto作为一个存储类型。
+* export作为一个语言特性。export仍然是一个没有语义的关键词。
+
+deprecated:
+
+* register作为一个存储类型。
+* 异常规范。用noexcept取代`throw()`。
+* 用unique_ptr取代auto_ptr。
+* 用bind或lambdas取代bind1st/bind2nd。
+
+## Ref
+[C++11 - the new ISO C++ standard](http://www.stroustrup.com/C++11FAQ.html)
+[Overview of the New C++ (C++11)](http://www.artima.com/shop/overview_of_the_new_cpp)
+[C++98 and C++11 Support in Clang](http://clang.llvm.org/cxx_status.html)
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
