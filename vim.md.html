@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html>
+<title>Vim</title>
+<xmp theme="readable" style="display:none;">
+## Build From Source
+Build vim with gui and python support on Debian-like Linux:
+```sh
+apt-get install libncurses5-dev libgnome2-dev libgnomeui-dev libgtk2.0-dev libatk1.0-dev libbonoboui2-dev libcairo2-dev libx11-dev libxpm-dev libxt-dev python-dev ruby-dev    # or apt-get build-dep vim-gnome
+git clone https://github.com/b4winckler/vim.git
+cd vim
+#rm src/auto/config.cache # clean configure cache (re-configure, optional)
+./configure --with-features=huge --enable-rubyinterp --enable-pythoninterp --enable-perlinterp --enable-gui --enable-cscope --prefix=/usr
+#make VIMRUNTIMEDIR=/usr/share/vim/vim73
+make install
+ln -s /usr/bin/vim /usr/bin/vi
+ln -s /usr/bin/vim /usr/bin/gvim
+vim --version # check
+```
+
+## Normal mode
+大多数命令可以前面加数字重复执行
+
+### Movement
+
+Operation    |Description
+-            |-
+h/`left`     |左
+j/`down`     |下
+k/`up`       |上
+l/`right`    |右
+w/W          |(word)移动到下一个word的首字符上/仅以空格定界
+b/B          |(backward)移动到上一个word的首字符上/仅以空格定界
+e/E          |(end of word)移动到下一个word的尾字符上/仅以空格定界
+ge/gE        |移动到上一个word的尾字符上/仅以空格定界
+$/`end`      |移动到当前行尾
+0/`home`     |移动到当前行首
+^            |移动到当前行的第一个非空白字符上
+fx           |(find)移动到当前行下一个字符x上
+Fx           |移动到当前行上一个字符x上
+tx           |(to)移动到当前行下一个字符x之前的一个字符上
+Tx           |移动到当前行上一个字符x之前的一个字符上
+>            |(以上4个命令都可以用";"来重复. 以","也是重复同样的命令,方向与原命令的方向相反)
+%            |移动到匹配的括号上或向前找到一个再匹配
+{n}%         |移动到文件n%处，以行计算
+{n}+         |向下移动n行，非空白行首处
+{n}-         |向上移动n行，非空白行首处
+{n}G         |(Go)移动到第n行
+G            |移动到最后一行
+gg/1G        |移动到第1行
+H            |(Home)本屏开始处
+M            |(Middle)本屏中间位置
+L            |(Last)本屏最后处
+`C-y`        |向上滚动一行
+`C-e`        |(extra)向下滚动一行
+`C-u`        |(up)向上滚动半屏
+`C-d`        |(down)向下滚动半屏
+`C-b`        |(backward)向上滚动一整屏(实际上是整屏去两行)
+`C-f`        |(forward)向下滚动一整屏(实际上是整屏去两行)
+zz           |把当前行置为屏幕正中央
+zt           |(top)把当前行置为屏幕顶端
+zb           |(bottom)把当前行置为屏幕顶端
+``           |跳转到先前那个位置(执行一个命令使光标定位于当前行之外的某行上去才叫一个跳转)
+''           |跳转到先前那个位置的行首
+gi           |跳到上一次插入的位置
+m{mark}      |自定义标记,{mark}为a-z(局部，单个文件内),A-Z(全局)
+`{mark}      |跳到标记处
+'{mark}      |跳到标记所在行首
+`C-o`        |(older)跳转到上一个位置
+`C-i`/`tab`  |(i before o)跳转到下一个位置
+{            |移动到段头，段以空行分隔
+}            |移动到段尾
+(            |移动到本句首
+)            |移动到下句首
+{n}go        |移动到文件中指定字节
+zh           |向右滚动
+zH           |向右滚动半个窗口
+zl           |向左滚动
+zL           |向左滚动半个窗口
+ze           |向右移动使当前光标成为最右端的可见字符
+zs           |向左移动使当前光标成为最左边的可见字符
+g0           |到窗口内的第一个字符
+g^           |到当前窗口内第一个非空白字符
+gm           |到当前窗口中间的字符上
+g$           |到当前窗口的最后一个字符上
+gj           |光标向上移动屏幕的一行
+gk           |光标向下移动屏幕的一行
+`C-]`        |跳转到光标所在word为名字的tag处
+`C-t`        |跳转到前一次的tag处
+[#           |跳到以#标识块的开始处
+]#           |跳到以#标识块的结束处
+[{           |跳到语句块的开始处
+]}           |跳到语句块的结束处
+[[           |跳到上一个函数体的开始处
+]]           |跳到下一个函数体的开始处
+][           |跳到上一个函数体的结束处
+[]           |跳到下一个函数体的结束处
+[m           |跳到上一个类中函数定义的开始处
+[M           |跳到上一个类中函数定义的结束处
+]m           |跳到下一个类中函数定义的开始处
+]M           |跳到下一个类中函数定义的结束处
+[(           |跳到上一个(处，在引号""中不起作用
+])           |跳到下一个)处，在引号""中不起作用
+[/           |跳到注释的开始处，只对/* - */注释有效
+]/           |跳到注释的结束处，只对/* - */注释有效
+[i           |查找光标下变量的第一个匹配(包含头文件)
+[`Tab`/[`C-i`|查找光标下变量的第一个匹配,并转到该行(包含头文件)
+]i           |从当前光标处开始查找光标下变量的第一个匹配
+]`Tab`/]`C-i`|从当前光标处开始查找光标下变量的第一个匹配,并转到该行
+[I           |在当前文件及包含的头文件中查找，包含光标下变量的行
+]I           |从当前光标处开始查找包含光标下变量的行
+[d           |查找以"#define"定义的宏的第一个匹配
+]d           |从当前光标处开始查找光标下宏定义的第一个匹配
+[D           |在当前文件及包含的头文件中查找，包含光标下宏定义的行
+]D           |从当前光标处开始查找包含光标下宏定义的行
+[s           |下一个拼写错误
+]s           |上一个拼写错误
+[c           |上一个差异点
+]c           |上一个差异点
+gD           |转到定义，只在当前文件里查找
+gd           |转到定义，只在当前函数里查找
+gf           |跳到光标所在文件/URL
+gt           |切换tab
+
+**Tips: 特殊的mark**
+```xml
+'(`)  进行此次跳转之前的起跳点
+"     上次编辑该文件时光标最后停留的位置
+[     最后一次修改的起始位置
+]     最后一次修改的结束位置
+.     最后一次修改的光标停留的位置
+<     选择区域的开始
+>     选择区域的结束
+{num} 上次退出时的位置，0代表最后一次
+```
+
+### Modification
+次数(number)+操作符命令(operator)+位移命令(motion),重复2次表示作用于行
+
+Operation         |Description
+-                 |-
+!{motion}{program}|以文本范围为对象通过管道送至一个外部程序,并以返回结果替换,"!!{prog}"表示当前行
+dd                |(delete)删除一行
+d{n}w/d{n}e       |删除n个word
+d$/D              |删除到行尾
+dl/x              |删除光标所在字符
+dh/X              |删除光标左边的字符
+d{text-objects}   |删除光标所在{text-objects}
+d/abc/            |删除到pattern abc处
+cc/S              |(change)修改整行并保持原来的缩进(一行打头的空白),并进入Insert mode
+c{n}w/c{n}e       |修改n个word
+c$/C              |修改到行尾
+cl/s              |修改一个字符
+r                 |(replcae)替换当前字符，模式不变
+gr                |总是让被替换的文本占据它所应有的屏幕空间,空出的间隙会以额外的空格或制表符来填充
+J                 |(Join)合并本行和下一行,删除前导空白和(后辍空白?)
+gJ                |合并，保留前导空白和后辍空白
+u                 |(undo)撤销上一次操作
+U                 |撤消对一行的全部操作
+`C-r`             |(redo)重做
+.                 |重复上一次做出的改动,除了"u"命令`C-r`和以冒号开头的命令
+yy/Y              |复制一行
+y{n}w/y{n}e       |(yank)复制n个word
+y$                |复制到行尾
+"{reg}yy          |复制一行到寄存器reg中
+p/]p              |(put)粘贴,放在光标之后
+P/[p              |粘贴,放在光标之前
+"{reg}p           |从寄存器reg中粘贴
+xp                |交换光标处和后一个字符
+q{reg}            |开始录制记录宏到{reg}=a-z
+@{reg}            |播放记录宏{reg}
+@@                |重复上次播放
+gq{text-obj}      |格式化文本对象
+~                 |反转大小写，并移至下一个字符
+guw               |变word为小写
+gUw               |变word为大写
+g~w               |反转word大小写
+gugu/guu          |变一行为小写
+gUgU/gUU          |变一行为大写
+g~g~/g~~          |反转一行大小写
+gq                |格式化文本
+g?                |Rot-13加密
+{num}`C-a`        |光标右边最近数字加{num},默认加1
+{num}`C-x`        |光标右边最近数字减{num},默认减1
+>                 |增加缩进量，>>当前行，>a{当前代码块
+<                 |减少缩进量，<<当前行，<a{当前代码块
+=                 |调整缩进，==当前行，=a{当前代码块
+
+**Tips: text-object**
+```xml
+{a-text-objects}包括末尾空白/首尾标识，{i-text-objects}不包括末尾空白/首尾标识
+
+aw/iw  单词
+as/is  句子
+ap/ip  段落
+at/it  html的tag
+引号   a"/a'/a`，光标可以不必在引号内
+括号   a)/ab/a]/a}/aB/a>
+```
+
+**Tips: 寄存器**
+```xml
+0-9  历史（只读），0总是最近一次复制的而不是删除的
+a-z  自定义
+A-Z  追加内容而不是替换
+*    剪贴板（X11:当前选择区）
++    剪贴板
+"    匿名（最后一次删除复制的内容）
+=    表达式
+/    上一个搜索模式
+_    黑洞（丢弃）
+-    小于一行删除的内容
+.    最后一次插入的内容
+#    当前buffer文件名
+%    alternate buffer文件名
+:    命令行内容
+```
+
+### Misc
+
+Operation        |Description
+-                |-
+`Esc`            |进入Normal mode
+i                |进入Insert mode，在当前光标之前插入
+a                |进入Insert mode，在当前光标之后插入
+o                |进入Insert mode，在当前下面另起一行
+O                |进入Insert mode，在当前上面另起一行
+I                |进入Insert mode，光标置于当前行第一个非空白字符处
+A                |进入Insert mode，光标置于当前行尾
+v                |进入Visual mode
+V                |进入Visual mode,以行为单位
+`C-v`            |进入Visual mode,列选择模式
+gv               |进入Visual mode,选定上次选择的Visual区域
+R/`Insert`       |进入Replace mode,用`Backspace`撤销
+gR               |进入Virtual Replace mode(保持页面的良好布局)
+ZZ               |保存退出
+ZQ               |不保存退出
+`C-g`            |显示位置
+`C-l`            |刷新
+/{RE}/{offset}   |查找,使用正则表达式,定位在{offset}上
+?                |反向查找
+n                |查找上次查找的字符串的下一个位置，"3n"会去查找目标字符串的第3次出现
+N                |重复前一次查找, 但是与最初用"/"或"?"指定的搜索方向相反.
+\*/g\*           |查找光标当前所在word/不全字匹配
+#/g#             |反向查找光标当前所在word/不全字匹配
+`C-^`            |两文件中跳转，不改变当前在文件列表中的位置
+`C-w` w          |切换当前活动窗口
+{h}`C-w` +/-/\_  |增加/减少/固定窗口h行高度
+`C-w` h/j/k/l/t/b|切换窗口
+`C-w` H/J/K/L    |移动窗口
+K                |使用man命令(unix)查找光标所在的词
+q:               |打开命令行窗口
+q/               |打开搜索窗口
+`C-w` f          |在新窗口中打开光标所在文件
+`C-w` ]          |在新窗口中打开光标所在tag
+`C-w` }          |在预览窗口中打开光标所在tag
+ga               |显示光标所在字符信息
+g`C-g`           |显统计字数并显示光标所在字符位置信息
+zf               |创建折叠
+zo               |展开当前折叠
+zO               |全部展开当前折叠
+zc               |关闭当前折叠
+zC               |全部关闭当前折叠
+zd               |删除当前行折叠
+zD               |删除当前行所有折叠
+zr               |减少折叠的层次
+zm               |增加折叠的层次
+zR               |全部展开
+zM               |全部折叠
+zn               |禁用折叠
+zN               |启用折叠
+zi               |禁用/启用折叠
+z=               |拼写修正建议
+
+
+## Visual mode
+### General
+
+Operation     |Description
+-             |-
+{text-objects}|选择{text-objects}
+u             |字母变为小写
+U             |字母变为大写
+=             |重新调整缩进格式
+
+### Visual Block `C-v`
+
+Operation     |Description
+-             |-
+o             |对角之间移动
+O             |邻角之间移动
+$             |让每一行的被选择区域扩展到该行的末尾
+I{string}`Esc`|每行文本块的左边追加文本
+A{string}`Esc`|每行文本块的右边追加文本
+c{string}`Esc`|修改每行文本块的内容
+C{string}`Esc`|修改每行文本块的内容到行尾
+r             |整个文本块的内容全部以一个字符来填充
+>             |文本块向右移动一个shift单位
+<             |文本块向左移动一个shift单位
+
+
+## Insert mode
+
+Operation                      |Description
+-                              |-
+`C-w`                          |删除光标前word
+`C-u`                          |删除光标前一行
+`C-left/right`                 |向左/右移动一个word
+`S-left/right`                 |向左/右移动一个word
+`C-home`                       |移到文件头
+`C-end`                        |移到文件尾
+`C-p`                          |向前匹配单词
+`C-n`                          |向后匹配单词
+`C-x` `C-f/l/d/n/i/k/t/]/v/s/o`|补全特殊的文档元素(文件名/整行内容/宏定义/当前文件/当前文件和被当前文件include的文件/来自一个字典文件的word/来自一个thesaurus的word/tags/Vim的命令行/拼写建议/全能补全)
+`C-a`                          |插入上一次在insert模式下录入的内容
+`C-@`                          |插入上一次在insert模式下录入的内容,并退出Insert mode
+`C-y`                          |插入当前光标之上的一行中相同位置字符
+`C-e`                          |插入当前光标之下的一行中相同位置字符
+`C-r` {reg}                    |插入指定寄存器的内容(命令行也适用)
+`C-r` `C-r` {reg}              |插入指定寄存器的内容,保留特殊字符
+`C-r` ={expr}                  |计算表达式
+`C-v` {num}                    |保证键入的下一个字符被原封不动地被录入,可选{num}为字符的ascii码
+`C-k` {dg}                     |输入特殊字符(用digraphs查看)
+`C-o` {normalCmd}              |执行Normal mode下的命令
+`C-d`                          |减少缩进量
+`C-t`                          |增加缩进量
+
+## Command mode
+范围{range}+命令{cmd}
+{range}="%"为所有行,"."为当前行，"$"为末尾行，","连接范围,"+-num"偏移,"'{mark}"标记所在行;{num}:指定由本行开始的行数;
+|: 可以连接多个命令
+@: 重复上一次命令
+`C-r`: 粘贴寄存器内容(搜索模式中也可以)，接`C-w`/`C-a`可以粘贴当前词。
+help :xxx 帮助
+
+## General
+
+Operation                                                 |Description
+-                                                         |-
+num                                                       |跳到num行
+`tab`                                                     |补全命令
+`c-p`                                                     |上一命令
+`c-n`                                                     |下一命令
+`c-l`                                                     |最大限度地补全各候选项的共同部分
+`c-d`                                                     |列出补全候选项
+`c-b`                                                     |到命令行首
+`c-e`                                                     |到命令行尾
+`c-w`                                                     |删除光标前word
+`c-u`                                                     |删除光标前所有内容
+`c-c`/`esc`                                               |放弃执行命令
+`c-r` `c-w`                                               |插入`cword`
+`c-f`                                                     |打开历史窗口, "q:"可以从normal模式打开
+!{prog}                                                   |执行外部程序
+quit!/q!                                                  |不保存退出
+e!                                                        |不保存重新载入
+write/w {file,cmd}                                        |写入文件,可用重定向符">>"追加到另一文件或寄存器中,{cmd}以！开头作为此命令的输入
+read/r {file,cmd}                                         |读入文件，"0read"表示放在首行之上,{cmd}以！开头读取此命令的输出
+wq                                                        |(write and quit)保存退出
+help/h                                                    |帮助, "help digraph-table" ascii表
+ex                                                        |目录浏览器
+scriptnames                                               |加载的所有脚本名字及位置
+goto {n}                                                  |跳转到n字节数为偏移的字符上去
+jumps                                                     |列出关于你曾经跳转过的位置的列表. 最后一个跳转的位置以一个">"号标记
+marks                                                     |查看自定义标记
+options                                                   |查看选项
+tags                                                      |查看搜索过的tags
+tag {name}                                                |跳到tag{name}处，默认跳到最后一个tag处，{name}可用搜索模式如"/word"，当前词用`c-]`
+tprevious                                                 |跳到同名tag的上一个
+tnext                                                     |跳到同名tag的下一个
+tfirst                                                    |跳到同名tag的第一个
+tlast                                                     |跳到同名tag的最后一个
+stag {name}                                               |在分割窗口中打开选择的tag
+ptag {name}                                               |在预览窗口中打开选择的tag
+tselect/ts {name}                                         |列出所有{name}的tag，当前词用g]
+tjump/tj {name}                                           |如果只有一个匹配则直接跳转，否则列出所有{name}的tag，当前词用g<c-]>
+pclose                                                    |关闭预览窗口
+pedit {filename}                                          |在预览窗口中编辑一个文件
+psearch {name}                                            |搜索当前文件以及它所include的文件并显示匹配的行,显示在预览窗口中
+tabe {filename}                                           |在新tab中打开文件
+tabnext                                                   |下一个tab
+tabprev                                                   |上一个tab
+tabnew                                                    |新建一个tab
+tabclose                                                  |关闭一个tab
+tabdo                                                     |在所有tab上执行命令
+map {key} {op}                                            |定义映射，会覆盖已有定义,可用反斜杠定义映射字符如"\p",默认列出当前映射,模式：n/v/o
+map!{key} {op}                                            |定义映射，模式：i/c,单个模式：nmap/vmap/omap/imap/cmap
+noremap{key}{op}                                          |不重映射，避免映射的内容又被映射的情况
+ummap {key}                                               |删除映射
+mapclear                                                  |删除所有映射
+command {-nargs=} {-range=} {cmd} {cmd}                   |自定义命令，必需以一个大写字母开头，默认列出当前自定义命令
+command!                                                  |重定义命令
+delcommand {cmd}                                          |删除自定义命令
+comclear                                                  |删除所有自定义命令
+autocmd {group} {events} {file_pattern} {nested} {command}|自动命令，默认列出自动命令
+autocmd! {events} {file_pattern}                          |删除自动命令
+doautocmd                                                 |对当前缓冲区执行自动命令
+doautoall                                                 |分别对所有缓冲区执行自动命令
+syntax on/enable/reset/off/clear                          |打开/重置/关闭语法高亮
+filetype plugin indent on                                 |自动识别文件类型,使用文件类型plugin脚本,使用缩进定义文件
+colorscheme/colo {scheme}                                 |选择颜色方案
+edit {filename}                                           |打开另一文件
+{s}find {filename}                                        |寻找(在path中)并打开文件/{s}表示在新窗口中打开
+first/previous                                            |移动到第一个/上一个文件
+last/next                                                 |移动到最后一个/下一个文件
+args {filenames}                                          |显示启动时指定的要编辑的文件列表/重新定义文件列表为{filenames}
+saveas {name}                                             |另存为
+file {name}                                               |改变当前的文件名
+{pos} {n}split {name}                                     |分为两个窗口显示/打开文件{name}到新窗口,高度为n,所有打开的新窗口都可以在前面指定位置{pos}为leftabove,rightbelow etc.
+close                                                     |关闭当前窗口
+only/`c-w` o                                              |关闭除当前窗口外的所有其它窗口
+{v}new                                                    |新建一个窗口/{v}垂直
+vsplit                                                    |垂直分割窗口
+qall                                                      |关闭所有窗口
+wall                                                      |保存所有窗口
+wqall                                                     |保存并关闭所有窗口
+qall!                                                     |不保存并关闭所有窗口
+all                                                       |为命令行上指定的所有文件各开一个窗口
+vertical all                                              |为命令行上指定的所有文件各垂直分割一个窗口
+retab                                                     |把缩进中连续的空白按照当前设定替换成制表符或空格，retab!为所有连续空白
+nohls/nohlsearch                                          |去掉当前的高亮显示
+behave xterm/mswin                                        |设置鼠标行为标准
+helptags ~/.vim/doc                                       |生成一个本地化的的tags文件,自动被添加到local-additions小节
+{range}s/substitute/from/to/{flag}                        |替换(可用re)，{flag}=g(一行中所有),p(列印),c(确认),e(没找到也不提示),i(忽略大小写),i(不忽略),可用其他字符代替分隔符'/',默认{range}为本行,normal下"&"重复上次替换,\=计算表达式
+{range}g/global/{pattern}/{cmd}                           |全局命令，默认{range}所有行，{cmd}可以是命令行命令也可以前面加上"norm"表示正常模式命令序列
+{range}v/{pattern}/{cmd}                                  |非{pattern}的全局命令，默认{range}所有行
+{range}move/m {address}                                   |把{range}移到{address}处
+{range}copy/c/t {address}                                 |把{range}复制到{address}处
+{range}d                                                  |把{range}删除
+{range}y                                                  |把{range}复制到默认寄存器
+{range}p                                                  |将{range}打印出来
+{range}norm {cmd}                                         |执行normal模式下的命令{cmd}
+recover/rec                                               |从交换文件中恢复
+grep {re} {files}                                         |在文件中寻找字符匹配
+cnext/cp                                                  |下一个匹配处
+cprevious/cp                                              |上一个匹配处
+cfirst                                                    |第一个匹配处
+clast                                                     |最后一个匹配处
+cc {num}                                                  |查看完整信息描述，第{num}个匹配
+clist                                                     |列出所有匹配
+clist!                                                    |列出所有匹配完整信息列表
+colder                                                    |前一个匹配列表
+cnewer                                                    |下一个匹配列表
+cfile {name}                                              |读取匹配/错误信息文件
+history/his {/}                                           |查看:{/}历史记录
+shell                                                     |执行shell
+wviminfo! {file}                                          |写入viminfo,!表示覆盖而不追加
+rviminfo! {file}                                          |读取viminfo
+mksessiion {f.vim}                                        |保存会话
+source {f.vim}                                           |恢复会话，运行vim脚本，命令以":"开头
+mkview {num,file}                                        |保存视图
+loadview {num,file}                                       |载入视图
+cd {dir}                                                 |设定当前工作目录,{dir}='-'表示设定上次工作目录为当前工作目录
+lcd {dir}                                                 |局部于窗口的工作目录
+pwd                                                       |查看当前工作目录
+ls/buffers{!}                                             |列出缓冲区列表,{!}列出包括"unlisted"的缓冲区
+ball                                                      |打开所有缓冲区
+{num}{s}b/buffer {num,file}                               |以编号或(部分)文件名编辑缓冲区,{s}在新窗口中打开(编号 `c-^`)
+bnext/bn                                                  |下一个缓冲区
+bprevious/bp                                              |上一个缓冲区
+b#                                                        |上一次打开的缓冲区
+bmodified                                                 |打开修改过的缓冲区
+bfirst/brewind                                            |第一个缓冲区
+blast                                                     |最后一个缓冲区
+badd                                                      |新建一个缓冲区
+hide {cmd}                                                |隐藏正在编辑的缓冲区(文件),并执行{cmd}如edit new，隐藏指有改动未保存但不显示在任何窗口中（加载中，保存了则不再被加载）。
+unhide                                                    |显示所有加载的缓冲区
+bunload                                                   |卸载缓冲区(从内存中删除)，但仍保留在列表中
+bdelete/bd {num,file}                                     |卸载并从缓冲区列表中删除，但在"unlisted"列表中
+bwipeout/bw {num,file}                                    |彻底清除一个缓冲区
+x                                                         |设置密码加密文件
+%!xxd {-r}                                                |以16进制编辑显示，反转正常显示(只有其十六进制形式被认为是有效的)
+abbreviate/iab/cab {ab} {full}                            |查看/定义缩写(insert/command),会忽略缩写和它全名之间的空格,用`space`
+unabbreviate {ab}                                         |取消定义的缩写
+abclear                                                   |取消所有定义的缩写
+noreabbrev                                                |避免在定义缩写时再被其它的缩写所扩展
+digraph {dg} {num/ch}                                     |定义特殊字符
+digraphs                                                  |查看特殊字符定义
+{range}center{width}                                      |在{width}内使行居中对齐
+{range}right{width}                                       |在{width}内使行右对齐
+{range}left{margin}                                       |在隔一个{margin}后使行左对齐
+argdo {cmd}                                               |以另一个命令为参数,该命令将对所有待编辑的文件都执行一次.
+windo {cmd}                                               |对所有窗口执行命令
+bufdo {cmd}                                               |对所有缓冲区执行命令
+checkpath/che                                             |列出找不到的头文件
+checkpath!                                                |列出所有头文件
+make/mak {args}                                           |运行makeprg
+compiler {name}                                           |查看关于{name}这个编译器设置的vim脚本并应用里面的设置
+browse {opencmd}                                          |打开文件浏览器
+confirm {cmd}                                             |确认操作
+winpos {x} {y}                                            |获得/移动gui中窗口坐标
+winsize {w} {h}                                           |设置窗口大小
+echo {value}                                              |回显值
+normal {n_cmd}                                            |执行normal mode的命令
+set/se {opt}                                              |同时设置local和global选项的值
+setlocal/setl {opt}                                       |只对当前缓冲区或窗口设置选项
+setglobal/setg {opt}                                      |设置全局选项，但不改变当前缓冲区选项的值
+language/lan {name}                                       |查看/设置当前的语言
+version                                                   |显示版本，支持的模块
+reg                                                       |显示寄存器里的内容
+diffsplit {filename}                                      |比较当前文件和目标文件
+dp                                                        |把一个差异点中当前文件的内容复制到另一个文件里
+do                                                        |把另一个文件的内容复制到当前行中
+diffupdate/diffu                                          |刷新比较结果
+diffoff!                                                  |关闭diff模式(!所有窗口)
+
+**Tips: 目录浏览器操作**
+```xml
+<F1>    显示帮助
+<cr>    如果光标下是目录, 则进入该目录; 如果光标下文件, 则打开该文件
+-       返回上级目录
+c       切换vim 当前工作目录正在浏览的目录
+d       创建目录
+D       删除目录或文件
+i       切换显示方式
+R       文件或目录重命名
+s       选择排序方式
+x       定制浏览方式, 使用你指定的程序打开该文件
+```
+
+**Tips: 在键盘映射中常用的表示(help: keycodes)**
+```xml
+<CR>       回车
+<ESC>      Esc
+<LEADER>   转义符号 \
+<BAR>      管道符号 |
+<BS>       退格
+```
+
+**Tips: 命令行中的文件名**
+```xml
+%  当前文件名
+:p 扩展成带路径的全名
+:h 取出路径名
+```
+
+**Tips: 缓冲区标识**
+```xml
+u 未被列出的缓冲区(unlisted-buffer)
+% 当前缓冲区
+# 上一次的活动缓冲区
+l 被载入并显示在某窗口中的缓冲区
+h 被载入但隐藏的缓冲区.
+= 只读
+- 不可编辑的缓冲区, 其中'modifiable'选项被关闭
++ 有改动的缓冲区
+```
+
+**Tips: 窗口和缓冲区操作类比**
+```xml
+win   new  sp	 clo  quit   <C-w>	
+buf   bad  e/sb	 bun  bd/bw  <C-^>/b#
+
+buffer是打开文件的一个实例。
+window是一个buffer的视点。
+tab是一个或多个window的集合（很少用）。
+```
+
+**Tips: Quickfix**
+```xml
+:cc     显示详细错误信息
+:cp     跳到上一个错误
+:cn     跳到下一个错误
+:cl     列出所有错误
+:cw     如果有错误列表，则打开quickfix窗口
+:col    到前一个旧的错误列表
+:cnew   到后一个较新的错误列表
+```
+
+### Options
+set noXXX取消，XXX?查询状态，XX&恢复默认值，inXXX或XXX!取反，help 'XXX'帮助, verbose set XXX?查询设置位置
+
+Operation                  |Description
+-                          |-
+compatible/cp              |设为兼容模式
+ruler/ru                   |显示坐标位置
+showcmd                    |显示一个完整的命令已经完成的部分
+showmode                   |显示当前mode
+number                     |显示行号
+ignorecase                 |大小写不敏感
+smartcase                  |如果有一个大写字母，就是大小写敏感的
+hlsearch/hls               |高亮搜索结果
+incsearch/is               |(increase)键入目标字符串的过程中就同时开始了搜索工作
+wrapscan                   |搜索在达到文件的头尾时都会绕向另一个方向继续进行
+backspace=indent,eol,start |在Insert模式下退格键何时可以删除光标之前的字符
+backup                     |覆盖一个文件之前备份该文件,备份文件名由当前文件名加后辍"~"组成
+backupext=                 |设置备份文件扩展名
+backupdir=                 |备份文件目录
+swapfile                   |使用交换文件
+directory=                 |交换文件目录
+writebackup                |覆盖一个文件之前备份该文件,保存后删除备份文件
+history=                   |设置冒号命令和搜索命令的命令历史列表的长度
+wrap                       |自动换行
+sidescroll=                |把光标移动到某字符上时,自动显示的左右文数量
+whichwrap=b,s,h,l,~,<,>,[,]|控制移动光标的命令(退格，空格，左右箭头)遇到行首或行尾时的行为规则
+list                       |查看制表符
+listchars=tab:>-,trail:-   |制表符显示方式
+iskeyword=                 |定义一个word中可以包含哪些字符
+isident=                   |定义标识符字符
+isprint=                   |定义可打印字符
+cmdheight=                 |设置信息显示区高度
+filetype=                  |指定文件类型
+background=                |设置背景色
+autowrite                  |切换文件时自动保存
+patchmode=                 |设置保存原始文件的扩展名，为空则不保存
+modifiable                 |可修改
+write                      |可写,不可写并不意味着不可修改
+winheight=                 |期望的最小的窗口高度
+winminheight=              |设置一个强制的最小高度
+winwidth=                  |期望的最小的窗口宽度
+winminwidth=               |设置一个强制的最小宽度
+equalalways                |均摊窗口屏幕上可用的高度和宽度
+fileencodings=             |检测文件编码类型(注意顺序),并将合适的类型设为fileencoding的值，否则设为空
+fileencoding=              |设置文件读写编码类型，如果为空则使用encoding的值来读写(即不转换)
+encoding=                  |设置Vim内部编码类型
+termencoding=              |从键盘键入时，终端使用的编码类型
+shiftwidth/sw=             |缩进一步的宽度
+tabstop/ts=                |Tab宽度
+softtabstop/sts=           |不到一个tab宽度时以空格代替tab，满一个tab宽度时再换成tab，即空格和tab的混合
+smarttab/sta               |在缩进时，应用'shiftwidth'选项的值 , 而在第一个非空白字符之后再按下`Tab`就插入真正的制表符
+expandtab/et               |编辑时将所有 Tab 替换为空格
+linebreak/lbr              |不在单词中间断行
+formatoptions/fo+=mB       |打开断行模块对亚洲语言支持
+sm                         |显示括号配对情况
+cindent/cin                |打开 C/C++ 风格的自动缩进
+cinoptions/cino=:0g0t0(sus |设定 C/C++ 风格自动缩进
+paste                      |关闭所有自动缩进mapping等，使适合粘贴，terminal有效，GUI不必要
+autoindent/ai              |打开普通文件类型的自动缩进，开始一个新行时对该行施以上一行的缩进方式
+smartindent                |智能缩进
+selectmode=                |不使用 selectmode
+mousemodel=popup           |当右键单击窗口的时候， 弹出快捷菜单
+keymodel=startsel,stopsel  |使用“Shift + 方向键”选择文本
+selection=inclusive        |指定在选择文本时,光标所在位置也属于被选中的范围
+guioptions+=b              |添加水平滚动条等gui选项
+guifont=Courier\ 9         |设置图形界面下的字体,如果含有空格，需要在前面加一个斜杠
+scrolloff/so=              |光标离窗口上下边界的最小行距为多少时会引起窗口滚动
+runtimepath=               |包括用户自定义的脚本和插件,全局自定义的脚本和插件,随VIM安装的脚本和插件,全局设置修正脚本,用户设置修正脚本的路径
+scrollbind                 |窗口同步滚动
+splitbelow                 |在下方打开新窗口
+splitright                 |在右方打开新窗口
+mouse                      |vim在哪些模式中使用鼠标
+mousemodel                 |控制鼠标单击的效果
+mousetime                  |双击鼠标的间隔时间
+mousehide                  |键入时隐藏鼠标
+textwidth=                 |到指定宽度时自动插入换行符
+shell=                     |指定Vim用于运行过滤程序的shell
+shellcmdflag=              |该shell的参数
+shellquote=                |用于分隔shell与过滤程序时成对包围起过滤程序的字符
+shellxquote=               |用于分隔shell与过滤程序和重定向符号时成对包围起过滤程序和重定向符号的字符
+shellslash                 |在命令中使用反斜杠(只对MS-Windows这样的系统有用)
+shellredir                 |用于将命令输出重定向到文件的字符串
+directory/dir=             |交换文件目录
+updatetime=                |更新交换文件时间间隔
+updatecount=               |更新交换文件字符数间隔
+shortmess=                 |设置提示消息
+swapsync                   |同步交换文件时是否同时做一次磁盘同步
+maxmem                     |尚未写入交换文件的内容所受的内存限制
+maxmemtot                  |尚未写入交换文件的内容所受的内存限制, 针对所有文件
+grepprg=                   |设置匹配程序
+wildmode                   |调整补全的工作方式
+wildmenu                   |使候选项以类似菜单的形式出现
+wildignore                 |指定一些要排队在候选项列表之外的项
+viminfo                    |设置存储历史记录，标签等信息
+sessionoptions             |会话保存选项
+modeline                   |设置模式识别，用文件中特殊的格式来设置vim选项
+modelines=                 |检查模式行的行数
+path=                      |搜索文件路径
+isfname=                   |哪些字符可以作为文件名的一部分
+hidden                     |退出时自动隐藏，可不保存而切换缓冲区
+bufhidden=                 |当关闭窗口中的缓冲区时的行为,默认为空根据hidden选项的设置
+buflisted                  |打开文件时在buflist中显示
+fileformats=               |自动识别文本格式
+fileformat=                |设置当前文本格式
+key=                       |设置加密密码
+display=uhex               |显示方式，不可打印的字符以16进制显示
+showmatch                  |显示匹配字符
+matchtime=                 |显示匹配的时间
+complete=                  |寻找匹配的地方
+infercase                  |匹配时忽略剩余部分的大小写
+joinspaces                 |控制句子之间的空白间距
+formatoptions=             |设置格式化选项
+breakat=                   |指定了可以断行的字符
+showbreak                  |可以指定一个字符串显示在接续显示的行的开头
+virtualedit=all            |光标可以移动到虚空白上
+nrformats=                 |识别数字格式(进制)
+foldopen=                  |定义什么命令会打开折行
+foldclose=                 |定义什么命令会关闭折行
+viewoptions=               |控制将哪些信息保存在视图文件中
+viewdir=                   |视图存储路径
+foldmethod=                |折叠方式
+foldlevel=                 |直接设定折叠的层次
+foldexpr=                  |设定折叠表达式
+tags=                      |设置tag文件
+tagsearch                  |告诉Vim当前参考的tags文件是否是排序过的
+taglength=                 |告诉Vim一个tag名字有效部分的字符个数
+previewheight=             |预览窗口的高度
+include=                   |提供在何处查找include文件的信息
+makeprg=                   |指定make程序
+errorformat=               |设置错误信息格式
+makeef=                    |错误信息文件的名字
+shellpipe=                 |重定向字符
+shellqoute=                |包括shell命令引号中的重定向符
+shellxqoute=               |不包括shell命令引号中的重定向符
+comments=                  |注释格式
+browsedir=                 |打开文件浏览时的初始目录
+winaltkeys=                |控制Vim对`Alt`键的处理
+lines=                     |窗口高度
+columns=                   |窗口宽度
+laststatus=                |设置底部状态条显示
+shortmess=                 |使用提示信息的缩写
+eventignore=               |忽略事件
+list                       |显示`Tab`,行尾
+matchpairs=                |可以匹配的符号
+clipboard=                 |寄存器与剪贴板的关系行为
+spell                      |打开拼写检查
+diffopt=                   |设置比较选项
+
+**Tips: GUI窗口标题表示状态**
+```xml
+-  不可修改
++  已改变
+=  只读
+=+ 只读但已改变
+```
+
+## Tools
+### [ctags](http://ctags.sourceforge.net/)
+项目根目录运行: `ctags -R --languages=c++ --c++-kinds=+p --fields=+aiS --extra=+q (ominicppcomplete required)`
+--c++-kinds=+p   追加函数声明的tag
+--fields=+aiS    在每个tag entry中显示更多的项
+--extra=+q       C++中包含类的信息
+VIM中设置: `:set tags=projectroot/tags`
+
+### [cscope](http://cscope.sourceforge.net/)
+项目根目录运行: `cscope -Rbq`
+VIM中设置:
+`:set cscopequickfix=s-,c-,d-,i-,t-,e-`
+`:cs add projectroot/cscope.out projectroot`
+用法:
+`:cs find c|d|e|f|g|i|s|t name`
+0 或 s 查找本 C 符号(可以跳过注释)
+1 或 g 查找本定义
+2 或 d 查找本函数调用的函数
+3 或 c 查找调用本函数的函数
+4 或 t 查找本字符串
+6 或 e 查找本 egrep 模式
+7 或 f 查找本文件
+8 或 i 查找包含本文件的文件
+
+
+## Reference
+[Vim官网](http://www.vim.org/)
+[VimWiki](http://vim.wikia.com/wiki/)
+[VimDoc中文版](http://vimcdoc.sourceforge.net/doc/)
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
+
