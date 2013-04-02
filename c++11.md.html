@@ -83,6 +83,7 @@ expression只要支持range：begin(container), end(container)有效，包括：
 ## nullptr
 一个新的关键词，表示空指针。类型：std::nullptr_t。
 在重载和forwarding templates上与0， NULL不同，是真正的指针类型。
+可以隐式转换为指针类型，bool类型(false)，但不能隐式转换为整形。
 
 ## Unicode Support
 两种新类型：char16_t, char32_t
@@ -108,15 +109,15 @@ U"Skull and crossbones: \u2620" // ☠
 ```
 
 ### Conversions Among Encodings
-wchar_t ⇄ char (std::codecvt<wchar_t, char, std::mbstate_t>)
-UTF-16 ⇄ UTF-8 (std::codecvt<char16_t, char, std::mbstate_t>)
-UTF-32 ⇄ UTF-8 (std::codecvt<char32_t, char, std::mbstate_t>)
-UTF-8 ⇄ UCS-2, UTF-8 ⇄ UCS-4 (std::codecvt_utf8)
-UTF-16 ⇄ UCS-2, UTF-16 ⇄ UCS-4 (std::codecvt_utf16)
-UTF-8 ⇄ UTF-16 (std::codecvt_utf8_utf16) Behaves like std::codecvt<char16_t, char, std::mbstate_t>.
+wchar_t ⇄ char (`std::codecvt<wchar_t, char, std::mbstate_t>`)
+UTF-16 ⇄ UTF-8 (`std::codecvt<char16_t, char, std::mbstate_t>`)
+UTF-32 ⇄ UTF-8 (`std::codecvt<char32_t, char, std::mbstate_t>`)
+UTF-8 ⇄ UCS-2, UTF-8 ⇄ UCS-4 (`std::codecvt_utf8`)
+UTF-16 ⇄ UCS-2, UTF-16 ⇄ UCS-4 (`std::codecvt_utf16`)
+UTF-8 ⇄ UTF-16 (std::codecvt_utf8_utf16) Behaves like `std::codecvt<char16_t, char, std::mbstate_t>`.
 
-std::wbuffer_convert: IO-based
-std::wstring_convert: in-memory
+`std::wbuffer_convert`: IO-based
+`std::wstring_convert`: in-memory
 
 ### Raw String Literals
 ```
@@ -1168,6 +1169,29 @@ enum class Enum4: unsigned int; //Legal C++11.
 enum Enum2 : unsigned short;  //Illegal in C++11, because Enum2 was previously declared with a different type.
 ```
 
+
+## Constraining virtual function overrides
+特殊标识符（非关键字）：
+override: 表示此函数应该override一个基类的虚函数。
+final: 表示子类不应该再override这个虚函数。
+```
+class B {
+public:
+   virtual void f(int) {std::cout << "B::f" << std::endl;}
+};
+
+class D : public B {
+public:
+   virtual void f(int) override final {std::cout << "D::f" << std::endl;}
+};
+
+class F : public D {
+public:
+   virtual void f(int) override {std::cout << "F::f" << std::endl;} // can not override, compile error
+};
+```
+
+
 ## More
 * Unrestricted unions (members may be any non-reference type).
 * Time library supportings clocks, durations, points in time.
@@ -1180,7 +1204,7 @@ enum Enum2 : unsigned short;  //Illegal in C++11, because Enum2 was previously d
 * sizeof applicable to class data members alone (e.g., sizeof(C::m)).
 * & and && member functions.
 * Relaxed rules for in-class initialization of static data members.
-* Contextual keywords for alignment control and constraining virtual function overrides.
+* Contextual keywords for alignment control.
 * Attributes express special optimization opportunities and provide a standard syntax for platform-specific extensions.
 
 
@@ -1197,7 +1221,8 @@ deprecated:
 * 用unique_ptr取代auto_ptr。
 * 用bind或lambdas取代bind1st/bind2nd。
 
-## Ref
+## Reference
+[C++ Reference](http://en.cppreference.com/)
 [C++11 - the new ISO C++ standard](http://www.stroustrup.com/C++11FAQ.html)
 [Overview of the New C++ (C++11)](http://www.artima.com/shop/overview_of_the_new_cpp)
 [C++98 and C++11 Support in Clang](http://clang.llvm.org/cxx_status.html)
