@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<title>Clearcase</title>
+<xmp theme="readable" style="display:none;">
+### unreserved checkout 
+`cleartool co -nc -unr`
+
+### cancel checkout
+`cleartool unco -rm`
+
+### checkin
+`cleartool ci -c "comments"`
+
+### create dynamic view
+`cleartool mkview -tag my_view -stgloc xxx_1views`
+
+### create static view
+`cleartool mkview -snapshot -stgloc xxx_1views -tag my_static_view /local/view/my_static_view`
+
+### handle config spec
+`cleartool edcs`
+`cleartool setcs`
+`cleartool catcs`
+
+### remove private/untracked files
+`cleartool lsp -oth | xargs rm -rf`
+
+### list checkout by me
+`cleartool lsco -me -cview -short -all`
+
+### diff with previous version
+`cleartool diff -g -pred`
+
+### backup changed files on the working branch
+`cleartool ls -r |grep branch_name/[0-9] |sed 's/@@.*//' | xargs cp -t ~/bak/`
+
+### list changed files on branch
+`cleartool find . -branch "brtype(branchname)" -print`
+`cleartool find . -branch "brtype(branchname)" -print -nxn |xargs cleartool lshistory -last -me -short -branch branchname`
+
+### change file type
+`cleartool chtype -force eltype:text_file file-name`
+
+### add dirs
+`cleartool mkdir directory-name`
+`clearfsimport -preview -rec -nset ~/sourceDir/* /vob/MyDestinationDirectory/`
+
+### merge selective versions from a subbranch
+checkout file first
+`cleartool merge -g -to filename -insert -version /main/r1_fix/4` only version 4
+`cleartool merge -g -to filename -insert -version /main/r1_fix/2 /main/r1_fix/4` from version 2 to 4
+
+### resolve "get stale NFS handles"
+Deactivate a Clearcase view (exit view first).
+`cleartool endview -server my_view`
+
+### customize difftool
+Windows:
+Command mapping file: `C:\Program Files\IBM\RationalSDLC\ClearCase\lib\mgrs\map`
+modify line: `text_file_delta		xcompare            C:\Program Files\mydifftool`
+
+### Reference
+[Rational ClearCase 7.0.1.1 information center](http://publib.boulder.ibm.com/infocenter/cchelp/v7r0m1/index.jsp)
+[ClearCase Commands](http://www.ezds.com/html/clearcase_commands_index.html)
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
