@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<title>Effective STL</title>
+<xmp theme="readable" style="display:none;">
+## 1.仔细选择你的容器
+标准STL序列容器: vector、string、deque和list。 
+标准STL关联容器: set、multiset、map和multimap。 
+非标准序列容器:  slist和rope。slist是一个单向链表，rope本质上是一个重型字符串。
+非标准关联容器:  hash_set、hash_multiset、hash_map和hash_multimap。
+标准非STL容器:   数组、bitset、valarray、stack、queue和priority_queue。
+
+连续内存容器: 标准的vector、string和deque,非标准的rope。
+基于节点的容器: 表现为链表的容器list和slist，所有的标准关联容器也是（它们的典型实现是平衡树）。
+非标准的散列容器使用不同的基于节点的实现。
+
+
+## 2.小心对“容器无关代码”的幻想
+通过自由地对容器和迭代器类型使用typedef。
+必须假设每次调用insert, erase都使所有东西(迭代器、指针和引用)失效了。
+
+
+## 3.使容器里对象的拷贝操作轻量而正确
+进入容器的是你指定的对象的拷贝。拷进去，拷出来，这就是STL的方式。
+当然由于继承的存在，拷贝会导致分割。
+一个使拷贝更高效、正确而且对分割问题免疫的简单的方式是建立指针的容器而不是对象的容器。
+
+
+## 4.用empty来代替检查size()是否为0
+对于所有的标准容器，empty是一个常数时间的操作，但对于一些list实现，size花费线性时间。
+
+
+## 5.尽量使用区间成员函数代替它们的单元素兄弟
+一般来说使用区间成员函数可以:输入更少的代码;代码更清晰;效率。 
+时机:
+```
+// 区间构造: 
+container::container(InputIterator begin,   // 区间的起点
+                     InputIterator end);	// 区间的终点
+                     
+// 区间插入: 序列：
+void container::insert(iterator position,	// 区间插入的位置
+                       InputIterator begin,	// 插入区间的起点
+                       InputIterator end);	// 插入区间的终点
+// 区间插入: 关联：
+void container::insert(lnputIterator begin, InputIterator end); 
+
+// 区间删除：序列：
+iterator container::erase(iterator begin, iterator end); 
+// 区间删除：关联：
+void container::erase(iterator begin, iterator end); 
+
+// 区间赋值： 
+void container::assign(InputIterator begin, InputIterator end);
+```
+
+## 6.警惕C++最令人恼怒的解析
+```
+ifstream dataFile("ints.dat");
+list<int> data(istream_iterator<int>(dataFile),	istream_iterator<int>()); // 实例化对象？函数声明？
+```
+C++里的一条通用规则——几乎任何东西都可能被分析成函数声明。
+解决：用括号包围一个实参的声明是不合法的，但用括号包围一个函数调用的观点是合法的：
+`list<int> data((istream_iterator<int>(dataFile)), istream_iterator<int>());`
+
+
+## 7.当使用new得指针的容器时，记得在销毁容器前delete那些指针
+使用DeleteObject + for_each释放内存，但不异常安全：
+```
+struct DeleteObject
+{			
+	template<typename T> 			
+	void operator()(const T* ptr) const 
+	{ 
+		delete ptr; 
+	} 
+}
+```
+异常安全的做法是使用shared_ptr。
+没必要有DeleteArray，使用vector和string。
+
+
+## 8.永不建立auto_ptr的容器
+
+
+## 9.在删除选项中仔细选择
+去除一个容器中有特定值的所有对象： 
+如果容器是vector、string或deque，使用erase-remove惯用法。
+如果容器是list，使用list::remove。
+如果容器是标准关联容器，使用它的erase成员函数。
+
+去除一个容器中满足一个特定判定式的所有对象： 
+如果容器是vector、string或deque，使用erase-remove_if惯用法。
+如果容器是list，使用list::remove_if。
+如果容器是标准关联容器，使用remove_copy_if和swap，或写一个循环来遍历容器元素，当你把迭代器传给erase时记得后置递增它。
+
+在循环内做某些事情（除了删除对象之外）： 
+如果容器是标准序列容器，写一个循环来遍历容器元素，每当调用erase时记得都用它的返回值更新你的迭代器(返回有效的迭代器)。
+如果容器是标准关联容器，写一个循环来遍历容器元素，当你把迭代器传给erase时记得后置递增它(先增再用原来的值调用erase)。
+
+
+## 10.注意分配器的协定和约束
+如果你想要写自定义分配器，需要记得的事情:
+把你的分配器做成一个模板，带有模板参数T，代表你要分配内存的对象类型。 
+提供pointer和reference的typedef，但是总是让pointer是`T*`，reference是`T&`。 
+决不要给你的分配器每对象状态。通常，分配器不能有非静态的数据成员。 
+记得应该传给分配器的allocate成员函数需要分配的对象个数而不是字节数。也应该记得这些函数返回`T*`指针（通过pointer typedef），即使还没有T对象被构造。 
+一定要提供标准容器依赖的内嵌rebind模板。 
+
+
+## 11.理解自定义分配器的正确用法
+当需要自定义容器内对象的内存布局时。 
+为同种类型对象创造不同的堆。
+
+
+## 12.对STL容器线程安全性的期待现实一些
+在STL容器（和大多数厂商的愿望）里对多线程支持的黄金规则:
+多个读取者是安全的。多线程可能同时读取一个容器的内容，这将正确地执行。当然，在读取时不能有任何写入者操作这个容器。 
+对不同容器的多个写入者是安全的。多线程可以同时写不同的容器。 
+
+不能希望库消除对手工并行控制的需要，而且完全不能依赖于任何线程支持。
+
+
+## 13.尽量使用vector和string来代替动态分配的数组
+很多string实现在后台使用了引用计数, 如果在多线程环境中使用，注意线程安全性支持所带来的的性能下降问题(后台并发控制)。
+(用`vector<char>`代替)
+
+## 14.使用reserve来避免不必要的重新分配
+在标准容器中，只有vector和string提供了所有这些函数:
+size()告诉你容器中有多少元素(大小)。
+capacity()告诉你容器在它已经分配的内存中可以容纳多少元素(容量)。
+resize(Container::size_type n)强制把容器改为容纳n个元素。如果n大于当前容量，在元素加入之前会发生重新分配。
+reserve(Container::size_type n)强制容器把它的容量改为至少n，提供的n不小于当前大小。这一般强迫进行一次重新分配，因为容量需要增加。
+
+
+## 15.小心string实现的多样性
+string实现的自由度：(特别是如果正在写必须在不同STL平台上运行的代码并且你面临严格的性能需求)
+字符串值可能是或可能不是引用计数的。默认情况下，很多实现的确是用了引用计数，但它们通常提供了关闭的方法，一般是通过预处理器宏。
+string对象的大小可能从1到至少7倍char*指针的大小。 
+新字符串值的建立可能需要0、1或2次动态分配。 
+string对象可能是或可能不共享字符串的大小和容量信息。 
+string可能是或可能不支持每对象配置器。 
+不同实现对于最小化字符缓冲区的配置器有不同策略。 
+
+
+## 16.如何将vector和string的数据传给遗留的API
+string中的数据并没有保证被存储在独立的一块连续内存中。只有vector承诺了与数组具有相同的潜在内存分布。
+string的内部表示形式并没承诺以一个null字符结束。但c_str()返回空终止的字符串。
+string的内部也可以包含null字符。
+vector中的数据传给C API时只能修改，而不能添加或者删除(v的内部状态将会变得不一致)，绝不能在vector的未初始化区域创建对象。
+
+
+## 17.使用“交换技巧”来修整过剩容量
+收缩到合适(shrink to fit),不一定是最小：
+```
+vector<Contestant>(contestants).swap(contestants);
+vector<Contestant>().swap(v);       // 清空，并且将capacity归零。 
+```
+
+
+## 18.避免使用`vector<bool>`
+容器必要条件中有这样一条：如果c是一个T类型对象的容器，且c支持operator[]，那么以下代码必须能够编译：
+```
+T *p = &c[0]; // 无论operator[]返回什么，都可以用这个地址初始化一个T*
+```
+`vector<bool>::operator[]`返回一个对象，其行为类似于比特的引用，也称为代理对象(`vector<bool>::reference*`类型)，所以不是STL容器。
+替代品：
+
+* `deque<bool>`，deque内部内存不是连续的(?)。
+* `bitset`，不是一个STL容器，大小（元素数量）在编译期固定，它包含的每个值只占用一比特。
+
+
+## 19.了解相等和等价的区别
+std::find对“相同”的定义是相等，基于operator==。
+set::insert，find(有序的关联容器)对“相同”的定义是等价(条件:`!(w1<w2) && !(w2<w1)`),通常基于`operator<`(默认比较算法less，可自定义)。
+
+
+## 20.为指针的关联容器指定比较类型
+目的：使之真正有序，而不是指针值的顺序。
+set<typename T, typename Compare> 其中Compare是一个type而不是一个函数指针、或者函数对象，这就是所谓的"比较类型(comparison types)"。
+```
+struct DereferenceLess
+{
+	template <typename PtrType>
+        bool operator()(PtrType pT1,PtrType pT2) const  // 参数是值传递的，因为我们希望它们是（或行为像）指针
+         {
+            return *pT1 < *pT2;
+        }
+};
+set<string*, DereferenceLess> ssp;
+```
+也可以应用于表现为指针的对象的容器，例如，智能指针和迭代器。
+
+
+## 21.永远让比较函数对相等的值返回false
+除非你的比较函数总是为相等的值返回false，你将会打破所有的标准关联型容器，不管它们是否允许存储复本。
+用于排序关联容器的比较函数必须在它们所比较的对象上定义一个“严格的弱序化(strict weak ordering)”（传给sort等算法的比较函数也有同样的限制）。
+                
+
+## 22.避免原地修改set和multiset的键
+因为`map<K, V>`或`multimap<K, V>`类型的对象中元素的类型是`pair<const K, V>`。因为键的类型const K，它不能改变(改变const对象会造成未定义的结果)。
+`set<K>`或`multiset<K>`里的元素可能在你想要的任何时候改变(有时要用`const_cast<T&>`转换掉返回值的常量属性，K本身不是const的)。必须确保不改变影响容器有序性的元素部分。即如果你进行容器元素的原地修改，你有责任确保容器保持有序。
+安全地改变set、multiset、map或multimap里的元素:删除旧值-插入新值(5 step)。
+
+
+## 23.考虑用有序vector代替关联容器
+一个vector可能比一个关联容器能提供更高的性能（时间和空间上都是）。但不是任意的vector都会，只有有序vector。因为只有有序容器才能正确地使用查找算法——binary_search、lower_bound、equal_range等。
+在有序vector中存储数据很有可能比在标准关联容器中保存相同的数据消耗更少的内存；当页面错误值得重视的时候，在有序vector中通过二分法查找可能比在一个标准关联容器中查找更快。
+保存在map中的元素类型是`pair<const K, V>`。如果要用vector模拟map或者multimap，必须去掉const，因为当对vector排序时，它的元素的值将会通过赋值移动，那意味着pair的两个组件都必须是可赋值的。
+
+
+## 24.当关乎效率时应该在map::operator[]和map-insert之间仔细选择
+map的operator[]函数与vector、deque和string的operator[]函数无关，也和内建的数组operator[]无关。相反，map::operator[]被设计为简化“添加或更新”功能。
+每个标准容器都提供的value_type typedef,对于map和multimap（以及hash_map和hash_multimap），容器元素的类型总是某种pair。
+出于对效率的考虑，当给map添加一个元素时，我们断定insert比operator[]好；而从效率和美学考虑，当更新已经在map里的元素值时operator[]更好。
+
+
+## 25.熟悉非标准散列容器
+SGI设计使用equal_to作为默认比较函数,这违背标准关联容器的约定——默认比较函数是less。散列容器确定在一个散列容器中的两个对象是否有相同的值是通过相等测试，而不是等价,因为对于散列容器来说不需要保持有序。
+在后端，SGI利用常用的一个元素的单链表的指针数组（桶）组成的开放散列法。散列容器只提供了前向迭代器，不能进行反向迭代。
+
+
+## 26.尽量用iterator代替const_iterator，reverse_iterator和const_reverse_iterator
+关系：
+```
+        .--------.             .--------------.
+        |iterator|------------>|const_iterator|
+        '--------'             '--------------'
+         | ^                        ^
+         v | base()                 | base()
+        .----------------.     .----------------------.
+        |reverse_iterator|---->|const_reverse_iterator|
+        '----------------'     '----------------------'
+```
+综合考虑到iterator与一些容器类成员函数的粘连关系，从实践得出const_iterator没有iterator好用的结论是很难避免的。
+
+
+## 27.用distance和advance把const_iterator转化成iterator
+对于有些容器而言，iterator和const_iterator是完全不同的类，不能用const_cast。正确的做法：
+```
+advance(iter, distance<ConstIter>(iter, constIter));   // 因为模板参数类型相同，不能自动推导，需显式指定
+```
+
+## 28.了解如何通过reverse_iterator的base得到iterator
+```
+             rend()   ri rbegin()
+                |     |   | 
+                v     v   v
+                 .-+-+-+-+-.
+                 |1|2|3|4|5|
+                 '-+-+-+-+-'
+                  ^     ^   ^
+                  |     |   |
+              begin()   i   end()        
+```
+ri.base() 比 ri 滞后一位。
+对于insert操作而言，ri和ri.base()是等价的，而且ri.base()真的是ri对应的iterator。 
+对于删除操作而言，ri和ri.base()并不等价，而且ri.base()不是ri对应的iterator。(使用：`v.erase((++ri).base())`) 
+
+
+## 29.需要一个一个字符输入时考虑使用istreambuf_iterator
+istream_iterators使用operator>>函数来进行真的读取，而且operator>>函数在默认情况下忽略空格。
+```
+ifstream inputFile("interestingData.txt");
+// 关闭inputFile的忽略空格标志
+inputFile.unset(ios::skipws);    
+// 但效率很低（为了处理格式） 
+string fileData((istream_iterator<char>(inputFile)), istream_iterator<char>()); 
+// 合适的做法是用istreambuf_iterator替代
+string fileData((istreambuf_iterator<char>(inputFile)), istreambuf_iterator<char>());
+```
+
+## 30.确保目标区间足够大
+即使调用完reserve，当你想要让容器把新元素加入到vector或string时，你也必须对算法使用插入迭代器。
+如果要覆盖现有容器的元素而不是插入新的，不需要插入迭代器，但仍然需确保目的区间足够大。如果没有，必须使用resize来确保它有或者可以清空results然后使用插入迭代器。
+
+
+## 31.了解你的排序选择
+如果你需要在vector、string、deque或数组上进行完全排序，可以使用sort或stable_sort。 
+如果你有一个vector、string、deque或数组，只需要排序前n个元素，应该用partial_sort。 
+如果你有一个vector、string、deque或数组，需要找出第n个元素而不管它前后元素的顺序，用nth_element。 
+如果你需要把标准序列容器的元素或数组分隔为满足和不满足某个标准，找partition或stable_partition。 
+如果你的数据是在list中，可以直接使用partition和stable_partition，可以使用list的sort(stable的)来代替sort和stable_sort。如果需要partial_sort或nth_element提供的效果，就必须间接完成这个任务。 
+
+STL并不包含partial_sort和nth_element的稳定版本。
+性能： 1.partition 2.stable_partition 3.nth_element 4.partial_sort 5.sort 6.stable_sort。 
+
+
+## 32.如果你真的想删除东西的话就在类似remove的算法后接上erase
+从容器中除去一个元素，唯一的方法是调用那个容器的一个成员函数，几乎都是erase的某个形式。remove不可能从一个容器中除去元素。
+remove移动指定区间中的元素直到所有“不删除的”元素在区间的开头（相对位置和原来它们的一样）。它返回一个指向最后一个的下一个“不删除的”元素的迭代器。返回值是区间的“新逻辑终点”。新逻辑终点以后的元素仍保持它们的原值，就象完成了一种压缩，被删除的值表演了在压缩中被填充的洞的角色。
+remove和erase整合到list成员函数remove中,这是STL中唯一名叫remove又能从容器中除去元素的函数。但在关联容器中类似的成员函数叫erase。
+remove不是唯一这种情况(不删除值)的算法:另外有两种"类似remove"的算法：remove_if和unique(unique作为list的成员函数会删除)。
+```
+container.erase(remove(container.begin(), container.end(), val), container.end());
+```
+
+## 33.提防在指针的容器上使用类似remove的算法
+避免在动态分配的指针的容器上使用remove和类似算法（remove_if和unique）。在很多情况下，partition算法是合理的替代品。如果无法避免，排除这个问题一种方法是在应用erase-remove惯用法之前先删除指针并设置它们为空，然后除去容器中的所有空指针。最好的方法是使用shared_ptr。 
+
+
+## 34.注意哪个算法需要有序区间
+只能操作有序数据的算法：binary_search lower_bound upper_bound equal_range set_union set_intersection set_difference set_symmetric_difference merge inplace_merge includes.  
+下面的算法一般用于有序区间，虽然它们不要求：unique unique_copy.
+如果你传一个区间给一个也带有比较函数的算法，确保你传递的比较函数行为和你用于排序这个区间的一样。
+所有需要有序区间的算法通过等价来判断两个值是否“相同”，就像标准关联容器（它们本身是有序的）。相反，unique和unique_copy判断两个对象“相同”的默认方式是通过相等。 
+
+
+## 35.通过mismatch或lexicographical比较实现简单的忽略大小写字符串比较
+mismatch算法:确定了两个区间中第一个对应的不相同的值的位置。前提是，我们必须确定一个字符串是否比另一个短，短的字符串作为第一个区间传递。
+lexicographical_compare算法是strcmp的泛型版本。strcmp只对字符数组起作用，但lexicographical_compare对所有任何类型的值的区间都起作用。同时，strcmp总是比较两个字符来看看它们的关系是相等、小于或大于另一个。lexicographical_compare可以传入一个决定两个值是否满足一个用户定义标准的二元判断式。
+如果想牺牲一些移植性，字符串没有包含嵌入的null，不关心国际化，可以使用stricmp或strcmpi。
+
+
+## 36.了解copy_if的正确实现
+STL有11个名字带"copy"的算法，但没有copy_if。
+只是加一个not1在传给copy_if的判断式前面，然后把这个结果判断式传给remove_copy_if来实现copy_if不够好，因为not1不能直接应用于一个函数指针。
+正确的实现：
+```
+template<typename InputIterator,typename OutputIterator,typename Predicate>
+OutputIterator copy_if(InputIterator begin, InputIterator end, OutputIterator destBegin, Predicate p)
+{
+    while (begin != end)
+    {
+		if (p(*begin))*destBegin++ = *begin;
+		++begin;
+    }
+    return  destBegin;
+}
+```
+
+## 37.用accumulate或for_each来统计区间
+禁止传给accumulate的函数中有副作用(非纯函数/判断式类)
+accumulate直接返回那些要的统计值，而for_each返回一个函数对象(传进来的，可以有副作用)，必须从这个对象中提取想要的统计信息。
+
+
+## 38.把仿函数类设计为用于值传递
+因为函数对象以值传递和返回(如果函数对象是引用传递，有些STL算法的实现甚至不能编译)。第一，函数对象应该很小。否则它们的拷贝会很昂贵。第二，函数对象必须非多态——它们不能用虚函数。那是因为派生类对象以值传递代入基类类型的参数会造成切割问题。
+使用多态:建立一个包含一个指向实现类的指针的小而单态的类，然后把所有数据和虚函数放到实现类(Pimpl惯用法)。
+
+
+## 39.用纯函数做判断式
+判断式(谓词，predicate)是返回bool（或者其他可以隐式转化为bool）的函数。
+纯函数是返回值(不仅是return值)只依赖于参数的函数。在C++中，由纯函数引用的所有数据不是作为参数传进的就是在函数生存期内是常量。如果一个纯函数引用的数据在不同次调用中可能改变，在不同的时候用同样的参数调用这个函数可能导致不同的结果，那就与纯函数的定义相反。 
+一个判断式类是一个仿函数类，它的operator()函数是一个判断式。
+在判断式类中把operator()声明为const对于正确的行为来说是必要的，但不够充分(const成员函数可以访问multable数据成员、非const局部静态对象、非const类静态对象、名字空间域的非const对象和非const全局对象)。它也得是一个纯函数。这个限制也扩展到非类中的判断式函数。 
+
+
+## 40.使仿函数类可适配
+四个标准函数适配器（not1、not2、bind1st和bind2nd）都需要存在某些typedef。
+ptr_fun可以针对普通函数使这些typedef有效(使可适配)。
+要使函数对象可适配：从unary_function或binary_function的模板实例继承。传给unary_function或binary_function的类型要去掉const和引用，指针类型除外。
+如果有两个operator()函数，这个仿函数可以和最多一种它的调用形式（传参数给binary_function的那个）适配。
+有时候有必要给一个仿函数类多个调用形式（使用operator()的模版函数，因此得放弃可适配性），这是例外，不是规则。 
+
+
+## 41.了解使用ptr_fun、mem_fun和mem_fun_ref的原因
+mem_fun(指针)和mem_fun_ref(引用)把调用语法从一个通常用于成员函数的适配到在STL中可以到处使用，它们也提供重要的typedef。而fun_ptr仅提供typedef。
+
+
+## 42.确定`less<T>`表示operator<
+关联容器默认使用`less<T>`作为比较操作，默认的`less<T>`调用对象的 operator< 操作。
+如果你使用less（明确或者隐含，对`less<T>`进行模板特化），保证它表示operator<。如果你想要使用一些其他标准排序对象，建立一个特殊的不叫做less的仿函数类。
+
+
+## 43.尽量用算法调用代替手写循环
+理由：效率：算法通常比程序员产生的循环更高效。 
+      正确性：写循环时比调用算法更容易产生错误。 
+      可维护性：算法通常使代码比相应的显式循环更干净、更直观。 
+原则：如果需求和STL中的算法相同/类似，而且调用算法非常清晰，则调用算法。如果需要的仅仅是简单的循环，而且使用算法需要引入多个binders或adapters，则手写循环。如果需要在循环中作复杂操作，将操作封装在函数对象中，然后调用算法。
+
+
+## 44.尽量用成员函数代替同名的算法
+理由:首先，成员函数更快；其次，比起算法来，它们与容器结合得更好（尤其是关联容器）。因为同名的算法和成员函数通常并不是是一样的。
+差别:效率的差别，相等和等价的差别，行为的差别。
+
+
+## 45.注意count、find、binary_search、lower_bound、upper_bound和equal_range的区别
+|你想知道的                                      |在无序区间（算法）  |在有序区间（算法）   |在set或map上（成员函数） |在multiset或multimap上（成员函数） |
+|-                                                       |-           |-                    |-               |- |
+|期望值是否存在？                                        |find        |binary_search        |count           |find |
+|期望值是否存在？如果有，第一个等于这个值的对象在哪里？  |find        |equal_range          |find            |lower_bound|
+|第一个不在期望值之前的对象在哪里？                      |find_if     |lower_bound          |lower_bound     |lower_bound |
+|第一个在期望值之后的对象在哪里？                        |find_if     |upper_bound          |upper_bound     |upper_bound |
+|有多少对象等于期望值？                                  |count       |equal_range+distance |count           |count |
+|等于期望值的所有对象在哪里？                            |find(迭代)  |equal_range          |equal_range     |equal_range |
+
+要选择搜索策略，必须依赖于你的迭代器是否定义了一个有序区间。如果是，你就可以通过binary_search、lower_bound、upper_bound和equal_range来加速搜索。否则，你就只能用线性时间的算法count、count_if、find和find_if。
+从无序区间迁移到有序区间导致了另一个迁移：从使用相等来判断两个值是否相同到使用等价来判断。count和find算法都用相等来搜索，而binary_search、lower_bound、upper_bound和equal_range则用等价。
+不能只是检测lower_bound的返回值是否等于end迭代器。必须还要检测lower_bound所标示出的对象是不是你需要的值(等价检测，可以用equal_range来避免作手动等价检测，但是调用equal_range的花费比调用lower_bound多得多。）
+对于multi容器，如果不止有一个值存在，find并不保证能识别出容器里的等于给定值的第一个元素；它只识别这些元素中的一个。应该使用lower_bound。
+
+
+## 46.考虑使用函数对象代替函数作算法的参数
+理由：
+
+* 高效。原因：operator()的内联。
+* 让程序可以编译。对于任何理由，STL平台经常完全拒绝有效代码，即使编译器或库或两者都没问题。
+* 避免细微的语言陷阱。
+
+
+## 47.避免产生只写代码
+有一个vector<int>，去掉vector中值小于x而出现在至少和y一样大的最后一个元素之后的所有元素。
+```
+v.erase(remove_if(find_if(v.rbegin(), 
+                          v.rend(), bind2nd(greater_equal<int>(), y)).base(),
+                  v.end(), bind2nd(less<int>(), x)),
+        v.end());
+```
+更可读:
+```
+// 把rangeBegin初始化为指向最后一个符合的
+VecIntIter rangeBegin = find_if(v.rbegin(), v.rend(), bind2nd(greater_equal<int>(), y)).base();
+// 从rangeBegin到v.end()，删除所有小于x的值
+v.erase(remove_if(rangeBegin, v.end(), bind2nd(less<int>(), x)), v.end());
+```
+不能读和理解的软件不能被维护，不能维护的软件几乎没有不值得拥有。
+
+
+## 48.总是#include适当的头文件
+几乎所有的容器都在同名的头文件里。例外的是`<set>`和`<map>`: `<set>`声明了set和multiset，`<map>`声明了map和multimap。 
+所有的算法都在`<algorithm>`中声明。例外的是accumulate、inner_product、adjacent_difference和partial_sum。这些算法在`<numeric>`中声明。 
+特殊的迭代器，包括istream_iterators和istreambuf_iterators，在`<iterator>`中声明。 
+标准仿函数（比如`less<T>`）和仿函数适配器（比如not1、bind2nd）在`<functional>`中声明。 
+
+
+## 49.学习破解有关STL的编译器诊断信息
+用更短的记忆术替换冗长的基于模板的类型名字来把编译器诊断信息降低到可以理解的东西。在许多场合，要做的就是用已经使用的typedef名字替换typedef展开。
+比如`std::basic_string<char, struct std::char_traits<char>, class std::allocator<char> >`翻译为string。
+
+
+## 50.让你自己熟悉有关STL的网站
+
+ 
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
