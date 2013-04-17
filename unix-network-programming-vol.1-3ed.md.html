@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<title>Unix Network Programming Vol.1 3ed</title>
+<xmp theme="readable" style="display:none;">
+## 1 简介
+### 1.1 概述
+### 1.2 一个简单的时间获取客户程序
+### 1.3 协议无关性
+### 1.4 错误处理：包裹函数
+### 1.5 一个简单的时间获取服务器程序
+### 1.6 本书中客户/服务器程序示例索引表
+### 1.7 OSI模型
+网络应用绕过传输层直接使用IPv4/6是可能的，使用raw socket。
+
+协议数据单元PDU（Protocol Data Unit）是指对等层次之间传递的数据单位。 
+
+* 物理层: 位（bit）
+* 数据链路层: 帧（frame）
+* 网络层: 包（packet），又叫分组
+* 传输层: 段（segment），又叫分节
+
+### 1.8 BSD网络支持历史
+### 1.9 测试用网络及主机
+### 1.10 Unix标准
+### 1.11 64位体系结构
+Socket API地址结构的长度使用socklen_t类型。
+### 1.12 小结
+
+## 2 传输层：TCP、UDP和SCTP
+### 2.1 概述
+### 2.2 总图
+### 2.3 UDP
+UDP不保证
+
+* UDP数据包会到达其最终目的地
+* 各个数据包的先后顺序跨网络后保持不变
+* 每个数据包只到达一次
+
+### 2.4 TCP
+TCP提供
+
+* 端对端的连接
+* 可靠性：超时重传或故障通知
+* 估算往返时间RTT
+* 数据排序
+* 流量控制：通过通告窗口指出接收缓冲区当前可用的空间量。当接收缓冲区满时，窗口大小为0。
+* 拥塞控制
+* 全双工
+
+### 2.5 SCTP
+SCTP提供
+
+* 关联：取代连接，一个关联指代两个系统之间的一次通信。
+* 多宿：单个SCTP端点能够支持多个IP地址，以增强网络故障的健壮性。
+* 面向消息的按序递送服务。
+* 多流：每个流各自可靠地按序递送消息。一个流上某个消息的丢失不会阻塞同一关联其他流上消息的投递。（TCP会阻塞直至修复）
+
+### 2.6 TCP连接的建立和终止
+#### 2.6.1 三路握手
+client: connect
+server: bind, listen, accept
+
+1. C -> S: SYN J, MSS1
+1. S -> C: SYN K, ACK J+1, MSS2
+1. C -> S: ACK K+1
+
+#### 2.6.2 TCP选项
+每一个SYN可以含多个TCP选项
+
+* MSS：最大分节大小，在本连接中的每个TCP分节中愿意接受的最大数据量。发送端使用接收端的MSS作为发送分节的最大大小。设置：TCP_MAXSEG。
+* 最大窗口：连接的任何一端能够通告对端的最大窗口大小是65535。设置：SO_RCVBUF。
+* 时间戳
+
+#### 2.6.3 TCP连接终止
+主动关闭：close
+被动关闭：read返回EOF -> close
+
+1. C -> S: FIN M
+1. S -> C: ACK M+1
+1. S -> C: FIN N
+1. C -> S: ACK N+1
+
+在2-3之间，从被动关闭一端到主动关闭一端的数据流动是可能的，称为半关闭。
+当一个进程终止时，所有打开的描述符都被关闭，这会导致仍然打开的任何TCP连接上也发出一个FIN（不需要调close）。
+
+#### 2.6.4 TCP状态转换图
+![TCP State](http://upload.wikimedia.org/wikipedia/commons/a/a2/Tcp_state_diagram_fixed.svg)
+可以用netstat监视状态
+
+#### 2.6.5 观察分组
+不同方向上MSS值不同不成问题。
+捎带：服务器对客户端的请求的确认是伴随其应答发送，通常在服务器请求并产生应答的时间少于200ms时发生，否则分2个分节发送。
+从TCP切换到UDP将丧失TCP提供给应用进程的全部可靠性，迫使可靠服务的一大堆细节从TCP转移到UDP应用进程。UDP则避免了TCP连接建立和终止所需的开销。
+
+#### 2.6.7 TIME_WAIT状态
+MSL: 任何IP数据报能够在因特网中存活的最长时间。
+TIME_WAIT状态的持续时间是MSL的2倍。
+执行主动关闭的那一端是处于TIME_WAIT状态的那一端。
+TIME_WAIT状态存在的两个理由
+
+* 可靠地实现TCP全双工连接的终止。需要正确处理连接终止序列4个分节中任何一个丢失的情况。
+* 允许老的重复分节在网络中消逝。2MSL的时间防止了来自某个连接的老的重复分组在该连接已经终止后再现。
+
+### 2.8 SCTP关联的建立和终止
+#### 2.8.1 四路握手
+client: connect
+server: bind, listen, accept
+
+1. C -> S: INIT(Ta, J)
+1. S -> C: Ta:INIT ACK(Tz, K, cookie C)
+1. C -> S: Tz: COOKIE ECHO C
+1. S -> C: Ta: COOKIE ACK
+
+在关联有效期内，验证标记Ta必须在对端发送的每个分组中出现，验证标记Tz也必须在本端发送的每个分组中出现。
+四路握手结束时，两端各自选择一个主目的地址用作数据要发送到的目的地。
+使用四路握手是为了避免一种DoS攻击。
+
+#### 2.8.2 关联终止
+主动关闭：close
+被动关闭：read返回EOF -> close
+
+1. C -> S: SHUTDOWN
+1. S -> C: SHUTDOWN ACK
+1. C -> S: SHUTDOWN COMPLETE
+
+没有半关闭的关联，当一端关闭某个关联时，另一端必须停止发送新的数据。
+没有TIME_WAIT状态，因为使用了验证标记。
+
+#### 2.8.3 SCTP状态转换图
+#### 2.8.4 观察分组
+#### 2.8.5 SCTP选项
+
+### 2.9 端口号
+0~1023: 众所周知的端口，可能的话，相同端口号就分给TCP/UDP/SCTP的同一给定服务。Unix下启动这些端口的服务需要root权限。
+1024~49151: 已注册的端口。
+49152~65535: 私有端口，临时端口。49152 = 65536*3/4
+
+socket pair: 一个定义该连接的四元组，唯一标识一个网络上的每个TCP连接。标识每个端点的IP和端口号通常称为一个socket。
+SCTP的同一个关联可能需要多个四元组标识（IP地址各不相同但端口号一样）。
+
+### 2.10 TCP端口号与并发服务器
+服务器可以指定只接受到达某个特定本地接口(IP地址)的外来连接，这里要么选一个接口要么选任意接口，不能指定某几个接口。
+必须由socket pair才能确定由哪个端点(socket)接收某个到达的分节，已连接socket pair的由相应socket接收，其他指定目的端口的TCP分节都由监听socket接收。
+
+### 2.11 缓冲区大小及限制
+IPv4数据报的最大大小是65535字节，IPv6为65575字节。
+IPv4要求最小链路MTU为68字节，IPv6为1280字节。
+两个主机之间路径的最小MTU称为路径MTU。1500字节是以太网常见的路径MTU。
+如果IP数据包超过相应链路的MTU，IPv4和IPv6都将执行分片。
+IPv4头的DF(don't fragment)位若被设置，则不允许主机或路由器对它们分片。IPv6只有主机对其产生的数据报执行分片。
+最小重组缓冲区大小：保证支持的最小数据报的大小，IPv4为576字节，IPv6为1500字节。
+TCP的MSS的目的是告诉对端其最小重组缓冲区的实际值，从而试图避免分片。MSS经常设置成MTU减去IP和TCP的头部固定长度，IPv4为1460字节，IPv6为1440字节。
+SCTP基于到对端的所有地址的最小路径MTU作为分片点。
+
+#### 2.1.1 TCP输出
+每个TCP socket有一个发送缓冲区，可以用SO_SNDBUF设置。
+当写一个TCP socket的write调用成功返回仅仅表示可以重新使用原来的应用进程缓冲区（数据已成功复制到发送缓冲区，如果数据比发送缓冲区空闲大小还要大则write调用阻塞），并不表明对端的TCP或应用进程已经收到数据。
+对端TCP必须确认收到的数据，只有对端ACK到达本端才能从发送缓冲区中丢弃已确认的数据。
+
+#### 2.1.2 UDP输出
+UDP的发送缓冲区并不存在，但它大小有个值，指写到该socket的数据大小的上限，可以用SO_SNDBUF设置。如果写一个大于发送缓冲区大小的数据，则返回EMSGSIZE错误。
+UDP不可靠，没有发送缓冲区，不保存应用进程数据的副本，发送后即弃。
+相比TCP应用数据更有可能被分片，因为TCP会把应用数据划分成MSS大小，而UDP没有对等的手段。
+当写一个UDP socket的write调用成功返回仅仅表示所写的数据报或其所有分片已被加入数据链路层的输出队列。如果队列没有空间则会返回ENOBUF错误给应用进程（不一定，可能直接被丢掉）。
+
+#### 2.1.3 SCTP输出
+和TCP类似。
+
+### 2.12 标准因特网服务
+### 2.13 常见因特网应用的协议使用
+### 2.14 小结
+
+
+## 3 套接字编程简介
+### 3.1 概述
+### 3.2 套接字地址结构
+一般套接字函数使用通用套接字结构sockaddr，sa_len, sa_family, sa_data[14]。结构大小16字节。
+IPv4套接字结构sockaddr_in，POSIX规范只需要三个字段: sin_family(AF_INET), sin_addr, sin_port。端口号以网络字节序存储。32位地址，结构大小16字节。
+IPv6套接字结构sockaddr_in6，sin6_family(AF_INET6), sin6_addr, sin6_port。128位地址，结构大小28字节。
+还有Unix域结构sockaddr_un/AF_LOCAL, 数据链路结构sockaddr_dl/AF_LINK。
+新通用套接字结构sockaddr_storage，ss_len, ss_family。与sockaddr相比能满足苛刻的对齐要求，而且足够大可以容纳所有结构种类。
+
+### 3.3 值-结果参数
+传入套接字地址结构的函数：bind, connect, sendto。
+传出套接字地址结构的函数：accept, recvfrom, getsockname。
+
+### 3.4 字节排序函数
+小端：低序字节存储在起始地址。大端：高序字节存储在起始地址。
+转换函数：htons, htonl, ntohs, ntohl。
+
+### 3.5 字节操纵函数
+Berkeley函数strings.h: bzero, bcopy, bcmp。
+ANSI C函数string.h: memset, memcpy, memcmp。
+bcopy能处理源地址和目标地址有重叠的情况，而memcpy不能，需要用memmove。
+
+### 3.6 inet_aton, inet_addr和inet_ntoa函数
+只适用IPv4：点分十进制字符串(ascii)和网络字节序二进制值(numeric)之间的转换。
+inet_ntoa使用了静态内存，因此不可重入。
+
+### 3.7 inet_pton和inet_ntop函数
+同时适用IPv4和IPv6：地址字符串(presentation)和网络字节序二进制值(numeric)之间的转换。
+
+### 3.8 sock_ntop相关函数
+IPv4/6协议无关的wrap函数。
+
+### 3.9 readn, writen和readline函数
+字节流套接字上调用read或write输入或输出的字节数可能比请求的数量少，但这不是出错状态。read时很常见，write只有在该套接字为非阻塞下才出现。
+
+### 3.10 小结
+
+
+## 4 基本TCP套接字编程
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
