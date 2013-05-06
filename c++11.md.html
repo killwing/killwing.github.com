@@ -2,6 +2,10 @@
 <html>
 <title>C++11</title>
 <xmp theme="readable" style="display:none;">
+## __cpluscplus
+宏：在C++11里值为201103L，原（C++98/03）为199711L。
+
+
 ## ">>" as Nested Template Closer
 不必再加空格
 ```
@@ -1069,7 +1073,7 @@ decltype(std::declval<NonDefault>().foo()) n2 = n1; // int n2
 取得函数调用表达式的返回值类型。
 
 
-## Generalized constant expressions (constexpr)
+## Generalized Constant Expressions (constexpr)
 constexpr可以在编译期用来定义其他对象。因为constexpr保证在编译期计算出其要初始化的值。
 constexpr常量可以使用的必须是literal类型。
 
@@ -1106,7 +1110,7 @@ double c[array_size(b)];
 ```
 
 
-## User-defined literals
+## User-Defined Literals
 语法：
 ```
 return decl operator"" name(unsigned long long n) { body }
@@ -1142,12 +1146,12 @@ std::string operator"" _str(unsigned long long i) {
 std::string s = 100_str;
 ```
 
-## Enum enhancements
-### Specification of underlying type
+## enum Enhancements
+### Specification of Underlying Type
 可以指定enum的实际类型：`enum Bool : char {False, True};`，如果不指定则编译器会选择一个适合的类型，通常是int。
 enum class默认就是int型。
 
-### Enumerant names scoped to the enum
+### Enumerant Names Scoped to the enum
 加上class/struct关键字：
 ```
 enum class Color {
@@ -1160,7 +1164,7 @@ enum class Color {
 引用时也要带类名引用。
 不能隐式转换到int，可以用static_cast。
 
-### Forward declaration
+### Forward Declaration
 ```
 enum Enum1;                   //Illegal in C++ and C++11; no size is explicitly specified.
 enum Enum2 : unsigned int;    //Legal in C++11.
@@ -1170,7 +1174,7 @@ enum Enum2 : unsigned short;  //Illegal in C++11, because Enum2 was previously d
 ```
 
 
-## Constraining virtual function overrides
+## Constraining virtual Function Overrides
 特殊标识符（非关键字）：
 override: 表示此函数应该override一个基类的虚函数。
 final: 表示子类不应该再override这个虚函数。
