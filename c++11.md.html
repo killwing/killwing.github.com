@@ -87,7 +87,7 @@ expression只要支持range：begin(container), end(container)有效，包括：
 ## nullptr
 一个新的关键词，表示空指针。类型：std::nullptr_t。
 在重载和forwarding templates上与0， NULL不同，是真正的指针类型。
-可以隐式转换为指针类型，bool类型(false)，但不能隐式转换为整形。
+可以隐式转换为指针类型，bool类型(false)，但不能隐式转换为整形。可以和0比较，`nullptr == 0`为真。
 
 ## Unicode Support
 两种新类型：char16_t, char32_t
@@ -288,7 +288,7 @@ operator()默认是const成员函数，_minVal和_maxVal都不能修改。要修
 
 ### Trailing Return Types (->)
 指定Lambda的返回类型。
-常和decltype一起使用（见后）。
+常和decltype一起使用（见后），解决通常返回类型无法引用到参数变量的scope问题。
 指定返回类型是auto的类型的函数：`auto f() const -> bool;`（不常用）
 
 ### Lambdas without Parameter Lists
@@ -918,9 +918,9 @@ delete copy操作也禁止了生成默认move操作，反之亦然。
 因为被删除的函数虽然不能被调用，但是被声明，所以参与重载决议。
 
 ## Default Member Initialization
-默认成员初始化：可以在类的非静态成员声明的同时用"="或者统一初始化符"{...}"初始化。
+默认成员初始化：可以在类的非静态（或const静态）成员声明的同时用"="或者统一初始化符"{...}"初始化。
 初始化也可以使用前面已初始化过的变量，和在初始化列表里类似。
-const静态成员也可以使用类内初始化。不限定整形，可以是任意literal类型（std::is_literal_type）。
+const静态成员仍可以使用类内初始化。不限定整形，可以是任意literal类型（std::is_literal_type）。
 构造函数的初始化列表会覆盖默认初始化的值。所以在成员不依赖于构造函数初始化时比较有用。
 使用默认成员初始化会把类变成non-aggregate的（影响统一初始化）。
 
@@ -930,7 +930,7 @@ const静态成员也可以使用类内初始化。不限定整形，可以是任
 当被委托者返回时，自己的构造函数体才开始执行。
 
 ## Inheriting Constructors
-使用"using Base::Base; "声明可以把基类的构造函数引入到子类，从而与子类构造函数发生重载。
+使用`using Base::Base; `声明可以把基类的构造函数引入到子类，从而与子类构造函数发生重载。
 子类中如果有和基类签名一样的构造函数，则不继承（和非构造函数一样）。
 继承的构造函数保持其异常规范，explicit和constexpr。
 using只是声明，真正用到时才会被定义，其实是隐式声明了Derived::Derived，其中调用Base::Base，且Base版本不能是private。
@@ -1196,14 +1196,78 @@ public:
 ```
 
 
+## Unrestricted Unions
+一个union的成员必须是：
+
+* 没有虚函数
+* 不是引用
+* 没有基类
+* 可以有用户定义的构造，拷贝构造，析构函数，但此union的对应函数会被delete掉。
+
+最后一条是C++11新增的，一般用来把union内置在一个struct里来跟踪哪一个类型成员被使用了(discriminate unions)。
+
+```
+class Widget {	// Three alternative implementations represented as a union
+private:
+    enum class Tag { point, number, text } type;	// discriminant
+    union {		// representation
+        point p;	  // point has constructor
+        int i;
+        string s;	 // string has default constructor, copy operations, and destructor
+    };
+    // ...
+    widget& operator=(const widget& w) 	// necessary because of  the string variant
+    {
+        if (type==Tag::text && w.type==Tag::text) {
+            s = w.s;		// usual string assignment
+            return *this;
+        }
+
+        if (type==Tag::text) s.~string();	// destroy (explicitly!)
+
+        switch (type==w.type) {
+        case Tag::point: p = w.p; break;	// normal copy
+        case Tag::number: i = w.i; break;
+        case Tag::text: new(&s)(w.s); break;	// placement new
+        }
+        type = w.type;
+        return *this;
+    }
+};
+```
+
+
+## Relaxed POD Type Definition
+POD (Plain Old Data) 有像C struct一样的内存分布，可以按位操作(memcpy/memset)。
+C++98的POD比较严格，比如不能有构造析构函数。C++11放宽了限制，只要不影响标准内存布局：
+
+* 如果所有成员和基类是POD，那么它也是POD
+* 没有虚函数
+* 没有虚基类
+* 没有引用成员
+* 没有存取域标识(public/protected/private)
+
+广义POD(`std::is_pod`)包括：trivially copyable types, trivial types, standard-layout types.
+
+
+## C99 Compatibility
+* long long: 至少64位整形。
+* Extended integral types: 长整形规则。
+* UCN (Universal Character Names) changes.
+* concatenation of narrow/wide strings.
+* Not VLAs (Variable Length Arrays).
+* `__func__`: 表示当前函数名的宏。
+* `__STDC_HOSTED__`: gcc - hosted implementation (1) or freestanding implementation (0)
+* `_Pragma`: `_Pragma( X )`相当于`#pragma X`。
+* vararg: 可变参数宏。
+* 宏的空参数。
+
+
 ## More
-* Unrestricted unions (members may be any non-reference type).
 * Time library supportings clocks, durations, points in time.
 * Local types allowed as template arguments.
-* C99 compatibility, e.g., `long long`, `__func__`, etc.
 * Inline namespaces facilitate library versioning.
 * Scoped allocators allow containers and their elements to use different allocators, e.g., `vector<string>`.
-* Relaxed POD type definition; new standard layout types.
 * extern templates for control of implicit template instantiation.
 * sizeof applicable to class data members alone (e.g., sizeof(C::m)).
 * & and && member functions.
