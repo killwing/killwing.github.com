@@ -130,7 +130,7 @@ R"(\n\n)"
 // UTF-8：
 u8R"(Raw UTF-8 string literal \n (without a newline))"
 
-// 多行：(clang++3.1不支持)
+// 多行：
 std::string withNewlines(R"(Line 1 of the string...
     Line 2...
     Line 3)");
@@ -1115,21 +1115,27 @@ double c[array_size(b)];
 ```
 return decl operator"" name(unsigned long long n) { body }
 ```
-类型可以是：unsigned long long, long double, char, const char*，名字必须以下划线开头。
+名字必须以下划线开头。
+类型可以是：
+
+* integer iteral: unsigned long long, const char* (uncooked)
+* float-point iteral: long double, const char* (uncooked)
+* string iteral: (const char*, size_t)
+* char iteral: char
 
 ```
 // imaginary numbers
-std::complex<long double> operator "" _i(long double d) // cooked form {
+std::complex<long double> operator "" _i(long double d) { // cooked form 
     return std::complex<long double>(0, d);
 }
 auto val = 3.14_i; // val = complex<long double>(0, 3.14)
 
 // binary values
-int operator "" _B(const char*); // raw form
+int operator "" _B(const char*); // raw form as a string (uncooked)
 int answer = 101010_B; // answer = 42
 
 // std::string
-std::string operator "" _s(const char* str, size_t /*length*/) {
+std::string operator "" _s(const char* str, size_t /*length*/) { // for string iteral
     return std::string(str);
 }
 auto hi = "hello"_s + " world"; // + works, "hello"_s is a string not a pointer
@@ -1250,6 +1256,43 @@ C++98的POD比较严格，比如不能有构造析构函数。C++11放宽了限�
 广义POD(`std::is_pod`)包括：trivially copyable types, trivial types, standard-layout types.
 
 
+## Attributes
+在代码里加入一些可选项或额外信息的标准语法：[[ ... ]]
+
+* noreturn: 帮助检查错误
+* carries_dependency: 帮助优化
+
+```
+void f [[ noreturn ]] () { // f() will never return
+	throw "error"; 	// OK
+}
+	
+struct foo* f [[carries_dependency]] (int i);	// hint to optimizer
+int* g(int* x, int* y [[carries_dependency]]);
+
+for [[omp::parallel()]] (int i = 0; i < v.size(); ++i) { // OpenMP support (not in C++11)
+	// ...
+}
+```
+
+
+## Local Types as Template Arguments
+局部和匿名类型(e.g.: lambda)可以作为模板参数。
+
+```
+template<typename T> void foo(const T& t) {}
+enum X { x };
+enum { y };
+
+int main() {
+    foo(x);		// C++98: ok; C++11: ok
+    foo(y);		// C++98: error; C++11: ok
+    enum Z { z };
+    foo(z);		// C++98: error; C++11: ok 
+}
+```
+
+
 ## C99 Compatibility
 * long long: 至少64位整形。
 * Extended integral types: 长整形规则。
@@ -1263,9 +1306,8 @@ C++98的POD比较严格，比如不能有构造析构函数。C++11放宽了限�
 * 宏的空参数。
 
 
-## More
+## More (TBD)
 * Time library supportings clocks, durations, points in time.
-* Local types allowed as template arguments.
 * Inline namespaces facilitate library versioning.
 * Scoped allocators allow containers and their elements to use different allocators, e.g., `vector<string>`.
 * extern templates for control of implicit template instantiation.
@@ -1273,7 +1315,6 @@ C++98的POD比较严格，比如不能有构造析构函数。C++11放宽了限�
 * & and && member functions.
 * Relaxed rules for in-class initialization of static data members.
 * Contextual keywords for alignment control.
-* Attributes express special optimization opportunities and provide a standard syntax for platform-specific extensions.
 
 
 ## Removed and Deprecated
