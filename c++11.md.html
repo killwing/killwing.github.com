@@ -1184,6 +1184,7 @@ enum Enum2 : unsigned short;  //Illegal in C++11, because Enum2 was previously d
 特殊标识符（非关键字）：
 override: 表示此函数应该override一个基类的虚函数。
 final: 表示子类不应该再override这个虚函数。
+如果仅是因为性能原因或根本不是多态设计而不让override，应该不要用虚函数，而不是用final。
 ```
 class B {
 public:
@@ -1292,6 +1293,55 @@ int main() {
 }
 ```
 
+## noexcept -- Preventing Exception Propagation
+如果一个函数不能抛出一个异常或者程序没有为函数抛出的异常作处理，那这种函数可以声明为`noexcept`。如果这种函数抛出了异常，则程序会被终止（`terminate()`被调用）。
+noexcept可以操作表达式（不会求值）：`noexcept(noexcept(f(v.at(0))))`，表示如果`f(v.at(0))`能抛出异常，此函数就也能抛出。`noexcept`等同于`noexcept(true)`。
+如果一个类的所有成员的析构函数都是noexcept，那么其默认自动生成的析构/拷贝/移动函数隐式地为noexcept。
+
+
+## Contextual Keywords for Alignment Control
+分配内存时指定特定的对齐方式。
+```
+alignas(double) unsigned char c[1024];	 // array of characters, suitably aligned for doubles
+alignas(16) char[100];			// align on 16 byte boundary
+constexpr int n = alignof(int);		// ints are aligned on n byte boundaries
+```
+
+
+## Copying and Rethrowing Exceptions
+用来把一个异常从一个线程传递到另一个线程。
+
+* `exception_ptr current_exception();` 返回当前处理（被catch到）的异常指针（类似智能指针），如果没有则是个空异常指针对象。
+* `void rethrow_exception(exception_ptr p);` 重新抛出异常。
+* `template<class E> exception_ptr copy_exception(E e);` 复制一个异常指针（增加引用计数）。
+
+
+## Extern Templates
+模板的特化可以显式地声明为extern的以避免隐式的实例化，对编译器和连接器来说可以避免多次实例化减少很多重复的工作。
+
+
+## Inline Namespaces
+一种库的版本更新机制。inline的namespace声明使得此命名空间的声明就像在外围的命名空间声明一样，这就可以让库的开发者决定哪个版本（只有一个，用户无权选择）是inline的以作为默认版本（不需要空间名版本前缀调用）。
+
+
+## Explicit Conversion Operators
+构造函数可以是显式的以避免隐式转换。另一种反向的类型转换：操作符转换现在也可以声明为显式的(explicit)。
+```
+struct S { S(int) { } };
+
+struct SS {
+	int m;
+	SS(int x) :m(x) { }
+	explicit operator S() { return S(m); }  // because S don't have S(SS)
+};
+
+SS ss(1);
+S s1 = ss;	// error; like an explicit constructor
+S s2(ss);	// ok ; like an explicit constructor
+void f(S); 
+f(ss);		// error; like an explicit constructor
+```
+
 
 ## C99 Compatibility
 * long long: 至少64位整形。
@@ -1308,13 +1358,14 @@ int main() {
 
 ## More (TBD)
 * Time library supportings clocks, durations, points in time.
-* Inline namespaces facilitate library versioning.
 * Scoped allocators allow containers and their elements to use different allocators, e.g., `vector<string>`.
-* extern templates for control of implicit template instantiation.
 * sizeof applicable to class data members alone (e.g., sizeof(C::m)).
 * & and && member functions.
 * Relaxed rules for in-class initialization of static data members.
-* Contextual keywords for alignment control.
+----
+* Dynamic Initialization and Destruction with Concurrency
+* thread-local storage (thread_local)
+* Unicode characters
 
 
 ## Removed and Deprecated
