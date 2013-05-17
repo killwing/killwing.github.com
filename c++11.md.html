@@ -568,7 +568,7 @@ std::auto_ptr的继承者。可以移动(std::move)而不能拷贝（支持move�
 可以指向数组。shared_ptr不可。此时，没有继承转换，没有指针解引用，可以索引访问。语法：`std::unique_ptr<Derived[]> pa(new Widget[10]);`
 直接由factory函数返回的话比shared_ptr高效。
 不支持cast系列转型。
-没有make_shared/allocate_shared。
+没有make_shared/allocate_shared（以后会有）。
 在使用默认deleter的时候，和auto_ptr一样，类型定义有一定要求（所在类型要显式提供非inline析构函数）。自定义deleter无此限制。
 
 ## Forward List
@@ -579,7 +579,7 @@ header: `<forward_list>`
 
 * insert_after/emplace_after/erase_after取代insert/emplace/erase。因为插在前面有较大的开销。
 * before_begin返回begin的前一个迭代器。用于插在最前面。
-* 没有size()和push_back()。性能考虑。
+* 没有size(), back()和push_back()。性能考虑。
 * 只有前向迭代器。
 
 ## Hash Tables
@@ -1183,7 +1183,7 @@ enum Enum2 : unsigned short;  //Illegal in C++11, because Enum2 was previously d
 ## Constraining virtual Function Overrides
 特殊标识符（非关键字）：
 override: 表示此函数应该override一个基类的虚函数。
-final: 表示子类不应该再override这个虚函数。
+final: 表示子类不应该再override这个虚函数（必须是virtual）。
 如果仅是因为性能原因或根本不是多态设计而不让override，应该不要用虚函数，而不是用final。
 ```
 class B {
@@ -1342,6 +1342,29 @@ void f(S);
 f(ss);		// error; like an explicit constructor
 ```
 
+## Scoped Allocators
+让容器和其中的元素使用不同的分配器：
+
+```
+// vector and string use their own (the default) allocator:
+using svec0 = vector<string>;
+svec0 v0;
+
+// vector (only) uses My_alloc and string uses its own (the default) allocator:
+using svec1 = vector<string, My_alloc<string>>;
+svec1 v1(My_alloc<string>{my_arena1});
+
+// vector and string use My_alloc (as above):
+using xstring = basic_string<char, char_traits<char>, My_alloc<char>>;
+using svec2 = vector<xstring, scoped_allocator_adaptor<My_alloc<xstring>>>;
+svec2 v2(scoped_allocator_adaptor<My_alloc<xstring>>{my_arena1});
+
+// vector uses My_alloc and string uses My_string_alloc:
+using xstring2 = basic_string<char, char_traits<char>, My_string_alloc<char>>;
+using svec3 = vector<xstring2, scoped_allocator_adaptor<My_alloc<xstring>, My_string_alloc<char>>>;	
+svec3 v3(scoped_allocator_adaptor<My_alloc<xstring2>, My_string_alloc<char>>{my_arena1, my_string_arena});
+```
+
 
 ## C99 Compatibility
 * long long: 至少64位整形。
@@ -1358,7 +1381,6 @@ f(ss);		// error; like an explicit constructor
 
 ## More (TBD)
 * Time library supportings clocks, durations, points in time.
-* Scoped allocators allow containers and their elements to use different allocators, e.g., `vector<string>`.
 * sizeof applicable to class data members alone (e.g., sizeof(C::m)).
 * & and && member functions.
 * Relaxed rules for in-class initialization of static data members.
@@ -1366,6 +1388,8 @@ f(ss);		// error; like an explicit constructor
 * Dynamic Initialization and Destruction with Concurrency
 * thread-local storage (thread_local)
 * Unicode characters
+* metaprogramming and type traits
+* Garbage collection ABI
 
 
 ## Removed and Deprecated
@@ -1385,7 +1409,7 @@ deprecated:
 [C++ Reference](http://en.cppreference.com/)
 [C++11 - the new ISO C++ standard](http://www.stroustrup.com/C++11FAQ.html)
 [Overview of the New C++ (C++11)](http://www.artima.com/shop/overview_of_the_new_cpp)
-[C++98 and C++11 Support in Clang](http://clang.llvm.org/cxx_status.html)
+[C++98, C++11 and C++14 Support in Clang](http://clang.llvm.org/cxx_status.html)
 
 </xmp>
 <script src="js/strapdown.js"></script>
