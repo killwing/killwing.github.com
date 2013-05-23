@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<title>Design Principles</title>
+<xmp theme="readable" style="display:none;">
+## 三个关键原则
+### Don't Repeat Yourself (DRY)
+**在一个系统里每个知识都必须有唯一的权威而又清晰的表示。**
+不要写重复的代码。
+不要重复造轮子。
+
+### Keep It Simple, Stupid (KISS)
+> Everything should be made as simple as possible, but no simpler.
+- Albert Einstein
+
+**大多数系统如果构造得简单而不是复杂则能工作得最好，因此设计的一个关键目标就是：简单，避免不必要的复杂性。**
+如无必要，勿增实体。
+
+### You Ain’t Gonna Need It (YAGNI)
+**只实现目前需要的功能，需要时再添加别的功能。**
+只考虑和设计必须的功能，避免过度设计。
+
+
+## 面向对象的S.O.L.I.D五大原则
+### SRP (Simple Responsibility Pinciple) 单一职责
+**就一个类而言，应该仅有一个引起它变化的原因（职责）。**
+
+Keyword: **变化**
+
+Consequences:
+如果一个类承担的职责过多，就等于把这些职责耦合在一起。
+一个职责的变化可能会削弱或者一直这个类完成其它职责的能力。
+当变化发生时，设计会遭受到意想不到的破坏。
+
+Solution:
+把不同的职责分离到单独的类中。或者分离它们的接口解耦概念。
+如果应用的变化总导致两个职责同时变化，就不必分离它们。
+仅当变化实际发生时才具有真正的意义，有征兆地应用原则。
+
+Example:
+```
+class Modem {  
+public:  
+    void dial() {...}  
+    void hangup() {...}  
+    void send() {...}  
+    void recv() {...}  
+};  
+```
+↓↓↓
+```
+class DataChannel {  
+public:  
+    virtual void send() = 0;  
+    virtual void recv() = 0;  
+};  
+  
+class Connection {  
+public:  
+    virtual void dial() = 0;  
+    virtual void hangup() = 0;  
+};  
+  
+class Modem : public DataChannel, public Connection  
+{...};
+```
+
+### OCP (Open-Closed Principle) 开-闭原则
+**软件实体（类，模块，函数等）应该是可以扩展的，但是不可修改。**
+
+Keyword: **抽象**
+
+Consequences:
+如果程序中的一处改动就会产生连锁反应，导致一系列相关模块的改动。
+
+Solution:
+提取抽象接口，定义接口描绘所需的操作。（stategy模式）
+定义抽象类并于其中实现公共操作，个性操作定义为抽象，由子类型负责具体实现。（template模式）
+选择使用“数据驱动”（表格驱动，经常修改的部分，和其它模块隔离）的方式获取封闭性。
+拒绝不成熟的抽象，程序仅应对频繁变化的部分做出抽象。
+
+Example:
+Shape应用程序。
+
+Challenged:
+[开放－封闭原则受到挑战](http://www.infoq.com/cn/news/2013/05/open-closed-principle-challenged)
+
+### LSP (Liskov Substitution Principle) 里氏代换原则
+**子类型（subtype）必须能够替换掉它们的基类型（basetype）。**
+
+Keyword: **继承**
+
+Consequences:
+导致以明显违反OCP的方式使用RTTI。
+从其基类去除功能的派生类：派生类中有退化函数，从派生类中抛出基类不会抛出的异常。
+
+Solution:
+IS-A（确定类间的继承）关系是就行为方式（即类的各操作，而不是属性）而言的，而行为方式是可以合理假设的，是客户程序所依赖的。
+使用基于契约的设计(Design By Contract)来明确合理的假设，在单元测试中指定契约。
+用提取公共部分的方法来代替原继承（从抽象类而不从具体类继承）：如果一组类都支持一个公共的职责，那么它们应该从一个公共的超类继承该职责。
+在考虑一个特定设计是否恰当时，不能完全孤立地来看，必须根据该设计的使用者所作出的合理假设来审视它。
+
+Example:
+正方形继承矩形
+
+### ISP (Interface Segregation Principle) 接口隔离原则
+**不应该强迫客户依赖于它们不用的方法。接口属于客户，不属于它所在的类层次结构**
+
+Keyword: **分离**
+
+Consequences:
+胖接口会导致他们的客户程序之间产生不正常的并且有害的耦合关系。
+当一个客户程序要求该胖接口进行一个改动时,会影响到所有其他的客户程序。
+
+Solution:
+使用委托分离接口（Adapter模式）。
+使用多重继承分离接口（Adapter模式）。
+每个原则在应用时都必须小心，不能过度使用它们。
+
+Example:
+```
+class TimerClient {
+public:  
+    virtual void Timeout(int timeOutID) = 0;  
+};  
+  
+class Door : public TimerClient {  
+public:  
+    virtual void Lock() = 0;  
+    virtual void Unlock() = 0;  
+    virtual void IsDoorOpen() = 0;  
+};  
+  
+class TimedDoor : public Door {  
+public:  
+    void Timeout(int timeOutID) {...}  
+    void Lock() {...}  
+    void Unlock() {...}  
+    void IsDoorOpen() {...}  
+};
+  
+class Timer  {  
+public:  
+    void Register(int timeout, int timeOutID, TimerClient* client) {...}  
+}; 
+```
+委托↓↓↓
+```
+class Door {  
+public:  
+    virtual void Lock() = 0;  
+    virtual void Unlock() = 0;  
+    virtual void IsDoorOpen() = 0;  
+};  
+  
+class TimedDoor : public Door {  
+public:  
+    void DoorTimeout(int timeOutID) {...}  
+    void Lock() {...}  
+    void Unlock() {...}  
+    void IsDoorOpen() {...}  
+};  
+  
+class TimerClient {  
+public:  
+    virtual void Timeout(int timeOutID) = 0;  
+};  
+  
+class DoorTimeAdapter : public TimerClient {  
+public:  
+    DoorTimeAdapter(TimedDoor& theDoor):itsTimedDoor(theDoor) {}  
+    void Timeout(int timeOutID)  
+    { itsTimedDoor.DoorTimeOur(timeOutID); }  
+private:  
+    TimedDoor& itsTimedDoor;  
+};  
+  
+class Timer {  
+public:  
+    void Register(int timeout, int timeOutID, TimerClient* client) {...}  
+};  
+```
+多重继承↓↓↓
+```
+class Door {  
+public:  
+    virtual void Lock() = 0;  
+    virtual void Unlock() = 0;  
+    virtual void IsDoorOpen() = 0;  
+};  
+  
+class TimerClient {  
+public:  
+    virtual void Timeout(int timeOutID) = 0;  
+};  
+  
+class TimedDoor : public Door, public TimerClient {  
+public:  
+    void Timeout(int timeOutID) { DoorTimeout(timeOutID); }  
+    void Lock() {...}  
+    void Unlock() {...}  
+    void IsDoorOpen() {...}  
+    void DoorTimeout(int timeOutID) {...}  
+};  
+  
+class Timer {  
+public:  
+    void Register(int timeout, int timeOutID, TimerClient* client) {...}  
+};  
+```
+
+### DIP (Dependence Inversion Principle) 依赖倒转原则
+**高层模块不应该依赖于低层模块，两者都应该依赖于抽象。
+抽象不应该依赖于细节,细节应该依赖于抽象。**
+
+Keyword: **依赖**
+
+Consequences:
+低层的改动直接影响到高层模块，从而迫使它们依次做出改动。
+
+Solution:
+高层模块通过定义所需使用的服务接口使用下一层（strategy模式，高层策略就是应用背后的抽象），底层模块现实这样的接口，接口的拥有者一般是其使用者而非其实现者。
+针对接口编程，一个具体的类应只实现接口中声明的方法,而不应当给出多余的方法。
+使用静态多态性（模板），模板实参遵从相同的接口约定。（相对于动态多态性的优点：运行时开销小，不必从公有基类继承；缺点：不能运行时更改类型，新类型的使用会迫使重新编译部署。）一般优先使用动态多态性。
+抽象通常是稳定的，是那些不随具体细节变化而变化的东西。
+
+
+Example:
+```
+class Lamp {  
+public:  
+    void turnOn() {...}  
+    void turnOff() {...}  
+};  
+  
+class Button {  
+public:  
+    void poll() {  
+        if (...) {  
+            lamp.turnOn();  
+        }  
+    }  
+private:  
+    Lamp lamp;  
+}; 
+```
+↓↓↓
+```
+class ButtonServer {  
+public:  
+    virtual void turnOn() = 0;  
+    virtual void turnOff() = 0;  
+};  
+  
+class Lamp : public ButtonServer {  
+public:  
+    void turnOn() {...} 
+    void turnOff() {...}  
+};  
+  
+class Button {  
+public:  
+    void poll() {  
+        if (...) {  
+            bs->turnOn();  
+        }  
+    }  
+private:  
+    ButtonServer* bs;  
+};  
+```
+
+## 包和组件设计的六原则
+### Reuse/Release Equivalence Principle (REP) 重用-发布等价原则
+**重用的粒度就是发布的粒度**
+
+### Common Closure Principle (CCP) 共同封闭原则
+**包中的所有类对于同一类性质的变化应该是共同封闭的。一个变化若对一个包产生影响，则将对该包中的所有类产生影响，而对于其他的包不造成任何影响。**
+
+### Common Reuse Principle (CRP) 共同重用原则
+**一个包中的所有类应该是共同重用的。如果重用了包中的一个类，那么就要重用包中的所有类。**
+
+### Acyclic Dependencies Principle (ADP) 无环依赖原则
+**在包的依赖关系图中不允许存在环。**
+
+### Stable-Dependencies Principle (SDP) 稳定依赖原则
+**朝着稳定的方向进行依赖**
+
+### Stable-Abstractions Principle (SAP) 稳定抽象原则
+**包的抽象程度应该和其稳定程度一致。**
+
+
+## 其他原则
+### Principle of Least Astonishment (PoLA) 最小惊讶原则
+**设计必须符合用户的习惯，预期和思维模式。**
+
+### Law of Demeter (LoD) 迪米特法则（最少知识原则）
+**只用一个点。`a.method()`**
+
+对于对象O中一个方法M，M应该只能够访问以下对象中的方法：
+
+* 对象O自己
+* M的参数对象
+* 由M创建/实例化的对象
+* 与O直接相关的Component Objects
+* O能访问的全局对象
+
+一个类应该只跟它的直接朋友通话，不要跟陌生人说话。
+
+### Hollywood Principle 好莱坞原则
+**不要调用我们，我们会调用你。**
+所有的组件都是被动的，所有的组件初始化和调用都由容器负责，组件处在一个容器当中，由容器负责管理。
+Command模式。
+
+### Tell, Don't Ask 命令，不要去询问
+**一个对象应该命令其它对象该做什么，而不是去查询其它对象的状态来决定做什么。
+查询其它对象的状态来决定做什么也被称作功能嫉妒(Feature Envy)。**
+
+* 在IDE里敲击快捷生成键前，询问自己[五个为什么](http://en.wikipedia.org/wiki/5_Whys)，问问自己为什么一上来就添加getter和setter方法。
+* 不要询问对象的状态。要做什么，告诉它们该怎么做。
+* 操作所属的对象拥有这些操作的数据。
+
+### Convention over Configuration (CoC) 惯例优于配置原则
+**设计时遵守一些约定惯例，既能减少决策得到简洁性而又不失灵活性。**
+将一些公认约定的配置方式和信息作为内部缺省的规则来使用，从而减少配置减少复杂度。
+
+### Command-Query Separation (CQS) 命令-查询分离原则
+**每个方法要么是一个命令执行一个动作（会改变对象状态，且没有返回值），要么是一个查询返回一个结果（const，不会改变对象状态），而不应都是。**
+
+
+## Reference
+[敏捷软件开发：原则、模式与实践](http://book.douban.com/subject/1140457/)
+[程序员修炼之道](http://book.douban.com/subject/5387402/)
+[3 Key Software Principles You Must Understand](http://net.tutsplus.com/tutorials/tools-and-tips/3-key-software-principles-you-must-understand/)
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
