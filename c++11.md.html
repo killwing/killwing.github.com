@@ -448,7 +448,7 @@ RAII classes:
 std::lock_guard: 构造lock，析构unlock。不可copy，也不可move。
 std::unique_lock: 可以构造后lock(使用std::defer_lock作为参数)，析构前unlock。不可copy，可以move。支持timed mutex操作(try, timeout...)。
 
-死锁：不按顺序锁会导致死锁，可以用std::lock解决。如果已经有锁锁住，std::lock会抛出异常。
+死锁：不按顺序锁会导致死锁，可以用std::lock/try__lock解决。如果已经有锁锁住，std::lock会抛出异常, std::try_lock会返回加锁失败的对象的index。
 ```
 {  // Thread 1
     std::unique_lock<std::mutex> wt_lock(wt_mux, std::defer_lock);
@@ -849,7 +849,7 @@ move(T&& obj) {
 ### Move is an Optimization of Copy
 std::move返回的是一个右值(准确地说是xvalue)，当接受者没有move构造函数时，则调用其copy构造函数。
 std::move/forward只是copy的一种优化，当只需要引用而不需copy时，没必要使用。
-请求copy时，给一个类实现move构造可以提升性能，右值的拷贝可以自动变为move（N/RVO具有更高的优先级，会优先被使用）。
+请求copy时，给一个类实现move构造可以提升性能，右值的拷贝可以自动变为move（N/RVO具有更高的优先级，会优先被使用；返回条件表达式也不会导致move）。
 请求move时(std::move)，是安全的，比如（内置）类型不支持move，就用copy代替。
 std::move_if_noexcept：如果move构造函数不抛异常就用move，否则用copy。
 只能move，不能copy：std::thread, std::unique_ptr。
@@ -869,7 +869,7 @@ Perfect forwarding: 当转发参数到其他函数时，保持其参数的左值
 为了实现copy左值参数，move右值参数，同时避免使用多个函数重载不同值类型，要使用完美转发技术：
 
 * 使用函数模板
-* 使用万能的模板参数：T&&
+* 使用万能模板参数：T&&
 * 使用std::forward
 
 ```
@@ -895,6 +895,13 @@ T&& std::forward(T&& param) {
 ```
 forward左值参数时：传递引用
 forward右值参数时：相当于调用std::move
+
+另一种避免重载的方式（比perfect forwarding多一次move）：
+```
+void setName(std::string newName)
+{ name = std::move(newName); }           // move param
+```
+
 
 ## default Member Functions
 可能隐式生成的默认成员函数：
@@ -1390,6 +1397,7 @@ svec3 v3(scoped_allocator_adaptor<My_alloc<xstring2>, My_string_alloc<char>>{my_
 * Unicode characters
 * metaprogramming and type traits
 * Garbage collection ABI
+* Condition variables
 
 
 ## Removed and Deprecated
@@ -1406,6 +1414,7 @@ deprecated:
 * 用bind或lambdas取代bind1st/bind2nd。
 
 ## Reference
+[Working Draft, Standard for Programming Language C++](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2012/n3337.pdf)
 [C++ Reference](http://en.cppreference.com/)
 [C++11 - the new ISO C++ standard](http://www.stroustrup.com/C++11FAQ.html)
 [Overview of the New C++ (C++11)](http://www.artima.com/shop/overview_of_the_new_cpp)
