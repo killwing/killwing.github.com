@@ -1372,6 +1372,104 @@ using svec3 = vector<xstring2, scoped_allocator_adaptor<My_alloc<xstring>, My_st
 svec3 v3(scoped_allocator_adaptor<My_alloc<xstring2>, My_string_alloc<char>>{my_arena1, my_string_arena});
 ```
 
+## Time Utilities
+header: `<chrono>`, namespace: `std::chrono`
+
+### Duration
+表示一个时间段，分为两部分：
+rep: 定义tick的类型表示。可以是浮点型。
+period: 定义一个tick的时长(一个tick有几秒，默认1秒`std::ratio<1>`，可以用成员函数`count()`来取得tick数目)。
+
+预定义的ratio:
+```
+yocto   std::ratio<1, 1000000000000000000000000>, if std::intmax_t can represent the denominator
+zepto   std::ratio<1, 1000000000000000000000>, if std::intmax_t can represent the denominator
+atto    std::ratio<1, 1000000000000000000>
+femto   std::ratio<1, 1000000000000000>
+pico    std::ratio<1, 1000000000000>
+nano    std::ratio<1, 1000000000>
+micro   std::ratio<1, 1000000>
+milli   std::ratio<1, 1000>
+centi   std::ratio<1, 100>
+deci    std::ratio<1, 10>
+deca    std::ratio<10, 1>
+hecto   std::ratio<100, 1>
+kilo    std::ratio<1000, 1>
+mega    std::ratio<1000000, 1>
+giga    std::ratio<1000000000, 1>
+tera    std::ratio<1000000000000, 1>
+peta    std::ratio<1000000000000000, 1>
+exa     std::ratio<1000000000000000000, 1>
+zetta   std::ratio<1000000000000000000000, 1>, if std::intmax_t can represent the numerator
+yotta   std::ratio<1000000000000000000000000, 1>, if std::intmax_t can represent the numerator
+```
+
+预定义的duration:
+```
+std::chrono::nanoseconds    duration<long long, std::nano>
+std::chrono::microseconds   duration<long long, std::micro>
+std::chrono::milliseconds   duration<long long, std::milli>
+std::chrono::seconds        duration<long long>
+std::chrono::minutes        duration<long,      std::ratio<60>>
+std::chrono::hours          duration<long,      std::ratio<3600>>
+```
+
+转换：可以不丢失精度进行隐式转换，否则要用`duration_cast`。
+
+### Clocks
+system_clock: 系统墙上时钟。
+steady_clock: 不受系统时间调整的单调稳定时钟。
+high_resolution_clock: 最高精度时钟（最小tick时长）。
+
+### Time Point
+自1970.1.1以来的时间点。
+
+输出当前时间：
+```
+system_clock::time_point now = system_clock::now();
+std::time_t now_c = system_clock::to_time_t(now);
+std::cout << std::put_time(std::localtime(&now_c), "%F %T") << endl;
+```
+
+
+## sizeof Class Data Members
+sizeof可以直接取非静态成员变量大小：`sizeof(C::m)`
+
+
+## Ref-qualifiers for Member Functions (Move Semantics to *this)
+像cv-qualifiers一样，ref-qualifiers也可以用来修饰成员函数（作用于this）。
+这就限定了成员函数只能由左值（&）或右值（&&）对象进行调用。
+
+避免不必要的错误:
+
+```
+struct S {
+  S* operator &() &;            // Selected for lvalues only
+  S& operator=(S const&) &;     // Selected for lvalues only
+};
+
+int main() {
+  S* p = &S();                  // Error!
+  S() = S();                    // Error!
+}
+```
+
+区分move语义的重载（必须同时使用&和&&）:
+
+```
+class X {
+   std::vector<char> data_;
+public:
+   const std::vector<char>& data() const& { return data_; }
+   std::vector<char>&& data() && { return std::move(data_); }
+};
+
+X f();
+X x;
+std::vector<char> a = x.data(); // copy
+std::vector<char> b = f().data(); // move
+```
+
 
 ## C99 Compatibility
 * long long: 至少64位整形。
@@ -1387,9 +1485,6 @@ svec3 v3(scoped_allocator_adaptor<My_alloc<xstring2>, My_string_alloc<char>>{my_
 
 
 ## More (TBD)
-* Time library supportings clocks, durations, points in time.
-* sizeof applicable to class data members alone (e.g., sizeof(C::m)).
-* & and && member functions.
 * Relaxed rules for in-class initialization of static data members.
 ----
 * Dynamic Initialization and Destruction with Concurrency
@@ -1398,6 +1493,7 @@ svec3 v3(scoped_allocator_adaptor<My_alloc<xstring2>, My_string_alloc<char>>{my_
 * metaprogramming and type traits
 * Garbage collection ABI
 * Condition variables
+* Atomics
 
 
 ## Removed and Deprecated
