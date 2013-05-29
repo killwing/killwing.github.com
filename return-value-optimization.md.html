@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<title>(Named) Return Value Optimization</title>
+
+<xmp theme="readable" style="display:none;">
+## Concept
+[C++11 Standard](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2012/n3337.pdf) 12.8 Copying and moving class objects
+31.
+> When certain criteria are met, an implementation is allowed to omit the copy/move construction of a class
+object, even if the copy/move constructor and/or destructor for the object have side effects. In such cases,
+the implementation treats the source and target of the omitted copy/move operation as simply two different
+ways of referring to the same object, and the destruction of that object occurs at the later of the times
+when the two objects would have been destroyed without the optimization. This elision of copy/move
+operations, called copy elision, is permitted in the following circumstances (which may be combined to
+eliminate multiple copies):
+- in a return statement in a function with a class return type, **when the expression is the name of a
+non-volatile automatic object (other than a function or catch-clause parameter) with the same cvunqualified
+type as the function return type, the copy/move operation can be omitted by constructing
+the automatic object directly into the function's return value**
+- in a throw-expression, when the operand is the name of a non-volatile automatic object (other than a
+function or catch-clause parameter) whose scope does not extend beyond the end of the innermost
+enclosing try-block (if there is one), the copy/move operation from the operand to the exception
+object can be omitted by constructing the automatic object directly into the exception object
+- **when a temporary class object that has not been bound to a reference would be copied/moved
+to a class object with the same cv-unqualified type, the copy/move operation can be omitted by
+constructing the temporary object directly into the target of the omitted copy/move**
+- when the exception-declaration of an exception handler declares an object of the same type
+(except for cv-qualification) as the exception object, the copy/move operation can be omitted
+by treating the exception-declaration as an alias for the exception object if the meaning of the program
+will be unchanged except for the execution of constructors and destructors for the object declared by
+the exception-declaration.
+
+32.
+> **When the criteria for elision of a copy operation are met or would be met save for the fact that the source
+object is a function parameter, and the object to be copied is designated by an lvalue, overload resolution to
+select the constructor for the copy is first performed as if the object were designated by an rvalue.** If overload
+resolution fails, or if the type of the first parameter of the selected constructor is not an rvalue reference to
+the object's type (possibly cv-qualified), overload resolution is performed again, considering the object as an
+lvalue. [ Note: This two-stage overload resolution must be performed regardless of whether copy elision will
+occur. It determines the constructor to be called if elision is not performed, and **the selected constructor
+must be accessible even if the call is elided.** -- end note ]
+
+C++11和C++98/03没有大的区别，加入了move操作。
+
+
+## Compiler Option
+一般大部分编译器都默认打开此优化。
+g++/clang++里禁用：-fno-elide-constructors
+> The C++ standard allows an implementation to omit creating a temporary which is only used to initialize another object of the same type.
+Specifying this option disables that optimization, and forces G++ to call the copy constructor in all cases.
+
+临时对象指编译器直接生成的用于构造返回值的对象。
+优化指构造临时对象的一次copy/move，以及用临时对象构造返回值的一次copy/move。可以两次都优化掉，这就没有临时对象的生成。
+虽然优化可以省去调用copy/move构造函数，但是copy/move构造函数不能是私有。
+
+## Verification
+### Test Class
+
+```
+#include <iostream>
+using namespace std;
+
+class A {
+public:
+    A() {
+        std::cout << "ctor" << std::endl;
+    }
+
+    ~A() {
+        std::cout << "dtor" << std::endl;
+    }
+
+    A(const A&) {
+        std::cout << "cptor" << std::endl;
+    }
+
+    A(A&&) {
+        std::cout << "mvtor" << std::endl;
+    }
+};
+
+A g;
+
+A f1() {
+    return A();
+}
+
+A f2() {
+    A a;
+    return a;
+}
+
+A f3(const A& a) {
+    return a;
+}
+
+A f4(A a) {
+    return a;
+}
+
+A f5(bool b = true) {
+    A a;
+    return b ? a : a;
+}
+
+A f6(bool b = true) {
+    A a;
+    if (b) {
+        return a;
+    } else {
+        return a;
+    }
+}
+
+A f7() {
+    return g;
+}
+
+A& f8() {
+    A a;
+    return a;
+}
+
+A& f9(A a) {
+    return a;
+}
+
+A&& f10() {
+    A a;
+    return std::move(a);
+}
+```
+
+### Test Results
+`A x = f1();`
+ctor // unnamed is constructed as x
+dtor
+
+`A x = f2();`
+ctor // a is constructed as x
+dtor
+
+`A x = f3(g);`
+cptor // a is copied to x
+dtor
+
+`A x = f4(g);`
+cptor // g is copied to a
+mvtor // a is moved to x
+dtor
+dtor
+
+`A x = f5();`
+ctor // a is constructed
+cptor // a is copied to x
+dtor
+dtor
+
+`A x = f6();`
+ctor // a is constructed as x
+dtor
+
+`A x = f7();`
+cptor // g is copied to x
+dtor
+
+`f8/f9/f10`
+不应返回局部变量的引用，右值引用也是引用。
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
+
