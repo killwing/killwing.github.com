@@ -3,8 +3,10 @@
 <title>(Named) Return Value Optimization</title>
 
 <xmp theme="readable" style="display:none;">
-## Concept
+## Standard
 [C++11 Standard](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2012/n3337.pdf) 12.8 Copying and moving class objects
+C++11和C++98/03没有大的区别，加入了move操作。
+
 31.
 > When certain criteria are met, an implementation is allowed to omit the copy/move construction of a class
 object, even if the copy/move constructor and/or destructor for the object have side effects. In such cases,
@@ -30,6 +32,11 @@ by treating the exception-declaration as an alias for the exception object if th
 will be unchanged except for the execution of constructors and destructors for the object declared by
 the exception-declaration.
 
+1. return一个局部变量（必须直接返回同类型的变量名或匿名，不能是此函数或catch语句的参数，不能是条件表达式），可以将此变量直接构造在返回值里（临时对象）以节省一次copy/move。
+1. 如果一个临时对象没有绑定在引用（左值或右值）上，这个临时对象可以直接构造在同类型的目标对象里（接收变量）以节省一次copy/move。
+
+以上2点可以同时作用(1+2)，不生成临时对象以节省两次copy/move。
+
 32.
 > **When the criteria for elision of a copy operation are met or would be met save for the fact that the source
 object is a function parameter, and the object to be copied is designated by an lvalue, overload resolution to
@@ -40,7 +47,8 @@ lvalue. [ Note: This two-stage overload resolution must be performed regardless 
 occur. It determines the constructor to be called if elision is not performed, and **the selected constructor
 must be accessible even if the call is elided.** -- end note ]
 
-C++11和C++98/03没有大的区别，加入了move操作。
+当31的条件满足的时候，即使被copy的对象是左值，也会被优先当作右值来决定选择copy还是move构造函数（不管是否会优化而不被调用到）。
+即使可以省去copy/move构造函数的调用，copy/move构造函数也不能是私有。
 
 
 ## Compiler Option
@@ -50,8 +58,8 @@ g++/clang++里禁用：-fno-elide-constructors
 Specifying this option disables that optimization, and forces G++ to call the copy constructor in all cases.
 
 临时对象指编译器直接生成的用于构造返回值的对象。
-优化指构造临时对象的一次copy/move，以及用临时对象构造返回值的一次copy/move。可以两次都优化掉，这就没有临时对象的生成。
-虽然优化可以省去调用copy/move构造函数，但是copy/move构造函数不能是私有。
+引用（左值或右值）一个临时变量可以延长其生命周期与此引用一样。
+
 
 ## Verification
 ### Test Class
@@ -98,12 +106,17 @@ A f4(A a) {
     return a;
 }
 
-A f5(bool b = true) {
+A f5() {
+    A a;
+    return std::move(a);
+}
+
+A f6(bool b = true) {
     A a;
     return b ? a : a;
 }
 
-A f6(bool b = true) {
+A f7(bool b = true) {
     A a;
     if (b) {
         return a;
@@ -112,20 +125,20 @@ A f6(bool b = true) {
     }
 }
 
-A f7() {
+A f8() {
     return g;
 }
 
-A& f8() {
+A& f9() {
     A a;
     return a;
 }
 
-A& f9(A a) {
+A& f10(A a) {
     return a;
 }
 
-A&& f10() {
+A&& f11() {
     A a;
     return std::move(a);
 }
@@ -133,38 +146,52 @@ A&& f10() {
 
 ### Test Results
 `A x = f1();`
-ctor // unnamed is constructed as x
+ctor // unnamed is constructed as x, no temp (1+2)
 dtor
 
 `A x = f2();`
-ctor // a is constructed as x
+ctor // a is constructed as x, no temp (1+2)
+dtor
+
+`const A& x = f2();`
+ctor // a is constructed as temp, const-l-ref x to temp (1)
+dtor
+
+`A&& x = f2();`
+ctor // a is constructed as temp, r-ref x to temp (1)
 dtor
 
 `A x = f3(g);`
-cptor // a is copied to x
+cptor // temp is copy constructed as x by a (2)
 dtor
 
 `A x = f4(g);`
-cptor // g is copied to a
-mvtor // a is moved to x
+cptor // a is copy constructed by g
+mvtor // temp is move constructed as x by a (2)
 dtor
 dtor
 
 `A x = f5();`
 ctor // a is constructed
-cptor // a is copied to x
+mvtor // temp is move constructed as x by a (2)
 dtor
 dtor
 
 `A x = f6();`
-ctor // a is constructed as x
+ctor // a is constructed
+cptor // temp is copy constructed as x by a (2)
+dtor
 dtor
 
 `A x = f7();`
-cptor // g is copied to x
+ctor // a is constructed as x, no temp (1+2)
 dtor
 
-`f8/f9/f10`
+`A x = f8();`
+cptor // temp is copy constructed as x by g (2)
+dtor
+
+`f9/f10/f11`
 不应返回局部变量的引用，右值引用也是引用。
 </xmp>
 <script src="js/strapdown.js"></script>
