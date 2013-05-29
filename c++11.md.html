@@ -153,7 +153,7 @@ const Point1 p1 {10, 20};
 
 class Point2 {
 public:
-Point2(int x, int y);
+    Point2(int x, int y);
 };
 const Point2 p2 {10, 20}; // calls Point2 ctor
 
@@ -161,9 +161,9 @@ const std::vector<int> cv { a[0], 20, val2 };
 
 class Widget {
 public:
-Widget(): data {1, 2, a[3], 4, 5} {}
+    Widget(): data {1, 2, a[3], 4, 5} {}
 private:
-const int data[5];
+    const int data[5];
 };
 
 const float * pData = new const float[4] { 1.5, val1-val2, 3.5, 4.5 };
@@ -902,6 +902,40 @@ void setName(std::string newName)
 { name = std::move(newName); }           // move param
 ```
 
+### Ref-qualifiers for Member Functions (Move Semantics to *this)
+像cv-qualifiers一样，ref-qualifiers也可以用来修饰成员函数（作用于this）。
+这就限定了成员函数只能由左值（&）或右值（&&）对象进行调用。
+
+避免不必要的错误:
+
+```
+struct S {
+  S* operator &() &;            // Selected for lvalues only
+  S& operator=(S const&) &;     // Selected for lvalues only
+};
+
+int main() {
+  S* p = &S();                  // Error!
+  S() = S();                    // Error!
+}
+```
+
+区分move语义的重载（必须同时使用&和&&）:
+
+```
+class X {
+   std::vector<char> data_;
+public:
+   const std::vector<char>& data() const& { return data_; }
+   std::vector<char>&& data() && { return std::move(data_); }
+};
+
+X f();
+X x;
+std::vector<char> a = x.data(); // copy
+std::vector<char> b = f().data(); // move
+```
+
 
 ## default Member Functions
 可能隐式生成的默认成员函数：
@@ -925,11 +959,17 @@ delete copy操作也禁止了生成默认move操作，反之亦然。
 因为被删除的函数虽然不能被调用，但是被声明，所以参与重载决议。
 
 ## Default Member Initialization
-默认成员初始化：可以在类的非静态（或const静态）成员声明的同时用"="或者统一初始化符"{...}"初始化。
+默认成员初始化（类内初始化）：可以在类的非静态成员声明的同时用"="或者统一初始化符"{...}"（不能用圆括号）初始化。
 初始化也可以使用前面已初始化过的变量，和在初始化列表里类似。
-const静态成员仍可以使用类内初始化。不限定整形，可以是任意literal类型（std::is_literal_type）。
 构造函数的初始化列表会覆盖默认初始化的值。所以在成员不依赖于构造函数初始化时比较有用。
 使用默认成员初始化会把类变成non-aggregate的（影响统一初始化）。
+
+可以使用类内初始化的静态成员：
+
+* const static整形
+* constexpr static literal类型（`std::is_literal_type`）
+
+如果需要对这些静态成员取地址或绑定在引用上，仍需要在名字空间里定义（不必再初始化）。
 
 ## Delegating Constructors
 可以在一个构造函数的初始化列表里调用其他构造函数。
@@ -1436,41 +1476,6 @@ std::cout << std::put_time(std::localtime(&now_c), "%F %T") << endl;
 sizeof可以直接取非静态成员变量大小：`sizeof(C::m)`
 
 
-## Ref-qualifiers for Member Functions (Move Semantics to *this)
-像cv-qualifiers一样，ref-qualifiers也可以用来修饰成员函数（作用于this）。
-这就限定了成员函数只能由左值（&）或右值（&&）对象进行调用。
-
-避免不必要的错误:
-
-```
-struct S {
-  S* operator &() &;            // Selected for lvalues only
-  S& operator=(S const&) &;     // Selected for lvalues only
-};
-
-int main() {
-  S* p = &S();                  // Error!
-  S() = S();                    // Error!
-}
-```
-
-区分move语义的重载（必须同时使用&和&&）:
-
-```
-class X {
-   std::vector<char> data_;
-public:
-   const std::vector<char>& data() const& { return data_; }
-   std::vector<char>&& data() && { return std::move(data_); }
-};
-
-X f();
-X x;
-std::vector<char> a = x.data(); // copy
-std::vector<char> b = f().data(); // move
-```
-
-
 ## C99 Compatibility
 * long long: 至少64位整形。
 * Extended integral types: 长整形规则。
@@ -1485,8 +1490,6 @@ std::vector<char> b = f().data(); // move
 
 
 ## More (TBD)
-* Relaxed rules for in-class initialization of static data members.
-----
 * Dynamic Initialization and Destruction with Concurrency
 * thread-local storage (thread_local)
 * Unicode characters
