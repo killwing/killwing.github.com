@@ -5,7 +5,7 @@
 <xmp theme="readable" style="display:none;">
 ## Standard
 [C++11 Standard](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2012/n3337.pdf) 12.8 Copying and moving class objects
-C++11和C++98/03没有大的区别，加入了move操作。
+C++11和C++98/03没有大的区别，加入了move语义的情况。
 
 31.
 > When certain criteria are met, an implementation is allowed to omit the copy/move construction of a class
@@ -47,7 +47,7 @@ lvalue. [ Note: This two-stage overload resolution must be performed regardless 
 occur. It determines the constructor to be called if elision is not performed, and **the selected constructor
 must be accessible even if the call is elided.** -- end note ]
 
-当31的条件满足的时候，即使被copy的对象是左值，也会被优先当作右值来决定选择copy还是move构造函数（不管是否会优化而不被调用到）。
+当满足条件31的时候，即使被copy的对象是左值，也会被优先当作右值来决定选择copy还是move构造函数（不管是否会优化而不被调用到）。简单地说：当满足条件31（放宽：加上函数参数是值传递的情况）的时候，隐式的move-on-return会被调用，否则fallback为copy。
 即使可以省去copy/move构造函数的调用，copy/move构造函数也不能是私有。
 
 
@@ -62,6 +62,10 @@ Specifying this option disables that optimization, and forces G++ to call the co
 
 
 ## Verification
+### Test Env
+clang v3.3
+cmd: `clang++ -std=c++11 -stdlib=libc++`
+
 ### Test Class
 
 ```

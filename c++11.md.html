@@ -772,13 +772,29 @@ move_iterator: 可以把copy的算法变成move版本
 header: `<utility>`
 
 ### Lvalues and Rvalues
-Lvalue: 可以取地址的东西，如有名字的对象，Lvalue的引用。右值引用变量本身也是一个左值（因为有名字）。
-PRvalue: 不能取地址的东西，如匿名临时对象。
-Xvalue: 可以被当成右值的左值（这个左值不会再被后面使用到），如std::move()。
+![values](http://chart.apis.google.com/chart?cht=gv&chl=digraph{expression-%3Eglvalue-%3Elvalue;expression-%3Ervalue-%3Eprvalue;rvalue-%3Exvalue;glvalue-%3Exvalue})
 
-详解：
-[values](http://stackoverflow.com/questions/3601602/what-are-rvalues-lvalues-xvalues-glvalues-and-prvalues)
-[例子](http://stackoverflow.com/questions/6609968/real-life-examples-of-xvalues-glvalues-and-prvalues)
+* lvalue: 可以取地址的东西，如有名字的对象，lvalue的引用。右值引用变量本身也是一个左值（因为有名字）。
+* rvalue:
+    * xvalue: 可以被当成右值的左值（这个左值不会再被后面使用到），如std::move()。
+    * prvalue: 不能取地址的东西，如匿名临时对象。
+
+例如：
+```
+class Foo {
+public:
+    Foo(std::string name) : name_(std::move(name)) { }
+    std::string& nameSelf() { return name_; }
+    std::string nameCopy() const { return name_; }
+private:
+    std::string name_;
+};
+```
+
+`foo.nameSelf()`: lvalue
+`foo.nameCopy()`: prvalue
+`std::move(name)`: xvalue
+
 
 move一个左值是不安全的，因为这个左值还可能会被后面使用到。
 move一个右值是安全的，因为语句结束时临时对象就销毁了。
@@ -802,7 +818,7 @@ copy一个对象有时候也不是线程安全的：
 右值可以绑定到右值引用上。相比const左值引用更匹配。
 
 const值只能绑定到const引用上。但是const右值引用没有用处，不建议使用。
-避免产生const右值，它们不能被绑定到右值引用上。比如函数返回const值类型。
+避免产生const右值，它们不能被绑定到右值引用上（只能绑定到const左值引用）。比如函数返回const值类型或者std::move一个const对象。
 
 ### Implementing Move Semantics
 move拷贝构造和move赋值：释放目标对象资源，转移原对象资源到目标对象，原对象仍处有效状态。
