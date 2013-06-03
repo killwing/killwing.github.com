@@ -368,7 +368,7 @@ using CallBackPtr = void (*)(int); // equivalent using decl.
 ```
 
 ## Concurrency Support
-header: `<thread> <mutex> <condition_variable> <future>`
+header: `<thread> <mutex> <condition_variable> <future> <atomic>`
 
 ### threads
 std::thread接受一个可调用对象（比如可以是一个闭包），在单独线程中执行。
@@ -382,7 +382,19 @@ std::thread接受一个可调用对象（比如可以是一个闭包），在单
 * 如果使用引用共享数据，保证生命周期足够长。
 
 std::thread拷贝（可以优化为move）其包括可调用对象在内的所有参数来执行。如果实在要用引用，可以使用std::ref/cref包裹。
-thread::join()等待线程执行完毕。
+
+join: 等待线程执行完毕。
+detach: 把线程执行和线程对象分离，线程退出时释放所有分配的资源（不需要再join）：
+
+* 线程对象不再拥有任何执行线程。
+* `joinable() == false`
+* `get_id() == std::thread::id() // default value`
+
+线程ID：线程内`std::this_thread::get_id();`，通过对象`t.get_id();`
+`std::this_thread::yield()`: 让出CPU，重新调度其它线程执行。
+`std::this_thread::sleep()`: 睡眠，可以是时间段`sleep_for`或时间点`sleep_util`。
+`std::thread::hardware_concurrency()`: 硬件（CPU核心）支持并发线程的数目。
+
 
 ### Asynchronous Calls
 #### async
@@ -398,8 +410,25 @@ std::launch::async: 新起一个线程执行。
 std::launch::deferred: 在被调用线程执行。实际在std::future::get或std::future::wait的时候才进行同步调用。
 默认std::launch::async | std::launch::deferred，具体选择哪种由实现决定。
 
-#### future
+#### packaged_task
+像std::function一样，保存一个可调用的对象，可以被异步调用并通过future取得结果。
+```
+std::packaged_task<int()> task([](){ return 7; }); // wrap the function
+auto f = task.get_future();  // get a future
+std::thread(std::move(task)).detach(); // launch on a thread
+f.get(); // wait and get result
+```
+
+#### promise and future
+std::promise: 保存值以被异步地获取。
 std::future: 表示异步调用的结果。
+
+```
+std::promise<int> p;
+auto f = p.get_future();
+std::thread([](std::promise<int>& p) { p.set_value(9); }, std::ref(p)).detach();
+f.get();
+```
 
 std::future<T>: 结果只能被访问一次。
 
@@ -447,6 +476,7 @@ Mutex对象不可copy，也不可move。条件变量也一样。
 RAII classes:
 std::lock_guard: 构造lock，析构unlock。不可copy，也不可move。
 std::unique_lock: 可以构造后lock(使用std::defer_lock作为参数)，析构前unlock。不可copy，可以move。支持timed mutex操作(try, timeout...)。
+不一定是std::mutex，可以是任何lockable的自定义类型。
 
 死锁：不按顺序锁会导致死锁，可以用std::lock/try__lock解决。如果已经有锁锁住，std::lock会抛出异常, std::try_lock会返回加锁失败的对象的index。
 ```
@@ -489,17 +519,28 @@ wait参数：
 ### Thread-Local Data
 全局，命名空间内，静态，类静态，局部静态的变量都可以是thread_local的。比如可以用作thread name。
 
-### Other Concurrency Features
-* std::promise stores a value for asynchronous retrieval
-* Thread-safe initialization of objects of static storage duration.
-* Thread-safe one-time function invocation via std::call_once and std::once_flag.
-* Thread detachment when no join is needed.
-* Separation of task setup and invocation via std::packaged_task.
-* Support for mutex and lock UDTs via standard interfaces.
-* Atomic types (e.g., std::atomic<int>) with memory ordering options.
-* Operations on current thread, e.g., yield and sleep.
-* Query number of hardware-supported threads.
-* Library thread safety guarantees (e.g., for std::cin/std::cout, STL containers, std::shared_ptr, etc.)
+### call_once
+保证函数只调用一次，即使在不同的线程里被调用。
+
+* 一组函数（同一个std::once_flag）有且只有一个函数被调用一次，但不确定具体哪个函数被调用。在call_once相同的线程被调用。
+* 在被调用的函数正常退出之前，不会有其他组内函数被调用返回（一个执行，其他call_once都在等待）。
+* 如果被调用的函数异常退出，其他组内某个函数会被调用。
+
+### Initialization of Static Storage Object
+静态对象的初始化是线程安全的。(98/03里g++默认也是线程安全的：-fno-threadsafe-statics)
+
+### Atomics
+原子操作，存取值的时候默认保证顺序一致性(std::memory_order_seq_cst，使用memory barrier/fence)，可以根据实际情况使用其它宽松的weak odering以获得性能提升。
+[what/when/how](http://stackoverflow.com/questions/9553591/c-stdatomic-what-is-stdmemory-order-and-how-to-use-them)
+
+关于volatile: [和多线程没有关系](http://herbsutter.com/2012/10/16/reader-qa-volatile-again/)，不是原子类型，不能用于线程同步。
+
+### Library Thread Safety Guarantees
+线程安全保证：
+
+* std::cin/std::cout: 对象本身是线程安全的，但为了输出格式需要同步。
+* STL containers: 同时读一个容器内的同一个元素，或同时修改不同的元素是线程安全的（除了`vector<bool>`）。
+* std::shared_ptr: 引用计数是线程安全的，但对象本身并不是（和内置类型一样），被指向的对象更不是。
 
 
 ## New Features for Standard Containers
@@ -1487,6 +1528,23 @@ std::time_t now_c = system_clock::to_time_t(now);
 std::cout << std::put_time(std::localtime(&now_c), "%F %T") << endl;
 ```
 
+## Random Number Generation
+一个随机数生成器包括两个部分：
+引擎：产生一系列随机或伪随机数。
+分布：把生成的随机数序列映射到一个数学分布的范围上。
+
+```
+std::default_random_engine re {};                     // the default engine
+std::uniform_int_distribution<int> one_to_six {1,6};  // distribution that maps to the ints 1..6
+auto dice { std::bind(one_to_six, re) };   // make a generator
+int x = dice();	// roll the dice: x becomes a value in [1:6]
+
+std::random_device rd; // seed with a real random value, if available
+std::mt19937 gen(rd()); // a mersenne_twister_engine
+std::normal_distribution<> normal_dist(5, 2); // normal distribution with mean(μ) and standard deviation(σ)
+double x = normal_dist(gen); // gen once
+```
+
 
 ## sizeof Class Data Members
 sizeof可以直接取非静态成员变量大小：`sizeof(C::m)`
@@ -1505,7 +1563,7 @@ sizeof可以直接取非静态成员变量大小：`sizeof(C::m)`
 * 宏的空参数。
 
 
-## More (TBD)
+## More (C++11 FAQ TBD)
 * Dynamic Initialization and Destruction with Concurrency
 * thread-local storage (thread_local)
 * Unicode characters
@@ -1513,6 +1571,9 @@ sizeof可以直接取非静态成员变量大小：`sizeof(C::m)`
 * Garbage collection ABI
 * Condition variables
 * Atomics
+* abandoning a process
+* Regular expressions
+* Concepts / Concept maps / Axioms
 
 
 ## Removed and Deprecated
