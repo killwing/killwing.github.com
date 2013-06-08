@@ -242,7 +242,7 @@ Lambda中对外部变量的引用：（编译器保证）
 
 ### Capturing Local Variables
 通过[v]拷贝，对于const变量，保持const属性。
-通过[&v]引用，注意被引用对象的生命周期。对于const变量一样，没有const引用，但本质上还是const引用。
+通过[&v]引用，注意被引用对象的生命周期。对于const变量一样，没有const引用捕获，但本质上还是const引用。
 捕获默认值：[=]，[&]，针对全部引用的变量，不需要再列出变量名。
 混合使用：[=, &v], [&, v]。
 ```
@@ -261,10 +261,18 @@ private:
 auto it = std::find_if(v.cbegin(), v.cend(), MagicType(minVal, maxVal));
 ```
 
-operator()默认是const成员函数，_minVal和_maxVal都不能修改。要修改可以声明为mutable lambda。
-即使是mutable和值捕获，minVal也是不能修改的，因为它继承了外部的const属性，是一个const成员变量。
+operator()默认是const成员函数，通过值传递的参数不能修改，要修改可以声明为mutable lambda。（通过引用传递不受影响，只是修改外部变量。）
+即使是mutable lambda，const捕获的变量也是不能修改的，因为它继承了外部的const属性，是一个const成员变量。
 ```
-[=, &maxVal](int i) mutable { return i > minVal && i < maxVal; maxVal++; }
+const int minVal;
+double maxVal;
+int val;
+[=, &maxVal](int i) mutable {
+    //minVal++; // error!
+    maxVal++; // ok
+    val++; // ok
+    return i > minVal && i < maxVal;
+}
 ```
 
 ### Capturing Class Members
