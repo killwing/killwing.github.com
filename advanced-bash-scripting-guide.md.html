@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html>
+<title>Advanced Bash-Scripting Guide</title>
+<xmp theme="readable" style="display:none;">
+http://tldp.org/LDP/abs/html/
+http://www.tsnc.edu.cn/default/tsnc_wgrj/doc/abs-3.9.1_cn/html/
+
+## 1.为什么使用shell编程?
+## 2.带着一个Sha-Bang出发(Sha-Bang指的是#!)
+`#!/bin/bash`
+
+
+## 3.特殊字符
+`#`
+
+* 以一个#开头的行 (#!是例外) 是注释行。
+* 可以出现在一个命令语句的后面，前面也可以有空白字符。
+* 标准的引用和转义符（"'\），一些参数代换结构，模式匹配操作和在数值常量表达式中的#字符并不会开始一个注释。
+
+`;`
+
+* 命令分割符允许在同一行里有两个或更多的命令。
+
+`;;`
+
+* case语句分支的结束符。
+
+`.`
+
+* 等同于source, bash的内建命令。
+* 作为一个文件名的前缀时，使该文件变成了隐藏文件。
+* 作为目录名时，表示当前目录，两个点(..)表示上一级目录。
+* 作为正则表达式匹配字符时，表示匹配任意一个字符。
+
+`"`
+
+* "STRING"的引用会使STRING里的特殊字符'$'(参数替换），'`'(命令替换)和'\'(转义)能够被解释。
+
+`'`
+
+* 'STRING'能引用STRING里的所有字符（剥夺其中的所有字符的特殊含义），是比使用双引号更强的引用。
+
+`,`
+
+* 用于连接一连串的数学表达式，每一个表达式都被求值，但只有最后一个被返回。
+
+`\`
+
+* 转义符，用于单个特殊字符(|$*+`"\?^)的引用机制。
+
+`/`
+
+* 分隔一个文件路径的各个部分。
+* 算术操作符中的除法。
+
+`` ` ``
+
+* \`command\` 结构使命令（command）执行结果能赋值给一个变量。
+
+`:`
+
+* 空操作(即什么操作也不做)，和shell的内建命令true是一样的，它的退出状态码是真(即0，shell中真用数字0表示)。
+* 在if/then的测试结构中用作占位符。
+* 在必须要有两元操作的地方作为一个分隔符。
+* 在here document中的一个命令作为一个分隔符。
+* 在参数替换中为字符串变量赋值。
+* 用于变量扩展/子串代换。
+* 和重定向操作符连用(: > data.xxx), 可以把一个文件的长度截短为零，文件的权限不变。
+* 和添加重定向操作符连用(: >> target_file)，如果目标文件存在则什么也没有发生，如果目标文件不存在则创建它。
+* 可以用于开始注释一行(不推荐)。
+* 用于域分割符。
+
+`!`
+
+* 取反一个测试结果或退出状态。
+* 调用历史命令。
+
+`*`
+
+* 通配符，自动匹配给定的目录下的每一个文件。
+* 正则表达式中匹配任意个字符。
+* 乘法运算符, 两个星号(**)表示求幂运算符。
+
+`?`
+
+* 表示一个条件测试。
+* 表示C风格的三元操作符。
+* 测试一个变量是否被设置了值。
+* 通配符的单字符匹配。
+* 扩展正则表达式中匹配0个或1个字符。
+
+`$`
+
+* 变量替换 (引用一个变量的内容)。
+* 在正则表达式里，一个$字符表示匹配一行的结尾。
+
+`${}`
+
+* 参数替换。
+
+`$*` `$@`
+
+* 位置参数。
+
+`$?`
+
+* 保存退出码值的变量。
+
+`$$`
+* 进程ID变量。
+
+`()`
+
+* 命令组，在子shell中执行。
+* 数组初始化。
+
+`{xxx,yyy,zzz,...}`
+
+* 一个命令可以在文件名扩展中从逗号分隔的各模式来扩展参数列表。
+
+`{}`
+
+* 一组命令代码块，事实上是匿名的函数, 然而与一个函数所不同的, 在代码块里的变量仍然能被脚本后面的代码访问。且不会在子shell中运行。
+* 由花括号括起的代码块可以引起输入输出的I/O重定向。
+
+`{} \;`
+
+* 用于find -exec执行命令。
+
+`[]`
+
+* 测试在[ ]中的表达式。
+* 数组下标。
+* 正则表达式中, 方括号描述一个匹配的字符集范围。
+
+`[[]]`
+
+* 测试[[ ]]之中的表达式。
+
+`(())`
+* 扩展并计算(( ))里的整数表达式。
+
+`>` `&>` `>&` `>>` `<`
+
+* 重定向。command &>filename 会重定向命令command标准输出（stdout）和标准错误（stderr）到文件filename中。
+
+`<<`
+
+* 在here document中使用的重定向。
+
+`<<<<`
+
+* 在 here string中使用的重定向。
+
+`>|`
+
+* 强迫重定向(即使noclobber选项设置), 会强迫覆盖一个存在的文件。
+
+`<` `>`
+
+* 进程替换。
+* 比较操作符。
+
+`\< \>`
+
+* 正则表达式中, 单词的界线。
+
+`|`
+
+* 管道。管道以子进程来运行, 因此不能引起变量的改变; 如果在管道中的一个命令失败了, 会过早的终结整个管道的执行, 这称为管道破坏(broken pipe), 会发送一个叫SIGPIPE的信号.
+
+`||`
+
+* 逻辑操作符，或。
+
+`&&`
+
+* 逻辑操作符，且。
+
+`&`
+
+* 后台运行。
+
+`-`
+
+* 选项前缀，操作符的前缀。
+* 用于stdin或stdout重定向的源或目的。当希望提供一个文件名时, '-'重定向输出到标准输出, 或者从标准输入接受输入, 就好像它们是一个文件一样(grep Linux file1 | diff file2 -)。
+* 先前的工作目录(cd -)。
+* 负号或减号。
+
+`=`
+
+* 赋值操作符。
+* 字符串比较操作符。
+
+`+`
+
+* 加号，算术操作符。
+* 正则表达式中表示一个或多个字符。
+* 一些命令和内建命令用+来启用一些选项，用-来禁用它们。
+
+`%`
+
+* 取模(一次除法的余数)算术操作。
+* 模式匹配操作符。
+
+`~`
+
+* HOME目录。
+
+`~+`
+
+* 当前工作目录($PWD)。
+
+`~-`
+
+* 先前的工作目录($OLDPWD)。
+
+`=~`
+
+* 正则表达式匹配。
+
+`^`
+
+* 在正则表达式中, 匹配一个文本行的开头。
+
+`空白`
+
+* 用做函数的分隔符, 分隔命令或变量。空白是由空格(spaces), 制表(tabs), 空行(blank lines), 或是由上述的组合造成的。
+
+控制字符: 更改终端行为或文本显示, 控制字符都是以Ctrl+key的组合键, 在脚本文件中控制字符是不起作用的。
+`Ctrl-B` 退格 (非破坏性的).
+`Ctrl-C` 中断. 终结一个前台作业.
+`Ctrl-D` 从一个shell中退出 (类似于exit).  "EOF" (文件结尾), 也用于表示标准输入(stdin)的结束.
+`Ctrl-G` beep
+`Ctrl-H` "杀掉" (破坏性的退格). 删除光标前的一个字符.
+`Ctrl-I` 水平制表符.
+`Ctrl-J` 新行(换一行并到行首).
+`Ctrl-K` 垂直制表符.
+`Ctrl-L` 清屏
+`Ctrl-M` 回车
+`Ctrl-Q` 解冻(XON). 它解冻终端的标准输入.
+`Ctrl-S` 挂起输入(XOFF). 它冻结终端的标准输入.
+`Ctrl-U` 删除从光标到行首的一行输入.
+`Ctrl-V` 当输入一个文本, Ctl-V允许插入控制字符。
+`Ctrl-W` 当在控制台敲入文本时, Ctl-W会删除从在光标处往后的第一个空白符之间的内容.
+`Ctrl-Z` 暂停一个前台作业.
+
+## 4.变量和参数
+* 引用: $var, ${var}(防止shell误解变量值)
+* 赋值(等号两边不能有空白符): `var=123`, `let var=123`, ``var=`ls -al` ``, `var=$(ls -al)`, `b=${a/23/BB}`
+* 位置参数: $0(脚本名), $1, $2, ... ${10}, ${11}, ..., $*和$@表示所有的位置参数。
+* 本地变量: 在用户现在的shell生命期的脚本中使用。
+* 环境变量: 所有环境变量均为大写; 不同于本地变量, 环境变量用于所有用户进程(经常称为子进程),这包括编辑器、脚本和应用; env命令查看所有环境变量。
+
+
+## 5.引用
+* 引号一个很重要的作用是保护命令行上的一个参数不被shell解释，而把此参数传递给要执行的程序来处理它，某些程序(grep, find)可以重新解释或扩展引号里的特殊字符。
+* 双引号除了变量名前缀($)、后引符(`)和转义符(\)外，会使shell不再解释引号中其它所有的特殊字符。在单引号内，除了字符(')，每个特殊字符都只是字面的意思。
+* 在命令行上，把感叹号"!"放在双引号里执行命令会出错（echo "hello!"），因为感叹号被解释成了一个历史命令. 然而在一个脚本里则是正确的，因为在脚本里Bash的历史机制被禁用了。
+
+
+## 6.退出和退出状态
+* 如果一个脚本以不带参数的exit命令结束(没有exit,不带参数的exit和exit$?三者等价)，脚本的退出状态码将会是执行exit命令前的最后一个命令的退出码。
+* $?变量保存了最后一个命令执行后的退出状态。
+* 逻辑非操作符!反转一个命令或一个测试的结果，它也能反转退出状态(! cmd).
+
+
+## 7.测试
+* 一个if/then结构测试一系列命令的退出状态是否为0(成功)。
+* 测试: test, /usr/bin/test, [], /usr/bin/[, 参数是比较表达式或者文件测试，它会返回一个退出状态指示比较的结果。
+* [[]]结构是test的扩展，在[[和]]之间的所有的字符都不会被文件扩展或是标记分割，但是会有参数引用和命令替换，&&, ||, <, >操作符能在一个[[]]测试里通过。
+* (())结构和let扩展并计算一个算术表达式的值，如果表达式值为0，会返回1或假作为退出状态码。
+* 任意数值，字符串, true为真，空值，未初始化的变量，false为假。
+* 关键字（或命令）开始一个语句，如果在同一行开始另一个新语句时，前面一个语句必须用分号（;）结束。
+
+```
+if [condition]
+then
+    command...
+fi
+```
+
+文件测试操作符(如果下面的条件成立返回真):
+-e 文件存在
+-a 文件存在, 和-e的作用一样, 但不赞成使用。
+-f 文件是一个普通文件(不是一个目录或是一个设备文件)
+-s 文件大小不为零
+-d 文件是一个目录
+-b 文件是一个块设备(软盘, 光驱, 等等.)
+-c 文件是一个字符设备(键盘, 调制解调器, 声卡, 等等.)
+-p 文件是一个管道
+-h 文件是一个符号链接
+-L 文件是一个符号链接
+-S 文件是一个socket
+-t 文件(描述符)与一个终端设备相关, 这个测试选项可以用于检查脚本中是否标准输入 ([ -t 0 ])或标准输出([ -t 1 ])是一个终端.
+-r 文件是否可读 (指运行这个测试命令的用户的读权限)
+-w 文件是否可写 (指运行这个测试命令的用户的读权限)
+-x 文件是否可执行 (指运行这个测试命令的用户的读权限)
+-g 文件或目录的设置-组-ID(sgid)标记被设置，如果一个目录的sgid标志被设置，在这个目录下创建的文件都属于拥有此目录的用户组，而不必是创建文件的用户所属的组。
+-u 文件的设置-用户-ID(suid)标志被设置
+-k 粘住位设置
+-O 你是文件拥有者
+-G 你所在组和文件的group-id相同
+-N 文件最后一次读后被修改
+f1 -nt f2 文件f1比f2新
+f1 -ot f2 文件f1比f2旧
+f1 -ef f2 文件f1和f2 是相同文件的硬链接
+ !  反转上面所有测试的结果(如果没有给出条件则返回真).
+
+整数比较:
+-eq 等于 `if [ "$a" -eq "$b" ]`
+-ne 不等于 `if [ "$a" -ne "$b" ]`
+-gt 大于 `if [ "$a" -gt "$b" ]`
+-ge 大于等于 `if [ "$a" -ge "$b" ]`
+-lt 小于 `if [ "$a" -lt "$b" ]`
+-le 小于等于 `if [ "$a" -le "$b" ]`
+< 小于(在双括号里使用) `(("$a" < "$b"))`
+<= 小于等于 (在双括号里使用) `(("$a" <= "$b"))`
+\> 大于 (在双括号里使用) `(("$a" > "$b"))`
+\>= 大于等于(在双括号里使用) `(("$a" >= "$b"))`
+
+字符串比较(应该总是用引号把测试字符串引起来):
+= 等于 `if [ "$a" = "$b" ]`
+== 等于 `if [ "$a" == "$b" ]`
+!= 不相等 `if [ "$a" != "$b" ]`
+< 小于，依照ASCII字符排列顺序 `if [[ "$a" < "$b" ]]`, `if [ "$a" \< "$b" ]`
+\> 大于，依照ASCII字符排列顺序 `if [[ "$a" > "$b" ]]`, `if [ "$a" \> "$b" ]`
+-z 字符串为"null"，即是指字符串长度为零
+-n 字符串不为"null"，即长度不为零
+
+混合比较(和Bash中用于[[]]的比较操作符&&和||相似):
+-a 逻辑与 如果exp1和exp2都为真，则`exp1 -a exp2`返回真.
+-o 逻辑或 只要exp1和exp2任何一个为真，则`exp1 -o exp2`返回真.
+
+
+## 8.操作符
+* 赋值: =
+* 算术: +, -, *, /, **, %, +=, -=, *=, /=, %=, ++, --
+* 位:   <<, <<=, >>, >>=, &, &=, |, |=, ~, !, ^, ^=
+* 逻辑: &&, ||
+* 逗号: ","连接两个或更多的算术操作，所有的操作都被求值，但只返回最后一个操作的结构。
+* Bash不能处理浮点计算, 它会把含有小数点的数当成字符串。
+* 数值表示: 前缀为0的数字是八进制数, 前缀为0x的数字是十六进制数, BASE#NUMBER(进制#数值)。
+
+
+## 9.变量
+### 9.1 内部变量
+内建变量：
+$BASH Bash的二进制程序文件的路径 /bin/bash
+$BASH_ENV 指向一个Bash的启动文件, 当一个脚本被调用的时候, 这个启动文件将会被读取.
+$BASH_SUBSHELL 用来提示子shell的层次.
+$BASH_VERSINFO[n] 这是一个含有6个元素的数组, 它包含了所安装的Bash的版本信息.
+$BASH_VERSION 安装在系统上的Bash版本号, 检查$BASH_VERSION对于判断系统上到底运行的是哪个shell来说是一种非常好的方法. 变量$SHELL有时候不能够给出正确的答案.
+$DIRSTACK 在目录栈中最顶端的值 (将会受到pushd和popd的影响). 这个内建变量与dirs命令相符, 但是dirs命令会显示目录栈的整个内容.
+$EDITOR 脚本所调用的默认编辑器, 通常情况下是vi或者是emacs.
+$EUID "有效"用户ID, 不管当前用户被假定成什么用户, 这个数都用来表示当前用户的标识号, 也可能使用su命令来达到假定的目的.
+$FUNCNAME 当前函数的名字
+$GLOBIGNORE 一个文件名的模式匹配列表, 如果在通配(globbing)中匹配到的文件包含有这个列表中的某个文件, 那么这个文件将被从匹配到的结果中去掉.
+$GROUPS 目前用户所属的组, 这是一个当前用户的组id列表(数组), 与记录在/etc/passwd文件中的内容一样.
+$HOME 用户的home目录, 一般是/home/username.
+$HOSTNAME hostname放在一个初始化脚本中, 在系统启动的时候分配一个系统名字. 然而, gethostname()函数可以用来设置这个Bash内部变量$HOSTNAME.
+$HOSTTYPE 主机类型.
+$IFS 内部域分隔符 这个变量用来决定Bash在解释字符串时如何识别域, 或者单词边界, 默认为空白(空格, 制表符,和换行符).
+$IGNOREEOF 忽略EOF: 告诉shell在log out之前要忽略多少文件结束符(control-D).
+$LC_COLLATE 常在.bashrc或/etc/profile中设置, 用来控制文件名扩展和模式匹配的展开顺序. 如果$LC_COLLATE设置得不正确的话, 会在文件名匹配(filename globbing)中产生不可预料的结果.
+$LC_CTYPE 用来控制通配(globbing)和模式匹配中的字符串解释.
+$LINENO 记录自身在脚本中所在的行号. 只有在脚本使用才有意义, 并且一般用于调试.
+$MACHTYPE 机器类型, 标识系统的硬件.
+$OLDPWD 之前的工作目录("OLD-print-working-directory", 就是之前你所在的目录)
+$OSTYPE 操作系统类型
+$PATH 可执行文件的搜索路径, 一般为/usr/bin/, /usr/X11R6/bin/, /usr/local/bin, 等等.
+$PIPESTATUS 这个数组依次保存最后一个运行的前台管道中命令的退出状态码, 和最后一个命令运行的退出状态码并不一定相同.
+$PPID 进程的$PPID就是这个进程的父进程的进程ID(pid).
+$PROMPT_COMMAND 保存了在主提示符$PS1显示之前需要执行的命令.
+$PS1 主提示符, 可以在命令行中见到它.
+$PS2 第二提示符, 当你需要额外输入的时候, 默认显示">".
+$PS3 第三提示符, 它在一个select循环中显示.
+$PS4 第四提示符, 当使用-x选项来调用脚本时, 会出现在每行输出的开头, 默认显示"+".
+$PWD 工作目录(当前所在的目录)
+$REPLY 当没有参数变量提供给read命令的时候, 会作为默认变量提供给read命令. 也可以用于select菜单, 但是只提供所选择变量的编号, 而不是变量本身的值.
+$SECONDS 这个脚本已经运行的时间(以秒为单位).
+$SHELLOPTS shell中已经激活的选项的列表, 这是一个只读变量.
+$SHLVL Shell级别, 就是Bash被嵌套的深度.
+$TMOUT 如果被设置为非零值time的话, 那么经过time秒后, shell提示符将会超时, 这将会导致登出(logout).
+$UID 用户ID号, 当前用户的用户标识号, 记录在/etc/passwd文件中.
+$ENV, $LOGNAME, $MAIL, $TERM, $USER, $USERNAME, $SHELL都不是Bash的内建变量, 然而这些变量经常在Bash的启动文件中被当作环境变量来设置.
+
+特殊变量(只读)：
+`$0`, `$1`, `$2`, ...  位置参数, 从命令行传递到脚本, 或者传递给函数, 或者set给变量，$0为脚本名。
+`$#` 位置参数的个数
+`$*` 所有的位置参数都被看作为一个字符串，`"$*"`应该被引用起来.
+`$@` 与`$*`相同, 但是每个参数都是一个独立的引用字符串, 参数是被完整传递的, 并没有被解释或扩展, "$@"应该被引用起来.
+`$-` 传递给脚本的标记选项(使用set命令).
+`$!` 运行在后台的最后一个作业的PID(进程ID)
+`$_` 这个变量保存之前执行的命令的最后一个参数的值.
+`$?` 命令, 函数, 或者是脚本本身的退出状态码.
+`$$` 脚本自身的进程ID, 常用来构造"唯一的"临时文件名, 通常比调用mktemp命令来的简单.
+
+### 9.2 操作字符串
+字符串长度
+`${#string}`
+`expr length $string`
+`expr "$string" : '.*'`
+`${#*}`和`${#@}`表示位置参数的个数.
+`${#array[*]}`和`${#array[@]}`表示数组中元素的个数.
+
+匹配字符串开头的子串长度
+`expr match "$string" '$substring'`
+`expr "$string" : '$substring'`
+
+索引
+`expr index $string $substring  #在字符串$string中所匹配到的$substring第一次所出现的位置.`
+
+提取子串
+```
+${string:position}                        #在$string中从位置$position开始提取子串.
+${string:position:length}                 #在$string中从位置$position开始提取$length长度的子串.
+expr substr $string $position $length     #在$string中从位置$position开始提取$length长度的子串.
+expr match "$string" '\($substring\)'     #从$string的开始位置提取$substring.
+expr "$string" : '\($substring\)'         #从$string的开始位置提取$substring.
+expr match "$string" '.*\($substring\)'   #从$string的结尾提取$substring.
+expr "$string" : '.*\($substring\)'       #从$string的结尾提取$substring.
+```
+
+子串削除
+```
+${string#substring}   #从$string的开头位置截掉最短匹配的$substring.
+${string##substring}  #从$string的开头位置截掉最长匹配的$substring.
+${string%substring}   #从$string的结尾位置截掉最短匹配的$substring.
+${string%%substring}  #从$string的结尾位置截掉最长匹配的$substring.
+```
+
+子串替换
+```
+${string/substring/replacement}   #替换第一个匹配.
+${string//substring/replacement}  #替换所有匹配.
+${string/#substring/replacement}  #如果$substring匹配$string的开头部分，则替换.
+${string/%substring/replacement}  #如果$substring匹配$string的结尾部分，则替换.
+```
+
+### 9.3 参数替换
+```
+${parameter}            #变量parameter的值
+${parameter-default}    #如果变量parameter没被声明, 那么就使用默认值.
+${parameter:-default}   #如果变量parameter没被设置(置为空), 那么就使用默认值.
+${parameter=default}    #如果变量parameter没声明, 那么就把它的值设为default.
+${parameter:=default}   #如果变量parameter没设置, 那么就把它的值设为default.
+${parameter+alt_value}  #如果变量parameter被声明了, 那么就使用alt_value, 否则就使用null字符串.
+${parameter:+alt_value} #如果变量parameter被设置了, 那么就使用alt_value, 否则就使用null字符串.
+${parameter?err_msg}    #如果parameter已经被声明, 那么就使用设置的值, 否则打印err_msg错误消息.
+${parameter:?err_msg}   #如果parameter已经被设置, 那么就使用设置的值, 否则打印err_msg错误消息.
+${!varprefix*}或${!varprefix@}  #匹配所有(展开)之前声明过的, 并且以varprefix开头的变量.
+```
+
+### 9.4 指定变量的类型
+declare/typeset内建命令: 可以限制变量的作用域(仅在函数中有效，默认本地全局).
+-r 只读(同readonly)
+-i 整型
+-a 数组
+-f 函数
+-x 导出(同export)
+
+### 9.5 变量的间接引用
+`eval var1=\$$var2`
+`${!variable}`
+
+### 9.6 $RANDOM产生随机整数
+$RANDOM是Bash的内部函数 (并不是常量), 这个函数将返回一个伪随机整数, 范围在0 - 32767之间, 它不应该被用来产生密匙.
+
+### 9.7 双圆括号结构
+与let命令很相似, `((...))`结构允许算术扩展和赋值, 也可使用C语言风格变量操作.
+
+## 10.循环与分支
+### 10.1 循环
+for:
+```
+for arg [in list]
+do
+    command...
+done
+```
+* 如果在for循环的[list]中有通配符 (*和?), 那么将会发生通配(globbing), 也就是文件名扩展.
+* 在一个for循环中忽略in list部分的话, 将会使循环操作$@ -- 从命令行传递给脚本的位置参数.
+
+while:
+```
+while [condition]
+do
+    command...
+done
+```
+* 一个while循环可以有多个判断条件, 但是只有最后一个才能够决定是否能够退出循环.
+
+util:
+```
+until [condition-is-true]
+do
+    command...
+done
+```
+
+### 10.2 嵌套循环
+### 10.3 循环控制
+* break命令用来跳出循环, 而continue命令只会跳过本次循环.
+* break命令可以带一个参数, 一个不带参数的break命令只能退出最内层的循环, 而break N可以退出N层循环.
+* continue命令也带一个参数, 一个不带参数的continue命令只会去掉本次循环的剩余代码, 而continue N将会把N层循环的剩余代码都去掉, 但是循环的次数不变.
+
+### 10.4 测试与分支
+case (in) / esac:
+```
+case "$variable" in
+
+"$condition1" )
+command...
+;;
+
+"$condition2" )
+command...
+;;
+
+esac
+```
+
+select:提示用户输入选择的内容(数字)
+```
+select variable [in list]
+do
+    command...
+    break
+done
+```
+* 如果忽略了in list列表, 那么select命令将会使用传递到脚本的命令行参数($@), 或者是函数参数(当select是在函数中时).
+
+
+## 11.内建(built-in)命令
+echo: 打印一个表达式或者变量
+printf: 格式化输出
+read: 从stdin中"读取"一个变量的值, 使用-a参数可以read数组变量, 一个不带变量参数的read命令, 将会把输入存入到专用变量$REPLY中.
+cd: 修改目录
+pwd: 打印出当前的工作目录
+pushd, popd, dirs: 按顺序向前或向后移动工作目录
+let: 执行变量的算术操作
+eval: 将表达式中的参数, 或者表达式列表, 组合起来, 然后执行. 任何被包含在表达式中的变量都将被扩展, 结果将会被转化到命令中.
+set: 用来修改内部脚本变量的值, 一个作用就是触发选项标志位来帮助决定脚本的行为, 另一个作用是以一个命令的结果(set `command`)来重新设置脚本的位置参数. 不带参数打印所有变量, -a导出所有本地变量。
+unset: 用来删除一个变量(设为null), 对位置参数无效.
+export: 将变量导出为环境变量, 使其在所运行脚本的所有子进程中都可用(子进程对变量的改变不会传回父进程，也不能导回父进程，但可以用重定向).
+declare, typeset: 指定或限制变量的属性.
+readonly: 设置变量的只读属性
+getopts: 分析传递到脚本中命令行参数的最强力的工具.
+source, .: 当前展开/执行脚本, 类似函数.
+exit: 无条件的停止一个脚本的运行
+exec: 使用一个特定的命令来取代当前进程(不会fork); 在脚本中使用时, 一旦exec所执行的命令执行完毕, 就会强制退出脚本; 还能用来重新分配文件描述符(exec <file将会用file来代替stdin); 与find的-exec选项不同.
+shopt: 允许shell修改shell选项
+caller: 将caller命令放到函数中, 将会在stdout上打印出函数的调用者信息.
+true: 返回(零)成功退出状态码
+false: 返回失败退出状态码
+type: 显示命令的完整路径. -a参数用来鉴别是关键字还是内建命令, 也用来定位同名的系统命令.
+hash: 在hash表中记录命令的路径(缓存), 所以调用其中的命令的话, 就不需要再在$PATH中重新搜索这个命令了.
+bind: 显示或修改readline的键绑定.
+help: 获得内建命令的一个小的使用总结.
+
+### 11.1 作业控制命令
+作业是被当前shell所维护的, 进程是被系统维护的.
+标识符:
+%N	作业号[N]
+%S	以字符串S开头的被(命令行)调用的作业
+%?S	包含字符串S的被(命令行)调用的作业
+%%	"当前"作业(前台最后结束的作业, 或后台最后启动的作业)
+%+	"当前"作业(前台最后结束的作业, 或后台最后启动的作业)
+%-	最后的作业
+$!	最后的后台进程
+
+挂起当前作业: ctrl+z
+停止当前作业: ctrl+c
+直接后台运行: command &, nohup command &
+作业调度: cron, at
+
+jobs: 在后台列出所有正在运行的作业.
+disown: 从shell的激活作业表中删除作业.
+fg, bg: fg命令可以把一个在后台运行的作业放到前台来运行, 而bg命令会让一个挂起的作业在后台运行. 如果没有指定作业号, 那么默认将对当前正在运行的作业进行操作.
+wait: 停止脚本的运行, 直到后台运行的所有作业都结束为止, 或者如果传递了作业号或进程号为参数的话, 那么就直到指定作业结束为止. 返回等待命令的退出状态码. 在一个脚本中, 使用后台运行命令(&)可能会使脚本挂起, 直到敲ENTER, 挂起的脚本才会被恢复, 只要在后台运行命令的后边加上一个wait命令就会解决这个问题.
+suspend: 这个命令的效果与Control-Z很相像, 但是它挂起的是这个shell(这个shell的父进程应该在合适的时候重新恢复它).
+logout: 退出一个已经登陆上的shell, 也可以指定一个退出状态码.
+times: 给出执行命令所占用的时间.
+kill: 通过发送一个适当的结束信号, 来强制结束一个进程.
+killall: 通过名字来杀掉一个正在运行的进程, 而不是通过进程ID. 如果某个特定的命令有多个实例正在运行, 那么执行一次killall命令就会把这些实例全部杀掉.
+command: command COMMAND会直接禁用别名和函数的查找.
+builtin: builtin COMMAND只会调用shell内建命令COMMAND, 而暂时禁用同名的函数, 或者是同名的扩展命令.
+enable: 这个命令或者禁用内建命令或者恢复内建命令.
+autoload: 一个带有"autoload"声明的函数, 在它第一次被调用的时候才会被加载.
+
+Bash执行命令的优先级:
+
+1. 别名
+1. 关键字
+1. 函数
+1. 内建命令
+1. 脚本或可执行程序($PATH)
+
+
+## 12.外部过滤器, 程序和命令
+基本命令: ls/cat/tac/rev/cp/mv/rm/rmdir/mkdir/chmod/chattr/lsattr/tree/ln/man/info
+复杂命令: find/xargs/expr
+时间日期: date/zdump/time/touch/at/batch/cal/sleep/usleep/clock/hwclock
+文本处理: sort/tsort/uniq/expand/unexpand/cut/paste/join/head/tail/grep/look/sed/awk/wc/tr/fold/fmt/col/column/colrm/nl/pr
+          gettext/msgfmt/iconv/recode/TeX/gs/enscript/groff/tbl/eqn/lex/flex/yacc/bison
+文件归档: tar/shar/unshar/ar/rpm/cpio/rpm2cpio/gzip/bzip2/compress/uncompress/sq/zip/unzip/unarc/unarj/unrar
+          file/which/whereis/whatis/vdir/locate/slocate/updatedb/readlink/strings/diff/patch/zdiff/diff3/sdiff/cmp/comm
+          basename/dirname/split/csplit/sum/cksum/md5sum/sha1sum/shred/uuencode/uudecode/mimencode/mmencode/[crypt]/mktemp/make/install/dos2unix/ptx/more/less
+通讯命令: host/[ipcalc]/nslookup/dig/traceroute/ping/[whois]/finger/chfn/[vrfy]
+          sx/rx/sz/rz/ftp/uucp/uux/cu/telnet/wget/[lynx]/rlogin/rsh/rcp/rsync/ssh/scp
+          write/[netconfig]/mail/mailto/vacation
+终端控制: tput/infocmp/reset/clear/script
+数学计算: factor/bc/dc/awk/
+其它命令: jot/seq/getopt/run-parts/yes/[banner]/printenv/lp/tee/dd/od/hexdump/objdump/mcookie/units/m4/doexec/dialog/sox
+
+
+## 13.系统与管理命令
+User和Group: users/groups/chown/chgrp/useradd/userdel/usermod/groupadd/groupdel/groupmod/id/who/w/whoami/logname/su/sudo/passwd/[ac]/last/newgrp
+终端: tty/stty/setterm/tset/setserial/getty/agetty/mesg/wall
+信息统计: uname/arch/[lastcomm]/lastlog/lsof/strace/ltrace/[nmap]/netcat/free/procinfo/lsdev/du/df/dmesg/stat/vmstat/netstat/uptime/hostname/hostid/[sar]/readelf/size
+系统日志: logger/logrotate
+作业控制: ps/pgrep/pkill/pstree/top/nice/renice/snice/skill/nohup/pidof/fuser/cron/crontab/
+启动与进程控制: init/telinit/runlevel/halt/shutdown/reboot/service/logout/
+网络: ifconfig/iwconfig/route/chkconfig/tcpdump
+文件系统: mount/umount/sync/losetup/mkswap/swapon/swapoff/mke2fs/tune2fs/dumpe2fs/hdparm/fdisk/fsck/e2fsck/debugfs/badblocks/lsusb/usbmodules/lspci/mkbootdisk/chroot/lockfile/flock/mknod/makedev/tmpwatch
+备份: dump/restore/fdformat
+系统资源: ulimit/quota/setquota/umask/rdev
+模块: lsmod/insmod/rmmod/modprobe/depmod/modinfo
+其它: env/ldd/watch/strip/nm/rdist/alias/unalias/history/fc
+
+测试运行: `bash -vn scriptname`
+
+## 14.命令替换
+* 命令替换会调用一个subshell.
+* 对于命令替换, `$(COMMAND)`形式已经取代了后置引用`` ` ``.
+
+
+## 15.算术扩展
+* 使用后置引用的算术扩展(通常都是和expr一起使用).
+* 使用双括号形式的算术扩展, 也可以使用let命令.
+
+
+## 16.I/O重定向
+* 默认情况下始终有3个"文件"处于打开状态, stdin(键盘), stdout(屏幕), 和stderr(错误消息输出到屏幕上), 文件描述符分别是0, 1, 和 2. &n可以引用文件描述符。
+* 子进程继承了打开的文件描述符, 这就是为什么管道可以工作. 如果想阻止fd被继承, 那么可以关掉它.
+
+```
+COMMAND_OUTPUT >                # 将stdout重定向到一个文件, 如果这个文件不存在, 那就创建, 否则就覆盖.
+: > filename 或 > filename      # >操作, 将会把文件"filename"变为一个空文件(就是size为0), 如果文件不存在, 那么就创建一个0长度的文件, :是一个占位符, 不产生任何输出.
+COMMAND_OUTPUT >>               # 将stdout重定向到一个文件, 如果文件不存在, 那么就创建它, 如果存在, 那么就追加到文件后边.
+M>N                             # "M"是一个文件描述符, 如果没有明确指定的话默认为1, "N"是一个文件名, 文件描述符"M"被重定向到文件"N".
+&>N                             # 将stdout和stderr都重定向到文件"N".
+M>&N                            # "M"是一个文件描述符, 如果没有明确指定的话默认为1, "N"是另一个文件描述符.
+0< filename 或 < filename       # 从文件中接受输入.
+j<>filename                     # 为了读写"filename", 把文件"filename"打开, 并且将文件描述符"j"分配给它, 如果文件"filename"不存在, 那么就创建它, 如果文件描述符"j"没指定, 那默认是fd 0, stdin.
+|                               # 管道, 通用目的处理和命令链工具.
+n<&-                            # 关闭输入文件描述符n. 0<&-, <&- 关闭stdin.
+n>&-                            # 关闭输出文件描述符n. 1>&-, >&- 关闭stdout.
+```
+
+### 16.1 使用exec
+* `exec <filename`会将stdin重定向到文件中.
+* `exec >filename`会将stdout重定向到文件中.
+* `exec N > filename`会影响整个脚本或当前shell.
+* `N > filename`只会影响新fork出来的进程, 而不会影响整个脚本或shell.
+
+### 16.2 代码块重定向
+* while, until, for, if/then结构, {}代码块以及函数, 可以依靠代码块结尾的<操作符进行重定向.
+* 重定向代码块的stdout, 与"将代码块的输出保存到文件中"具有相同的效果.
+
+### 16.3 重定向的应用
+
+
+## 17.Here Document
+* 一个here document就是一段带有特殊目的的代码段, 它使用I/O重定向的形式将一个命令序列传递到一个交互程序或者命令中, 比如ftp, cat, 或者ex文本编辑器.
+```
+#!/bin/bash
+interactive-program <<LimitString
+command #1
+command #2
+...
+LimitString     # LimitString用来界定命令序列的范围
+```
+* `-`选项用来标记here document的limit string `<<-LimitString`, 可以抑制输出时前边的tab(不是空格), 这么做可以增加一个脚本的可读性.
+* here document支持参数和命令替换, 在here document的开头, 引用或转义"limit string"`<<\LimitString`, 会使得here document消息体中的参数替换被禁用.
+* `:`可以做一个假命令来从一个here document中接收输出`: <<LimitString`, 这么做创建了一个"匿名"的here document, 可以用来注释代码块.
+
+### 17.1 Here String
+here string可以看成是here document的一种定制形式: `COMMAND <<<$WORD`, $WORD将被扩展并且被送入COMMAND的stdin中.
+
+
+## 18.Take a rest
+## 19.正则表达式
+### 19.1 简介
+### 19.2 通配(globbing)
+* Bash只能对未用引号引用起来的命令行参数进行文件名扩展.
+* set -f命令可以禁用通配, 而且shopt命令的选项nocaseglob和nullglob可以修改通配的行为.
+* 包含*的字符串不能匹配以"."开头的文件.
+
+`*`: 匹配0个或多个字符，若在开头且后面是个"."匹配1个或多个字符
+`?`: 匹配1个字符
+`[a-zA-Z]`: 匹配字母
+`[!0-9]` 或 `[^0-9]`: 匹配非数字
+
+
+## 20.子shell
+* 一般来说, 脚本中的外部命令能够生成(fork)一个子进程, 然而内建命令却不会这么做. 因此, 内建命令比等价的外部命令要执行的快.
+* 圆括号中的命令列表(cmd1;cmd2,...): 把几个命令(一个命令也会)在子shell中执行(所有命令的输出作为一个整体被重定向时)，而{cmd1;cmd2,...}则不会.
+
+
+## 21.受限shell
+* 脚本开头以`#!/bin/bash -r`来调用, 会使整个脚本在受限模式下运行, 或运行set -r.
+* 在受限shell中禁用的命令:
+    * 使用cd命令更改工作目录.
+    * 更改环境变量$PATH, $SHELL, $BASH_ENV, 或$ENV的值.
+    * 读取或修改环境变量$SHELLOPTS的值.
+    * 输出重定向.
+    * 调用的命令路径中包括有一个或多个斜杠(/).
+    * 调用exec, 把当前的受限shell替换成另外一个进程.
+    * 能够在无意中破坏脚本的命令.
+    * 在脚本中企图脱离受限模式的操作.
+
+
+## 22.进程替换
+* 进程替换把一个进程的输出提供给另一个进程, 它把一个命令的结果发给了另一个命令.
+* 用圆括号扩起来的命令: `>(command)`, `<(command)`启动进程替换, 它使用/dev/fd/n文件将圆括号中的进程处理结果发送给另一个进程.
+* 比较两个不同目录的内容: `diff <(ls $first_directory) <(ls $second_directory)`
+
+
+## 23.函数
+```
+function function_name
+{
+    command...
+}
+
+function_name ()
+{
+    command...
+}
+```
+
+### 23.1 复杂函数和函数复杂性
+* shell脚本一般只会传值给函数, 如果把变量名(事实上就是指针)作为参数传递给函数的话, 那将被解释为字面含义, 函数只会以字面含义来解释函数参数.
+* return终止一个函数, 可选的允许带一个整型参数, 这个整数将作为函数的"退出状态码"返回给调用这个函数的脚本, 并且这个整数也被赋值给变量$?.
+* 关于输出值: 在函数中使用echo命令将"返回值输出到stdout", 然后使用命令替换``来捕捉此值.
+
+### 23.2 局部变量
+* 如果变量用local来声明, 那么它就只能够在该变量被声明的函数中可见.
+
+### 23.3 不使用局部变量的递归
+
+
+## 24.别名
+* Bash不能在别名中扩展参数, 但能够扩展位置参数, 别名不能够用在"混合型结构"中, 比如if/then结构, 循环, 和函数, 别名不能递归扩展.
+* 绝大多数情况下, 我们期望别名能够完成的工作, 都能够用函数更高效的完成.
+
+
+## 25.列表结构
+`cmd1; cmd2`: 顺序执行命令(分号分割语句)
+`cmd1 && cmd2 && cmd3...`: 只有cmd1成功才执行cmd2...
+`cmd1 || cmd2 || cmd3...`: 只有cmd1失败才执行cmd2...
+
+
+## 26.数组
+* 数组元素可以使用符号variable[xx]来初始化(多个值初始化: `array=( zero one two three four five ))`, 可以使用`declare -a variable`语句来指定一个数组, 如果想解引用一个数组元素, 形式为`${variable[xx]}`.
+* Bash允许把变量当成数组来操作, 数组中只有一个元素就是变量本身.
+* 大部分标准字符串操作都可以用于数组中.
+* 命令替换可以构造数组的独立元素(空白分割).
+* unset命令可以删除数组元素, 或删除整个数组.
+* `${array_name[@]}`或`${array_name[*]}`都与数组中的所有元素相关, 关系类似于`$@` and `$*`.
+* 计算数组的元素个数, 可以使用`${#array_name[@]}`或`${#array_name[*]}`, `${#array_name}`是数组第一个元素的长度, 也就是`${array_name[0]}`的长度(字符个数).
+* 在数组声明的时候添加一个额外的`declare -a`语句, 能够加速后续的数组操作速度.
+
+
+## 27./dev和/proc
+/dev目录包含物理设备的条目, 这些设备可能会以硬件的形式出现, 也可能不会.
+/proc目录实际上是一个伪文件系统, 其中的文件用来映射当前运行的系统, 内核进程以及与它们相关的状态与统计信息.
+
+
+## 28.Zero与Null
+/dev/null非常接近于一个只写文件, 所有写入它的内容都会永远丢失, 而如果想从它那读取内容, 则什么也读不到.
+/dev/zero会产生一个二进制的null流, 所有写入它的内容都会永远丢失, 一般从/dev/zero中读取一连串null用来创建一个指定长度, 并且初始化为空的文件.
+
+
+## 29.调试
+调试工具:
+
+* 用echo语句来观察变量的值.
+* 使用过滤器tee来检查临界点上的进程或数据流.
+* 设置选项-n -v -x -u
+* 使用"assert"函数在脚本的临界点上测试变量或条件.
+* 使用变量$LINENO和内建命令caller.
+* 捕获exit, 脚本中的exit命令(或脚本退出)会触发一个信号0, 这个信号终止进程, 也就是终止脚本本身.
+* 使用特殊变量:
+    * $BASH_ARGC
+    * $BASH_ARGV
+    * $BASH_COMMAND
+    * $BASH_EXECUTION_STRING
+    * $BASH_LINENO
+    * $BASH_SOURCE
+    * $BASH_SUBSHELL
+
+捕获信号:
+
+* trap命令必须放在脚本中第一个命令的位置上.
+* 如果使用trap命令的DEBUG参数, 那么当脚本中每个命令执行完毕后, 都会执行指定的动作.
+* trap '' SIGNAL在剩余的脚本中禁用SIGNAL信号的动作, trap SIGNAL则会恢复处理SIGNAL的动作.
+
+eg:
+```
+trap 'echo "Control-C disabled."' 2
+trap 'echo Variable Listing: a = $a  b = $b' EXIT
+trap 'echo "VARIABLE-TRACE> \$variable = \"$variable\""' DEBUG
+```
+
+## 30.选项
+* set命令用来打开脚本中的选项, set -o option-name或者set -option-abbrev.
+* 禁用某个选项, 使用set +o option-name或set +option-abbrev.
+* 另一种在脚本中启用选项的方法, 就是在脚本头部#!的后边直接指定选项.
+* 某些不能与set命令一起用的选项可以从命令行中打开脚本的选项, 如-i选项用来强制脚本以交互的方式运行.
+
+-C	noclobber	防止重定向时覆盖文件(可能会被>|覆盖)
+-D	(none)	列出用双引号引用起来的, 以$为前缀的字符串, 但是不执行脚本中的命令
+-a	allexport	export(导出)所有定义过的变量
+-b	notify	当后台运行的作业终止时, 给出通知(脚本中并不常见)
+-c ...	(none)	从...中读取命令
+-e	errexit	当脚本发生第一个错误时, 就退出脚本, 换种说法就是, 当一个命令返回非零值时, 就退出脚本(除了until或while loops, if-tests, list constructs)
+-f	noglob	禁用文件名扩展(就是禁用globbing)
+-i	interactive	让脚本以交互模式运行
+-n	noexec	从脚本中读取命令, 但是不执行它们(做语法检查)
+-o Option-Name	(none)	调用Option-Name选项
+-o posix	POSIX	修改Bash或被调用脚本的行为, 使其符合POSIX标准.
+-p	privileged	以"suid"身份来运行脚本.
+-r	restricted	以受限模式来运行脚本.
+-s	stdin	从stdin中读取命令
+-t	(none)	执行完第一个命令之后, 就退出
+-u	nounset	如果尝试使用了未定义的变量, 就会输出一个错误消息, 然后强制退出
+-v	verbose	在执行每个命令之前, 把每个命令打印到stdout上
+-x	xtrace	与-v选项类似, 但是会打印完整命令
+-	(none)	选项结束标志. 后面的参数为位置参数.
+--	(none)	unset(释放)位置参数. 如果指定了参数列表(-- arg1 arg2), 那么位置参数将会依次设置到参数列表中.
+
+
+## 31.陷阱
+* 将保留字或特殊字符声明为变量名.
+* 使用连字符或其他保留字符来做变量名(或函数名).
+* 让变量名与函数名相同.
+* 不合时宜的使用空白字符.
+* 在大括号包含的代码块中, 最后一条命令没有以分号结尾.
+* 假定未初始化的变量(赋值前的变量)被"清0". 未初始化的变量值为"null", 而不是0.
+* 混淆测试符号=和-eq. =用于比较字符变量, 而-eq用来比较整数.
+* 误用了字符串比较操作符.
+* 有时候在"test"中括号([ ])结构里的变量需要被引用起来(双引号). 如果不这么做的话, 可能会引起不可预料的结果.
+* 脚本中的命令可能会因为脚本宿主不具备相应的运行权限而导致运行失败.
+* 试图使用-作为重定向操作符(事实上它不是), 通常都会导致令人不快的结果.
+* 使用Bash 2.0或更高版本的功能, 可以在产生错误信息的时候, 引发修复动作, 但是比较老的Linux机器默认安装的可能是Bash 1.XX.
+* 在非Linux机器上的Bourne shell脚本(#!/bin/sh)中使用Bash特有的功能, 可能会引起不可预料的行为.
+* 使用Bash未文档化的特征, 将是一种危险的举动.
+* 一个带有DOS风格换行符(\r\n)的脚本将会运行失败.
+* 以#!/bin/sh开头的Bash脚本, 不能在完整的Bash兼容模式下运行, 某些Bash特定的功能可能会被禁用. 如果脚本需要完整的访问所有Bash专有扩展, 那么它需要使用#!/bin/bash作为开头.
+* 如果在here document中, 结尾的limit string之前加上空白字符的话, 将会导致脚本的异常行为.
+* 脚本不能将变量export到它的父进程或父进程的环境中.
+* 在子shell中设置和操作变量之后, 如果尝试在子shell作用域之外使用同名变量的话, 将会产生令人不快的结果.
+* 将echo的输出通过管道传递给read命令可能会产生不可预料的结果. 在这种情况下, read命令的行为就好像它在子shell中运行一样. 可以使用set命令来代替. 通过管道将输出传递到任何循环中, 都会引起类似的问题.
+* 将tail -f的stdout通过管道传递给grep时, 会产生问题.
+* 在脚本中使用"suid"命令会危及系统安全. 给脚本设置suid权限是没用的.
+* 使用shell脚本来编写CGI程序是值得商榷的.
+* Bash不能正确的处理双斜线(//)字符串.
+* 在Linux或BSD上编写的Bash脚本, 可能需要修改一下, 才能使它们运行在商业的UNIX(或Apple OSX)机器上. 这些脚本通常都使用GNU命令和过滤工具, 通常都比一般的UNIX上的同类工具更加强大.
+
+
+## 32.脚本编程风格
+## 33.杂项
+* 在文件的头部添加内容: `echo $title | cat - $file >$file.new`
+* 使用$?退出状态变量测试一个参数是否是数字: `test "$1" -ne 0 -o "$1" -eq 0 2>/dev/null`
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
