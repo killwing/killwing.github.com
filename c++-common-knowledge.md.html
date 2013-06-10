@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html>
+<title>C++ Common Knowledge</title>
+<xmp theme="readable" style="display:none;">
+**产品级C++编程的本质技术**
+
+## 1.数据抽象
+首先考虑"可以用这个对象做什么"而不是"这个对象是如何实现的"。
+步骤:
+
+1. 为类型选择一个描述性的文字。
+1. 列出类型所能执行的操作, 而不是简单的get/set。
+1. 为类型设计接口。应做到"易于正确使用, 难以错误使用"。
+1. 实现类型。
+
+
+## 2.多态
+## 3.设计模式
+## 4.STL
+## 5.引用是别名而非指针
+引用和指针的3大区别:
+
+1. 不存在空引用
+1. 所有引用都要初始化, 此时被引用的对象必须存在
+1. 一个引用永远指向用来对它初始化的对象
+
+非常量引用不能用字面值和临时值初始化(字面值会被转成临时值, 再被引用; 临时值不可修改, 应使用const引用, 临时变量的生命周期变为和引用变量一样)。
+
+
+## 6.数组形参
+接受含有特定数量的元素的数组:
+`void f(int (&ary)[12]);	    //"int& ary[12]" is wrong,不存在引用数组`
+
+用模板泛化:
+`template<int n> void f(int (&ary)[n]);	    //局限性:不能传入指针`
+
+二维数组:
+```
+void f(int (*ary)[12]);
+void f(int ary[][12]);	    //等价
+
+template<int n,int m>
+void f(int (&ary)[n][m]);   //泛化
+```
+
+## 7.常量指针与指向常量的指针
+通过const_cast试图修改常量对象，会导致未定义的结果。
+
+
+## 8.指向指针的指针
+误解:适用于指针的转换同样适用于指针的指针。
+```
+Sub* pSub = new Sub;
+Base* pBase = pSub;	//right!
+
+Sub** ppSub = &pSub;
+Base** ppBase = ppSub;	//wrong!
+
+char* a[n];
+const char** ppa = a;	//wrong!
+```
+
+## 9.新式转型操作符
+const_cast:添加/移除类型的const/volatile。
+
+向下转换的异同:
+static_cast: 执行正确的地址操作(常用)。
+reinterpret_cast: 从位角度将基类指针假装成一个派生类指针而不改变其值(尽量不用)。
+dynamic_cast: 安全的向下转换, 仅用于多态类型(有虚函数), 有显著的runtime开销(不要滥用)。
+
+
+## 10.常量成员函数的含义
+在类X的非常量成员函数中, this的类型为`X* const`;
+在类X的常量成员函数中, this的类型为`const X* const`。
+
+二元重载操作符的左实参是作为this指针传入的(可用于函数重载解析的区分):
+```
+X operator + (const X&,constX&);    //非成员形式
+X operator + (const X&) const;	    //成员形式
+```
+类的非静态数据成员可以声明为mutable, 使其值可以被常量成员函数修改。
+
+
+## 11.编译器会在类中放东西
+编译器被允许重新安排对象的布局, POD(Plain Old Data: in-type, C struct/union)除外, struct要维持POD, 则不能有public, virtual等C++的东西。
+
+复制对象不能用memcpy, 要用构造函数或赋值操作(构造函数是编译器建立隐藏机制的地方)。
+
+
+## 12.赋值和初始化并不相同
+赋值发生在赋值时, 除此之外都是初始化。
+构造函数比赋值操作符做的事少。
+
+
+## 13.复制操作
+复制构造`X(const X&)`和复制赋值`X& operator = (const X&)`同时出现, 必须兼容。
+
+
+## 14.函数指针
+通过函数指针调用内联函数不会导致内联式的函数调用, 可以使用函数对象。
+
+
+## 15.指向类成员的指针并非指针
+可将指向类非静态成员的指针并不指向一个具体的内存位置，而是指向一个类的特定成员，可以看作是一个偏移量而不是地址值。
+解引用时`.*`和`->*`加上偏移量以访问成员。
+```
+C c;
+C* pC = &c;
+int C::*pimC = &C::m_a; //取得偏移量, m_a的类型为int
+c.*pimC = 0;
+pC->*pimC = 0;
+```
+和普通指针相反: 存在从指向基类成员的指针到指向公有派生类成员的指针的隐式转换, 而不存在从指向派生类成员的指针到指向其任何一个基类成员的指针的转换。
+`int Sub::pa = &Base::m_a;`
+
+
+## 16.指向成员函数的指针并非指针
+```
+void (Shape::*mf1)(Point) = &Shape::moveTo; // 原型：void Shape::moveTo(Point newLocation);
+```
+获取非静态成员函数的地址时,得到的不是一个地址, 而是一个指向成员函数的指针, 和普通函数指针不同。
+解引用时使用this指针进行函数调用。
+
+存在从指向基类成员的函数指针到指向派生类成员函数指针的预定义转换,反之则不然。
+
+
+## 17.处理函数和数组声明
+## 18.函数对象
+## 19.Command模式与好莱坞法则
+好莱坞法则: Don't call us, we'll call you.
+Command模式 = 好莱坞法则 + 函数对象。
+
+函数对象的优点:
+
+1. 可以封装数据
+1. 可以通过虚拟成员表现出动态行为
+1. 可以处理类层次结构
+1. 可以内联提高效率
+
+
+## 20.STL函数对象
+典型的STL函数对象:
+
+1. 是一个函数对象
+1. 派生于标准的binary_function基类
+1. 没有数据成员, 没有虚函数, 没有显式声明的构造析构函数, 对operator()的实现是内联的
+
+
+## 21.重载与重写并不相同
+Overload(重载): 同一作用域内两个以上的函数具有相同的名字但参数的数目和类型不同。
+Override(重写，改写，多态): 在基类虚函数和派生类函数中，函数形式完全一样(返回值是相应派生类的指针和引用例外)。
+Overwrite(隐藏，覆盖): 不同作用域的同名函数, 内部隐藏外部。
+
+## 22.Template Method模式
+Template Method模式赋予基类设计者一种中级控制机制, 介于非虚拟函数提供的"占有它或者离开它"和虚拟函数提供的"如果需要就替换掉所有东西"这两种机制之间。
+
+## 23.名字空间
+不建议将using指令放在全局域中。通常将其放在函数体或代码块中(但声明却在全局域中, 可用using声明)。
+
+使用匿名名字空间时, 编译器会生成一个临时名字并对此使用using指令。
+
+
+## 24.成员函数查找
+步骤:
+
+1. 查找函数的名字
+1. 从可用候选函数中选择最佳匹配函数
+1. 检查访问权限
+
+
+## 25.实参相依的查找ADL
+ADL指的是，当查找一个函数调用表达式中的函数名字时，编译器也会到“包含函数调用实参的类型”的名字空间查找。
+ADL是函数如何被调用的一个属性, 而重载是函数如何被声明的一个属性。
+
+
+## 26.操作符函数查找
+## 27.能力查询
+能力查询: 使用dynamic_cast进行类层次结构中"横向转型"。运行期查询, 偶尔需要, 是糟糕设计的"指示器"。
+
+
+## 28.指针比较的含义
+对象可能具有多个有效地址, 编译器通过将参与比较的指针值之一调整一定的偏移量来完成比较。
+指针比较不是关于地址的问题,而是关于对象同一性的问题。
+```
+class Base1 {int a;};
+class Base2 {int b;};
+class Sub : public Base1,public Base2 {};
+
+Sub* pSub = new Sub;
+Base1* p1 = pSub;
+Base2* p2 = pSub;
+void* p3 = p2;	    //lost type info,compare with raw address
+
+cout<<"pSub:"<<hex<<pSub<<endl
+    <<"p1  :"<<hex<<p1<<endl
+    <<"p2  :"<<hex<<p2<<endl
+    <<"p3  :"<<hex<<p3<<endl;
+
+if(p1 == pSub) cout<<"OK1!\n";
+if(p2 == pSub) cout<<"OK2!\n";	    //pSub?(pSub+delta == p2):(p2 == 0)
+if(p3 == pSub) cout<<"OK3!\n";
+
+```
+output:
+pSub:0x492450
+p1  :0x492450
+p2  :0x492454
+p3  :0x492454
+OK1!
+OK2!
+
+
+## 29.虚拟构造函数与Prototype模式
+有两个原因使用"clone":
+
+1. 必须对正在处理的对象的精确类型保持"不知情"
+1. 不希望改变被clone的原始对象,也不希望受原始对象改变的影响
+
+
+## 30.Factory Method模式
+使用Factory Method通常意味着一个高级设计需要基于一个对象的确切类型产生另一个"适当"的对象, 常发生于存在多个平行或几乎平行的类层次结构的情况下。通常是治疗一系列运行期类型查询问题的良方。
+
+
+## 31.协变返回类型Covariant Return Type
+返回值是相应派生类的指针和引用时, 也发生重写.此返回值的类型必须已经完整定义。
+
+
+## 32.禁止复制
+```
+class NoCopy {
+protected:
+    NoCopy() {};			    //可被派生类调用
+    virtual ~NoCopy() {};		    //可多态调用派生类析构函数
+private:
+    NoCopy(const NoCopy&);		    //复制构造函数
+    NoCopy& operator = (const NoCopy&);	    //复制赋值操作符
+};
+```
+
+## 33.制造抽象基类
+(1) 纯虚函数
+```
+class A {
+public:
+    virtual ~A();
+    virtual void anOperation() = 0;
+};
+```
+
+(2) 纯虚析构函数
+```
+class A {
+public:
+    virtual ~A() = 0;
+};
+A::~A() {};	//必须提供实现以供派生类调用
+		//从一个派生类析构函数内部隐式调用基类的析构函数, 总是非虚拟的
+
+```
+
+(3) 保护构造函数
+```
+class A {
+public:
+    virtual ~A();
+protected:
+    A();
+    A(const A&);
+};
+```
+
+(4) 保护析构函数
+```
+class A {
+protected:
+    ~A();
+};
+```
+
+## 34.禁止或强制使用堆分配
+禁止堆分配:
+```
+class NoHeap {
+protected:
+    void* operator new(size_t) {return 0;};	//在一些平台上它们可能被构造析构函数隐式地调用,
+    void  operator delete(void*) {};		//所以给出定义实现, 同时声明为protected以作基类。
+private:
+    void* operator new[](size_t);		//禁止数组分配, 不需有实现
+    void  operator delete[](void*);
+};
+```
+
+强制堆分配:
+```
+class OnHeap {
+public:
+    void destroy() {delete this;};	    //提供销毁方法
+private:
+    ~OnHeap() {};                       // protected & virtual ?
+};
+```
+
+## 35.placement new
+new操作符: 不可以被重载, 调用operator new函数, 然后初始化返回的存储区。
+operator new函数: 可以重载。一个标准重载版本是placement new, 它不能被替换(隐藏), 而普通的operator new可以。
+(delete同)
+
+placement new操作步骤:
+
+1. 调用operator new函数的placement new重载版本, 不分配存储区, 返回已分配好空间的指针。
+1. 调用A的构造函数初始化。(销毁时不能用delete, 应显式调用析构函数)
+
+```
+class A {};
+char* addr = new char[sizeof(A)*10];
+A* p = new(addr) A;
+p->~A();
+delete addr;
+```
+
+## 36.特定于类的内存管理
+成员operator new/delete函数是静态成员函数, 调用时对象不处于有效的状态, 无this指针可用。
+
+如果基类中定义了成员operator new/delete, 要确保基类析构函数是虚拟的。否则通过基类指针删除一个派生类对象的结果就是未定义的。
+
+使用new/delete操作符并不意味着一定要使用堆。
+
+
+## 37.数组分配
+只要声明了非数组形式的函数, 就应该为其声明数组形式。
+```
+aryT = static_cast<T*>(operator new[](sizeof(T)*10));
+aryT = new T[10];	//等价, 但所请求的空间还包括了数组的有关信息等的额外空间
+```
+
+## 38.异常安全公理
+简单地将一组异常安全的组件或函数调用组合起来, 并不能确保所得的结果就是异常安全的。
+
+(公理1) 异常是同步的
+异常是同步的并且只能发生于函数调用的边界(函数调用可能会抛出异常)。
+预定义类型(尤为指针)的算术操作, 赋值以及其他底层操作不会导致异常发生。
+
+(公理2) 对象的销毁的异常安全的(socially, 非技术惯例)
+析构函数, `operator delete`, `operator delete[]`不会抛出异常。
+
+(公理3) 交换操作不会抛出异常(socially,非技术惯例)
+
+
+## 39.异常安全的函数
+首先做任何可能会抛出异常的事情(但不会改变对象的重要状态), 然后使用不会抛出异常的操作作为结束。
+
+编写正确的异常安全的代码其实很少使用try语句。
+
+尽量少用try语句块, 除非确实希望检查一个传递的异常的类型,为的是对它做一些事情。实践中, 这些地方通常是代码和第三方的库之间, 代码和操作系统之间的模块分界处。
+
+
+## 40.RAII (资源获取即初始化 Resource Aquisition Is Initialization)
+```
+class Resource {};
+class ResHandle {
+public:
+    explicit ResHandle(Resource* res):_r(res) {}
+    ~ResHandle() {delete _r;};
+    Resource* get() {return _r};
+private:
+    ResHandle(const ResHandle&);
+    ResHandle& operator = (const ResHandle&);
+    Resource* _r;
+};
+```
+ResHandle对象不要分配在堆上, 防止exit/abort/未捕获异常的情况。
+
+常用Trace类:
+```
+class Trace {
+public:
+    Trace(const char* msg) : _msg(msg) {
+        cout<<"---- Entering "<<_msg<<endl;
+    }
+
+    ~Trace() {
+        cout<<"---- Leaving "<<_msg<<endl;
+    }
+private:
+    string _msg;
+};
+```
+
+## 41.new,构造函数和异常
+new操作符异常:
+operator new分配存储区时(默认std::bad_alloc异常), 没有分配成功, 不会调用析构函数和operator delete。
+调用构造函数初始化时, 编译器会自动调用相应的operator delete/delete[], 不会调用析构函数。
+(若通常函数抛出异常, 编译器不会调用operator delete)
+
+
+## 42.智能指针
+## 43.auto_ptr非同寻常
+好处:
+
+1. 非常高效
+1. 当其离开作用域时, 析构函数会释放它所指向的任何东西。
+1. 在类型转换方面, 类似内建指针。
+
+避免使用的场合:
+
+1. 永远都不应该被用作容器元素。
+1. 应该指向单个元素, 而不指向一个数组。(调用的是operator delete而不是operator delete[])
+
+
+## 44.指针算术
+`int (*p)[10];	//p的类型是10个int数组的指针, 算术步长大小为sizeof(int)*10`
+两个指针只能做减法运算,结果为两个指针之间元素的个数。
+
+
+## 45.模板术语
+```
+template<typename T>
+class A {};
+...
+A<int> a;
+```
+模板参数(template parameter): 用于模板声明中 T
+模板实参(template argument) : 用于模板的特化中 int
+模板名字(template-name)     : 简单的标识符 A
+模板id  (template-id)       : 带有实参列表的模板名称 `A<int>`
+
+特化 (specialization): 不管是定义声明还是调用,用模板实参供应给一个模板时所得到的东西(显式/隐式), 不一定导致模板的实例化。
+实例化 (instantiation): 根据一组或更多实际类型或值构造出独立的函数。不一定导致函数的调用。
+
+
+## 46.类模板显式特化
+类模板的完全特化不是一个模板, 其成员定义中没有template关键字;
+而局部特化是一个模板, 定义中要有template关键字和参数列表。
+
+并不要求显式特化的接口与主模板的接口完全匹配, 增加接口是有用的, 减少接口是不可取的。
+
+
+## 47.模板局部特化
+不能对函数模板进行局部特化, 只可重载它们。
+
+在不同的候选特化选择时, 最具体的, 限制性最强的最特化的候选者被选择。
+
+完全或局部特化必须采用与主模板相同数量和类型的实参进行实例化, 但模板参数列表不需要与主模板相同。
+
+
+## 48.类模板成员特化
+对主模板而言,类模板的完全或局部特化全然是单独的实体, 不从主模板继承任何接口和实现。
+
+类模板成员特化的函数接口必须和被它特化模板的相应接口精确匹配。如果局部特化可用, 就必须和该局部特化的相应接口匹配。从整体上提供模板的完全特化时并没有这个限制。
+
+类模板的成员函数, 静态成员, 成员模板都可显式特化。
+
+
+## 49.利用typename消除歧义
+编译器没有足够信息判断时, 嵌套名字被认为是非类型名字。可用typename显式指明。
+
+
+## 50.成员模板
+成员模板: 自身是一个模板的成员。
+
+成员模板永远不会被用于实例化一个复制操作(构造函数, 操作符)。
+
+任何非虚拟的函数都可以写成模板。
+
+
+## 51.采用template消除歧义
+编译器没有足够信息判断时, 嵌套名字被认为是非模板名字。可用template显式指明。
+
+
+## 52.针对类型信息的特化
+特化反用：不是基于类型的属性生成特化版本，而是从一个特化版本中推导出类型的属性。
+
+判断类型:
+```
+template <typename T>
+struct IsInt {enum {result = false};};
+
+template <>
+struct IsInt<int> {enum {result = true};};
+```
+判断指针:
+(略)
+
+判断数组:
+```
+template <typename T>
+struct IsArray {
+    enum {result = false};
+};
+
+template <typename E,int b>
+struct IsArray<E[b]> {
+    enum {result = true};   //是否数组
+    enum {bound = b};	    //长度
+    typedef E Etype;	    //元素类型
+};
+```
+
+判断类成员指针:
+```
+template <typename T>
+struct PCM {
+     enum {result = false};
+};
+
+template <class C,typename T>
+struct PCM<T C::*> {
+     enum {result = true};
+     typedef C ClassType;
+     typedef T MemberType;
+};
+```
+
+## 53.嵌入的类型信息
+让类型自己提供"个人"信息。
+
+
+## 54.traits
+traits类模板: 在泛性算法和不遵从算法期望的约定的类型之间, 一个遵从约定的中间层。是一个信息的集合, 通过一个类型进行索引。也可以为不是类的类型提供信息。
+```
+template <typename T>
+struct ContainerTraits {
+    typedef UnknowType Elem;
+    typedef UnknowType Temp;
+    typedef UnknowType Ptr;
+};
+
+template <>
+struct ContainerTraits<SpClassType> {
+    typedef typename SpClassType::Elem Elem;
+    typedef typename SpClassType::Temp Temp;
+    typedef typename SpClassType::Ptr Ptr;
+};
+
+template <typename T>
+struct ContainerTraits<T*> {
+    typedef T Elem;
+    typedef T Temp;
+    typedef T* Ptr;
+};
+
+...
+```
+
+## 55.模板的模板参数
+模板参数: 即参数是个模板。
+```
+template <template<typename T1,typename T2> class Container = std::list>    //默认使用list作为容器
+class Stack
+{...};
+```
+
+## 56.policy
+delete policy: 模板参数的一个应用。
+
+
+## 57.模板实参推导
+类模板必须被显式特化,函数模板还可以隐式特化(可进行实参推导, 可用于间接地特化类模板以简化类模板特化任务, 如std中的back_inserter, make_pair, mem_fun等)。
+(新型转型操作符不是模板)
+```
+推导数组类型及边界:
+template <int bound, typename T>
+void zeroOut(T (&ary)[bound]) {
+    for (int i; i < bound; i++) {
+        ary[i] = T();
+    }
+}
+```
+
+## 58.重载函数模板
+一个函数模板可以被其它函数模板和非模板函数重载。
+函数模板和非模板函数之间的主要区别在于对实参隐式转换的支持度。
+函数模板需要比非模板函数更精确的匹配（更严格）。
+
+
+## 59.SFINAE
+SFINAE: (类型)替换失败并非错误，指在重载选择过程中对模板类型的替换尝试并不会导致编译失败。
+IsPtr利用SFINAE的非模板局部特化实现(更简洁, 因为局部特化需要精确的匹配, 而重载函数可以有一些转换如const, volatile):
+```
+typedef char True ;	//sizeof(True)==1
+typedef int False;	//sizeof(False)>1
+
+template <typename T>
+True IsPtr(T*);
+
+False IsPtr(...);
+
+//sizeof只对函数返回类型的大小感兴趣,并不实际调用函数,所以函数不必有定义
+#define ISPTR(e) (sizeof(IsPtr(e)) == sizeof(True))
+```
+
+类模板局部特化(主模板vs特化)和函数重载("..."形参vs精确形参)在技术上有极其密切的联系, C++标准使用其中的一个来定义另一个的选择算法。
+
+判断是否是一个类:
+```
+template <typename T>
+struct IsClass {
+    template<class C> static True
+    isClass(int C::*);
+
+    template<typename C> static False
+    isClass(...);
+
+    // isClass必须是模板,否则当T是非类类型时无法实例化
+    // isClass显式实例化为T类型(成功实例化的模板进入候选函数),然后进行重载
+    // 0可被转换成指向类成员的指针,优先于"..."
+    enum {result = (sizeof(isClass<T>(0)) == sizeof(True))};
+};
+```
+
+## 60.泛性算法
+泛性算法: 根据使用的上下文,可以在编译期容易且有效地进行定制的函数模板。
+
+
+## 61.只实例化要用的东西
+如果没有调用(或取地址)一个函数, 就不需定义它。
+如果没有调用一个模板的成员函数, 该成员就不会实例化。
+
+用来特化一个类模板的模板实参, 并不一定使得该类模板的所有成员函数都能合法地实例化。(用template关键字显式实例化一个模板会实例化所有成员)
+
+不灵活过了头: 因为错误发生于编译期而非运行期。
+
+
+## 62.包含哨位
+冗余包含(可加快编译速度):
+使用头文件时:
+```
+#ifndef MY_H
+#include "my.h"
+#endif
+```
+
+
+## 63.可选地关键字
+在一个重写地派生类函数中, virtual可选。
+
+operator new/delete成员等, static可选。
+
+C++中使用register与否对程序地含义和效率没有影响。
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
