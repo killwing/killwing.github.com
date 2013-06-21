@@ -175,10 +175,10 @@ f({ val1, val2, 10, 20, 30 }); // function argument
 ```
 
 ### Brace-Initializing Aggregates
-const Point1 p1 = { 10 }; // same as { 10, 0 }
+`const Point1 p1 = { 10 }; // same as { 10, 0 }`
 从头到尾初始化成员/元素。
 多余初始化参数为错误。
-只有部分初始化参数或者只有"{ }"，则未指明剩下的是值初始化(value-initialized)：
+只有部分初始化参数或者只有`{ }`，则未指明剩下的是值初始化(value-initialized)：
 
 * 内置类型初始化为0
 * 有构造函数的自定义类型：调用默认构造函数（必须有无参或默参构造函数）
@@ -199,11 +199,11 @@ header: `<initializer_list>`
 初始化列表不仅仅可以用于初始化。只要可以接受std::initializer_list类型的地方。
 std::initializer_list的成员函数：size, begin/end（返回指向元素的指针）。
 非有限个数的初始化参数，需要类型有接受std::initializer_list类型参数的构造函数（拷贝所有元素到一个std::initializer_list里面，再传给构造函数）。
-"{...}"并不是std::initializer_list类型，只是可以转化为std::initializer_list类型。std::initializer_list里元素类型必须一样（可以有非损失的隐式转换），"{...}"则不一定。
-重载时"{...}"和std::initializer_list类型最匹配，也优先和std::initializer_list匹配。
+`{...}`并不是std::initializer_list类型，只是可以转化为std::initializer_list类型。std::initializer_list里元素类型必须一样（可以有非损失的隐式转换），`{...}`则不一定。
+重载时`{...}`和std::initializer_list类型最匹配，也优先和std::initializer_list匹配。但`{ }`优先和无参构造函数匹配。
 
 ### Summary
-"{...}"初始化已经到处可用了。
+`{...}`初始化已经到处可用了。
 
 * 通过从头到尾（初始化内存）
 * 通过调用构造函数
@@ -261,8 +261,8 @@ private:
 auto it = std::find_if(v.cbegin(), v.cend(), MagicType(minVal, maxVal));
 ```
 
-operator()默认是const成员函数，通过值传递的参数不能修改，要修改可以声明为mutable lambda。（通过引用传递不受影响，只是修改外部变量。）
-即使是mutable lambda，const捕获的变量也是不能修改的，因为它继承了外部的const属性，是一个const成员变量。
+operator()默认是const成员函数，通过值捕获的参数不能修改，要修改可以声明为mutable lambda。（通过引用捕获的不受影响，只是修改外部变量。）
+即使是mutable lambda，捕获的const变量也是不能修改的，因为它继承了外部的const属性，是一个const成员变量。
 ```
 const int minVal;
 double maxVal;
