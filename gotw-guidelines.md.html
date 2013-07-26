@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<title>Guru of the Week - Guidelines</title>
+<xmp theme="readable" style="display:none;">
+http://herbsutter.com/gotw/
+http://www.gotw.ca/gotw/
+
+## 1 Variable Initialization – or Is It?
+* Prefer to use initialization with `{ }`, such as `vector<int> v = { 1, 2, 3, 4 };` or `auto v = vector<int>{ 1, 2, 3, 4 };`, because it’s more consistent, more correct, and avoids having to know about old-style pitfalls at all. In single-argument cases where you prefer to see only the `=` sign, such as `int i = 42;` and `auto x = anything;` omitting the braces is fine. In rare cases, such as `vector<int> v(10,20);` or `auto v = vector<int>(10,20);`, use initialization with `( )` to explicitly call a constructor that is otherwise hidden by an `initializer_list` constructor.
+最好使用`{ }`初始化，如`vector<int> v = { 1, 2, 3, 4 };`或`auto v = vector<int>{ 1, 2, 3, 4 };`，因为它更一致，正确，也不需要去了解使用旧方式的陷阱。在单参数的情况下，你只需要`=`符号而省略括号，如`int i = 42;`和`auto x = anything;`。极少数情况下，如`vector<int> v(10,20);`或`auto v = vector<int>(10,20);`，使用`( )`初始化是为了显式地调用非`initializer_list`构造函数。
+
+* When you design a class, avoid providing a constructor that ambiguously overloads with an `initializer_list` constructor, so that users won’t need to use `( )` to reach such a hidden constructor.
+当你设计一个类，避免提供一个能和`initializer_list`构造函数造成歧义重载的构造函数，这样用户就不会非得使用`( )`来调用它。
+
+**Common Mistake**: `widget w = x;` This is always initialization; it is never assignment, and so it never calls `T::operator=()`. Yes, I know there’s an `=` character in there, but don’t let that throw you — that’s just a syntax holdover from C, not an assignment operation.
+`widget w = x;`这总是初始化，永远不会是赋值，不会调用`T::operator=()`。是的，我知道那有个`=`字符，但不要被迷惑了，那只是从C继承过来的语法而不是赋值操作。
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
