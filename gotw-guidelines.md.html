@@ -13,7 +13,35 @@ http://www.gotw.ca/gotw/
 当你设计一个类，避免提供一个能和`initializer_list`构造函数造成歧义重载的构造函数，这样用户就不会非得使用`( )`来调用它。
 
 **Common Mistake**: `widget w = x;` This is always initialization; it is never assignment, and so it never calls `T::operator=()`. Yes, I know there’s an `=` character in there, but don’t let that throw you — that’s just a syntax holdover from C, not an assignment operation.
-`widget w = x;`这总是初始化，永远不会是赋值，不会调用`T::operator=()`。是的，我知道那有个`=`字符，但不要被迷惑了，那只是从C继承过来的语法而不是赋值操作。
+**常见错误**：`widget w = x;`这总是初始化，永远不会是赋值，不会调用`T::operator=()`。是的，我知道那有个`=`字符，但不要被迷惑了，那只是从C继承过来的语法而不是赋值操作。
+
+## 2 Temporary Objects
+* Prefer passing a read-only parameter by `const&` if you are only going to read from it (not make a copy of it).
+优先使用`const&`传入一个只读参数，如果你只是打算读取它（而不是拷贝一份）。
+
+* Prefer declaring variables using `auto`. Among other reasons to do so, it naturally guarantees zero extra temporaries due to implicit conversions.
+优先使用`auto`声明变量。众多原因的一个：它自然地保证不会有由于隐式转换而产生的临时变量。
+
+* Prefer precomputing values that won't change, instead of recreating objects unnecessarily.
+优先预先计算好不会改变的值，避免不必要地重复创建对象。
+
+* Write for clarity and correctness first. Don't optimize prematurely, before you have profiler data proving the optimization is needed, especially in the case of calls to simple inline calls to short functions that compilers normally can handle for you.
+首先写代码要清晰和正确。在你做了数据测试证明需要优化之前，不要做不成熟的优化，特别有个例子是：把简短的函数调用变成内联的，编译器正常情况下会帮你完成。
+
+* For consistency, always implement postincrement in terms of preincrement, otherwise your users will get surprising (and often unpleasant) results.
+为了一致性，总是使用前增操作来实现后增操作，否则你的用户将会得到惊讶（和不满）的结果。
+
+* Prefer preincrement. Only use postincrement if you're going to use the original value.
+优先使用前增操作。只有在你需要使用原来的值的时候才使用后增操作。
+
+* Watch out for hidden temporaries created by implicit conversions. One good way to avoid this is to make constructors and conversion operators `explicit` by default unless implicit conversions are really desirable.
+小心隐式转换时产生的隐藏的临时变量。一个避免这种情况的好方法是使构造函数和转换操作函数默认为`explicit`，除非隐式转换是真正需要的。
+
+**Premature optimization** is when you make code more complex in the name of efficiency without data that it's actually needed.
+**不成熟的优化**是指你效率为由把代码变得更加复杂，而不考虑真正需要的数据。
+
+**Premature pessimization** is when you write code that is slower than it needs to be, usually by asking for unnecessary extra work, when equivalently complex code would be faster and should just naturally flow out of your fingers.
+**不成熟的劣化**是指你通过不必要的额外工作把代码写得比通常需要的更慢，而与之等价的稍显复杂的代码反而可以更快而且应该可以自然而然地写出来。
 
 </xmp>
 <script src="js/strapdown.js"></script>
