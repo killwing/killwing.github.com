@@ -43,6 +43,63 @@ http://www.gotw.ca/gotw/
 **Premature pessimization** is when you write code that is slower than it needs to be, usually by asking for unnecessary extra work, when equivalently complex code would be faster and should just naturally flow out of your fingers.
 **不成熟的劣化**是指你通过不必要的额外工作把代码写得比通常需要的更慢，而与之等价的稍显复杂的代码反而可以更快而且应该可以自然而然地写出来。
 
+## 3 Using the Standard Library
+* Prefer algorithm calls to explicit loops. Algorithm calls are often clearer and reduce complexity. If no suitable algorithm exists, why not write it? You’ll use it again.
+优先使用算法而不是显式的循环。算法通常更清晰，减少复杂度。如果没有合适的算法存在，为什么不写一个呢？你会再次用到它的。
+
+* Reuse code—especially standard library code—instead of handcrafting your own. It’s faster, easier, and safer.
+重用代码 - 特别是标准库代码来代替你自己手写的代码。它更快，更容易，更安全。
+
+## 4 Class Mechanics
+* If you supply a standalone version of an operator (e.g., `operator+`), always supply an assignment version of the same operator (e.g., `operator+=`) and prefer implementing the former in terms of the latter. Also, always preserve the natural relationship between op and op= (where op stands for any operator).
+如果你提供了一个单独版本的操作符函数（如：`operator+`），总是还应该提供它的一个赋值版本（如：`operator+=`），而且最好用后一个版本来实现前一个版本。此外，总是应该保持op和op=（op为任意操作符）之间的自然关系。
+
+* Prefer writing `a op= b` instead of `a = a op b` (where op stands for any operator). It’s clearer, and it’s often more efficient.
+优先使用`a op= b`来代替`a = a op b`。它更清晰，通常也更具有效率。
+
+* Prefer passing a read-only parameter by value if you’re going to make a copy of the parameter anyway, because it enables move from rvalue arguments.
+如果你打算复制一份参数的拷贝，优先使用传值的形式来传入只读参数，因为这样可以移动右值实参。
+
+* Prefer these guidelines for making an operator a member vs. nonmember function: unary operators are members; `= () [] ->` must be members; the assignment operators (`+= –= /= *=` etc.) must be members; all other binary operators are nonmembers.
+使用下列规则来决定一个操作符函数是类成员函数还是非类成员函数：一元操作符是成员函数；`= () [] ->`是成员函数；赋值操作符(`+= –= /= *=` 等) 是成员函数；剩下其它二元操作符（`+ - / * << >>`等）是非成员函数。
+
+* Always return stream references from `operator<<` and `operator>>`.
+`operator<<`和`operator>>`总是应返回stream的引用。
+
+* When you `return *this`, the return type should usually be a reference.
+当你`return *this`，返回类型应该总是为一个引用。
+
+## 5 Overriding Virtual Functions
+* Don't use explicit `new`, `delete`, and owning `*` pointers, except in rare cases encapsulated inside the implementation of a low-level data structure.
+不要显式地使用`new`, `delete`，及含有`*`指针，除非在极少数情况下被封装在底层数据结构的实现中。
+
+* Make base class destructors public and virtual, or protected and nonvirtual.
+使基类的析构函数公有且虚的，或者保护且非虚的。
+
+* When providing a non-overridden function with the same name as an inherited function, be sure to bring the inherited functions into scope with a using-declaration if you don’t want to hide them.
+当提供一个非多态函数及相同名字的继承类里的函数，如果你不想隐藏基类的函数（而是要重载它）就要保证用using声明把基类的函数放到和派生类相同的作用域中。
+
+* Always write `override` when you intend to override a virtual function.
+当你要重写一个（多态）虚函数时，总是写上`override`。
+
+* Never change the default arguments of overridden inherited functions.
+从不改变多态继承而来函数的默认参数的值。
+
+* Avoid default arguments on virtual functions in general.
+通常应避免在虚函数中使用默认参数。
+
+* Prefer to have a class contain only public virtual functions, or no public virtual functions (other than the destructor which is special). A pure abstract base class should have only public virtual functions. For any other base class, prefer making public member functions non-virtual, and virtual member functions non-public; the former should have any default arguments and can be implemented in terms of the latter.
+在一个类中只有公有虚函数或非公有虚函数（析构函数除外）。一个纯抽象基类应只有公有虚函数。对于其它的基类，最好使公有函数非虚的，使虚函数非公有；前者可以有默认参数，且可以由后者来实现（NVI，template模式）。
+
+## 6 Const-Correctness
+* Remember the “M&M rule”: For a member variable, `mutable` and `mutex` (or `atomic`) go together.
+记住“M&M规则”：对于成员变量，`mutable`和`mutex`(或`atomic`)必须一起使用。
+    1. For a member variable, **mutable implies mutex (or equivalent)**: A `mutable` member variable is presumed to be a mutable shared variable and so must be synchronized internally—protected with a `mutex`, made `atomic`, or similar.
+    对于成员变量，**mutable意味着mutex（或等价物）**：一个`mutable`的成员变量是被假设为可变的共享变量，必须是内部同步的 - 通过`mutex`保护，变成`atomic`或类似的机制。
+    1. For a member variable, **mutex (or similar synchronization type) implies mutable**: A member variable that is itself of a synchronization type, such as a `mutex` or a condition variable, naturally wants to be `mutable`, because you will want to use it in a `non-const` way (e.g., take a `std::lock_guard<mutex>`) inside concurrent `const` member functions.
+    对于成员变量，**mutex（或类似同步类型）意味着mutable**：一个同步类型的成员变量，如`mutex`或条件变量，自然要求是`mutable`的，因为你想用`non-const`的方式（如：使用一个`std::lock_guard<mutex>`）在`const`成员函数中并发地使用它。
+
+
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
