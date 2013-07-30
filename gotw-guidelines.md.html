@@ -153,10 +153,10 @@ http://www.gotw.ca/gotw/
 不要使用`const unique_ptr&`作为参数，用`widget*`代替。
 
 * Express that a function will store and share ownership of a heap object using a by-value `shared_ptr` parameter.
-使用一个传值的`shared_ptr`参数来表示一个函数将会保存和共享堆上对象的所有权。
+使用一个传值的`shared_ptr`参数来表示一个函数将会保存及共享堆上对象的所有权（参数已拷贝，再move到保存的地方）。
 
 * Use a non-const `shared_ptr&` parameter only to modify the `shared_ptr`. Use a const `shared_ptr&` as a parameter only if you’re not sure whether or not you’ll take a copy and share ownership; otherwise use `widget*` instead (or if not nullable, a `widget&`).
-仅在修改`shared_ptr`本身时使用非const`shared_ptr&`参数。仅在你不确定是否会复制和共享所有权的时候使用`const shared_ptr&`参数，否则使用`widget*`代替（如果不为空的话，使用`widget&`）。
+仅在修改`shared_ptr`本身时使用非const`shared_ptr&`参数。仅在你不确定是否会复制和共享所有权的时候使用`const shared_ptr&`参数（需要时再进行拷贝），否则使用`widget*`代替（如果不为空的话，使用`widget&`）。
 
 
 </xmp>
