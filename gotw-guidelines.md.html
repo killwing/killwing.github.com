@@ -15,6 +15,7 @@ http://www.gotw.ca/gotw/
 **Common Mistake**: `widget w = x;` This is always initialization; it is never assignment, and so it never calls `T::operator=()`. Yes, I know there’s an `=` character in there, but don’t let that throw you — that’s just a syntax holdover from C, not an assignment operation.
 **常见错误**：`widget w = x;`这总是初始化，永远不会是赋值，不会调用`T::operator=()`。是的，我知道那有个`=`字符，但不要被迷惑了，那只是从C继承过来的语法而不是赋值操作。
 
+
 ## 2 Temporary Objects
 * Prefer passing a read-only parameter by `const&` if you are only going to read from it (not make a copy of it).
 优先使用`const&`传入一个只读参数，如果你只是打算读取它（而不是拷贝一份）。
@@ -43,12 +44,14 @@ http://www.gotw.ca/gotw/
 **Premature pessimization** is when you write code that is slower than it needs to be, usually by asking for unnecessary extra work, when equivalently complex code would be faster and should just naturally flow out of your fingers.
 **不成熟的劣化**是指你通过不必要的额外工作把代码写得比通常需要的更慢，而与之等价的稍显复杂的代码反而可以更快而且应该可以自然而然地写出来。
 
+
 ## 3 Using the Standard Library
 * Prefer algorithm calls to explicit loops. Algorithm calls are often clearer and reduce complexity. If no suitable algorithm exists, why not write it? You’ll use it again.
 优先使用算法而不是显式的循环。算法通常更清晰，减少复杂度。如果没有合适的算法存在，为什么不写一个呢？你会再次用到它的。
 
 * Reuse code—especially standard library code—instead of handcrafting your own. It’s faster, easier, and safer.
 重用代码 - 特别是标准库代码来代替你自己手写的代码。它更快，更容易，更安全。
+
 
 ## 4 Class Mechanics
 * If you supply a standalone version of an operator (e.g., `operator+`), always supply an assignment version of the same operator (e.g., `operator+=`) and prefer implementing the former in terms of the latter. Also, always preserve the natural relationship between op and op= (where op stands for any operator).
@@ -68,6 +71,7 @@ http://www.gotw.ca/gotw/
 
 * When you `return *this`, the return type should usually be a reference.
 当你`return *this`，返回类型应该总是为一个引用。
+
 
 ## 5 Overriding Virtual Functions
 * Don't use explicit `new`, `delete`, and owning `*` pointers, except in rare cases encapsulated inside the implementation of a low-level data structure.
@@ -91,6 +95,7 @@ http://www.gotw.ca/gotw/
 * Prefer to have a class contain only public virtual functions, or no public virtual functions (other than the destructor which is special). A pure abstract base class should have only public virtual functions. For any other base class, prefer making public member functions non-virtual, and virtual member functions non-public; the former should have any default arguments and can be implemented in terms of the latter.
 在一个类中只有公有虚函数或非公有虚函数（析构函数除外）。一个纯抽象基类应只有公有虚函数。对于其它的基类，最好使公有函数非虚的，使虚函数非公有；前者可以有默认参数，且可以由后者来实现（NVI，template模式）。
 
+
 ## 6 Const-Correctness
 * Remember the “M&M rule”: For a member variable, `mutable` and `mutex` (or `atomic`) go together.
 记住“M&M规则”：对于成员变量，`mutable`和`mutex`(或`atomic`)必须一起使用。
@@ -98,6 +103,60 @@ http://www.gotw.ca/gotw/
     对于成员变量，**mutable意味着mutex（或等价物）**：一个`mutable`的成员变量是被假设为可变的共享变量，必须是内部同步的 - 通过`mutex`保护，变成`atomic`或类似的机制。
     1. For a member variable, **mutex (or similar synchronization type) implies mutable**: A member variable that is itself of a synchronization type, such as a `mutex` or a condition variable, naturally wants to be `mutable`, because you will want to use it in a `non-const` way (e.g., take a `std::lock_guard<mutex>`) inside concurrent `const` member functions.
     对于成员变量，**mutex（或类似同步类型）意味着mutable**：一个同步类型的成员变量，如`mutex`或条件变量，自然要求是`mutable`的，因为你想用`non-const`的方式（如：使用一个`std::lock_guard<mutex>`）在`const`成员函数中并发地使用它。
+
+* Consider not writing `const` on pass-by-value function parameters when only forward-declaring a function. You can always add it on the definition to express a read-only parameter.
+不要考虑把`const`用在函数声明的传值参数上（加不加一样，不是函数签名的一部分）。你可以只把它加在函数定义处来表达这是一个只读的参数。
+
+* Prefer range-based `for` loops to naked iterator-incrementing `for` loops when visiting the elements of the range in order.
+当顺序访问范围内元素时，优先使用基于范围的`for`循环而不是迭代递增的`for`循环。
+
+* Prefer to make variables, including locals, `const` if they should not change.
+如果一个变量（包括局部变量）不变，最好把它声明为`const`的。
+
+
+## 89 Smart Pointers
+* Prefer to use the standard smart pointers, `unique_ptr` by default and `shared_ptr` if sharing is needed. They are the common types that all C++ libraries can understand. Use other smart pointer types only if necessary for interoperability with other libraries, or when necessary for custom behavior you can’t achieve with deleters and allocators on the standard pointers.
+优先使用标准的智能指针，默认使用`unique_ptr`以及如果需要共享的话`shared_ptr`。它们是所有C++库都能理解的普通类型。仅在需要和其它库互操作或需要通过标准智能指针的删除器和分配器所不能达到的自定义的行为的时候使用其它的智能指针类型。
+
+* Use `make_shared` (or, if you need a custom allocator, `allocate_shared`) to create an object you know will be owned by `shared_ptr`s, unless you need a custom deleter or are adopting a raw pointer from elsewhere.
+使用`make_shared`（如果需要自定义的分配器，使用`allocate_shared`）来创建一个将被`shared_ptr`接管的对象，除非你需要自定义的删除器或从别处接管一个裸指针。
+
+* Use `make_unique` to create an object that isn’t shared (at least not yet), unless you need a custom deleter or are adopting a raw pointer from elsewhere.
+使用`make_unique`来创建一个不被共享（至少现在还没有）的对象，除非你需要自定义的删除器或从别处接管一个裸指针。
+
+* To allocate an object, prefer to write `make_unique` by default, and write `make_shared` when you know the object’s lifetime is going to be managed by using `shared_ptr`s.
+为了分配空间给一个对象，优先默认使用`make_unique`，当你知道这个对象的生命周期将会被`shared_ptr`管理的时候使用`make_shared`。
+
+
+## 90 Factories
+* A factory that produces a reference type should return a `unique_ptr` by default, or a `shared_ptr` if ownership is to be shared with the factory.
+一个产生引用类型的工厂应该默认返回一个`unique_ptr`，如果所有权和工厂共享的话则返回一个`shared_ptr`。
+
+* Prefer declaring variables using `auto`. It’s shorter, and helps to insulate your code from needless source ripples due to minor type changes.
+优先使用`auto`声明变量。它更短，帮助把你的代码从由于类型小改动而导致的无需修改的源代码中隔离出来。
+
+* A factory that produces a non-reference type should return a value by default, and throw an exception if it fails to create the object. If not creating the object can be a normal result, return an `optional<>` value.
+一个产生非引用类型的工厂应该默认返回一个值类型，如果创建失败则抛出一个异常。如果不能创建对象是个正常的结果，返回一个`optional<>`类型的值。
+
+
+## 91 Smart Pointer Parameters
+* Don't pass a smart pointer as a function parameter unless you want to use or manipulate the smart pointer itself, such as to share or transfer ownership. Prefer passing objects by value, `*`, or `&`, not by smart pointer.
+不要传一个智能指针作为函数的参数除非你想使用或操作其本身，比如共享或转移所有权。最好通过值，`*`或`&`而不是智能指针传递对象。
+
+* Express a "sink" function using a by-value `unique_ptr` parameter.
+用传值的`unique_ptr`参数来表示这是一个“凹槽”（所有权转移）函数。
+
+* Use a non-const `unique_ptr&` parameter only to modify the `unique_ptr`.
+仅在需要修改`unique_ptr`本身（指向另一个对象）的情况下使用一个非const的`unique_ptr&`参数。
+
+* Don't use a `const unique_ptr&` as a parameter; use `widget*` instead.
+不要使用`const unique_ptr&`作为参数，用`widget*`代替。
+
+* Express that a function will store and share ownership of a heap object using a by-value `shared_ptr` parameter.
+使用一个传值的`shared_ptr`参数来表示一个函数将会保存和共享堆上对象的所有权。
+
+* Use a non-const `shared_ptr&` parameter only to modify the `shared_ptr`. Use a const `shared_ptr&` as a parameter only if you’re not sure whether or not you’ll take a copy and share ownership; otherwise use `widget*` instead (or if not nullable, a `widget&`).
+仅在修改`shared_ptr`本身时使用非const`shared_ptr&`参数。仅在你不确定是否会复制和共享所有权的时候使用`const shared_ptr&`参数，否则使用`widget*`代替（如果不为空的话，使用`widget&`）。
 
 
 </xmp>
