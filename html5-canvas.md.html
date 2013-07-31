@@ -23,6 +23,45 @@ Hello World!
 </html>
 ```
 
+测试浏览器支持：
+```
+function canvasSupport() {
+    return !!document.createElement('canvas').getContext;
+}
+```
+兼容性测试库：http://www.modernizr.com/
+
+所有在canvas上的操作都要通过context对象（`CanvasRenderingContext2D`, 这里只涉及2D）来完成：
+```
+var theCanvas = document.getElementById("canvasOne");
+var context = theCanvas.getContext("2d");
+```
+
+`CanvasRenderingContext2D`使用笛卡尔座标系，原点(0,0)在左上角，并向右下角增长。
+
+context有个当前绘制状态，全局地对整个canvas起作用，包括：
+
+* 变换矩阵：用来scale, rotate, transform和translate的方法。
+* 裁剪区域：由clip方法创建。
+* 属性：包括strokeStyle, fillStyle, globalAlpha, lineWidth, lineCap, lineJoin, miterLimit, shadowOffsetX, shadowOffsetY, shadowBlur, shadowColor, globalCompositeOperation, font, textAlign, textBaseline.
+
+canvas对象的属性和方法：
+
+* height: canvas的高度
+* width: canvas的宽度
+* getContext: 取得context对象。
+* toDataURL: 把canvas转化成base64字符串表示，以不同的MIME类型作为参数，如image/png, image/jpeg。
+* toBlob: 返回一个图像文件的引用。
+
+`window.requestAnimationFrame`: 告诉程序浏览器已经准备好可以渲染动画的新的一帧了：
+```
+(function animationloop(){
+    window.requestAnimationFrame(animationloop); // 或 window.setTimeout(animationloop, 1000 / 60); // 1秒60帧
+    render();
+})();
+```
+
+
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
