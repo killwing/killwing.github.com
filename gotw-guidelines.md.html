@@ -159,6 +159,52 @@ http://www.gotw.ca/gotw/
 仅在修改`shared_ptr`本身时使用非const`shared_ptr&`参数。仅在你不确定是否会复制和共享所有权的时候使用`const shared_ptr&`参数（需要时再进行拷贝），否则使用`widget*`代替（如果不为空的话，使用`widget&`）。
 
 
+## 92 Auto Variables, Part 1
+
+
+## 93 Auto Variables, Part 2
+* Prefer to declare local variables using `auto x = expr;` when you don’t need to explicitly commit to a type. It is simpler, guarantees that you will use the correct type, and guarantees that the type stays correct under maintenance.
+如果你不需要显式地表明一个类型，最好使用`auto x = expr;`声明局部变量。它更简单，保证你使用正确的类型，保证代码维护的时候类型仍保持正确。
+
+* Prefer to declare local variables using `auto x = expr;` when you don’t need to explicitly commit to a type. It is efficient by default and guarantees that no implicit conversions or temporary objects will occur.
+如果你不需要显式地表明一个类型，最好使用`auto x = expr;`声明局部变量。它默认更有效，保证没有隐式转换和临时对象的产生。
+
+* Prefer to declare local variables `auto x = type{ expr };` when you do want to explicitly commit to a type. It is self-documenting to show that the code is explicitly requesting a conversion.
+如果你需要显式地表明一个类型，最好使用`auto x = type{ expr };`声明局部变量。它自己就表明了这段代码是显式地需要类型转换。
+
+* Prefer to use `auto name =` to name a lambda function object. Use `std::function</*…*/> name =` only when you need to rebind it to another target or pass it to another function that needs a `std::function<>`.
+优先使用`auto name =`来保存一个匿名函数对象。仅在你需要把它重新绑定到另一个目标上或传到另一个需要`std::function<>`类型的函数中时使用`std::function</*…*/> name =`。
+
+* Prefer to use `auto` lambda parameter types. They are just as efficient as explicit parameter types, and allow you to call the same lambda with different argument types.
+优先使用`auto`作为匿名函数的参数类型。它们和显式参数类型同样有效率，可以让你以不同的参数类型来调用相同的匿名函数。
+
+* Prefer to use implicit return type deduction for lambda functions.
+对于匿名函数，最好使用隐式地推导出返回类型。
+
+* Always initialize variables, except only when you can prove garbage values are okay, typically because you will immediately overwrite the contents.
+总是初始化变量，除非你能证明垃圾数据是没问题的，常是因为你将立即覆盖变量内容。
+
+* Prefer to declare local variables using `auto`. It guarantees that you cannot accidentally leave the variable uninitialized.
+最好使用`auto`声明局部变量。它保证你不会意外地未初始化一个变量。
+
+* Prefer to declare local variables using `auto`. It guarantees that you get the exact type and cannot accidentally get narrowing conversions.
+最好使用`auto`声明局部变量。它保证你能得到精确的类型，不会意外地发生丢失精度的转换。
+
+* Prefer to declare local variables using `auto`. It guarantees that you get the exact type and so is the simplest way to portably spell the implementation-specific type of arithmetic operations on built-in types, which vary by platform, and ensure that you cannot accidentally get narrowing conversions when storing the result.
+最好使用`auto`声明局部变量。它保证你能得到精确的类型，这是最简单的方法来可移植地声明实现相关的基于内置类型算术操作得到的类型，这些类型不同的平台可能都不一样，而且保证你在保存结果的时候不会意外地发生丢失精度的转换。
+
+* Prefer using the `<cstdint>` type aliases in code that cares about the size of your numeric variables. Avoid relying on what your current platform(s) happen to do.
+最好在关心数值变量大小的代码里使用`<cstdint>`里面的类型别名。避免依赖你当前平台的实现。
+
+* Prefer to declare local variables `auto x = type{ expr };` when you do want to explicitly commit to a type. It is self-documenting to show that the code is explicitly requesting a conversion, and won’t allow an accidental implicit narrowing conversion. Only when you do want explicit narrowing, use `( )` instead of `{ }`.
+如果你需要显式地表明一个类型，最好使用`auto x = type{ expr };`声明局部变量。它自己就表明了这段代码是显式地需要类型转换，而且不允许意外地进行丢失精度的转换。如果你想显式地丢掉进度，使用`( )`来代替`{ }`。
+
+* Combine signed and unsigned arithmetic carefully.
+进行有符号和无符号混合算术运算时要小心。
+
+* Prefer to use `auto x = as_signed(integer_expr);` or `auto x = as_unsigned(integer_expr);` to store the result of an integer computation that should be signed or unsigned. Using `auto` together with `as_signed` or `as_unsigned` guarantees portable code: that the variable will both be large enough and preserve the required signedness on all platforms.
+最好使用`auto x = as_signed(integer_expr);` 或`auto x = as_unsigned(integer_expr);`来保存整形计算出来的有符号或无符号的结果。把`auto`和`as_signed`或`as_unsigned`一起使用可以保证可移植的代码：变量在所有平台上将会足够大及保持所需要的符号性。
+
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
