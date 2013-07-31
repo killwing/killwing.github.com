@@ -15,7 +15,7 @@ std::vector<std::list<int>> vi1;
 ## auto for Type Declarations
 必须声明时同时初始化。
 可以使用const/volatile修饰。
-auto的类型推导类似模板参数。（就像一个不同scope但全局可用的T）
+auto的类型推导类似模板参数（就像一个不同scope但全局可用的T），另可推导出`initializer_list`类型。
 auto&&经过reference collapsing，可能会变成左值引用auto&。
 ```
 int x;
@@ -60,7 +60,12 @@ g(*pci);            // also calls g<const int>, i.e., T is const int
 
 可以同时声明多个变量，但变量的类型要相同。
 两种初始化方式（Explicit / Assignment）都可以，和普通类型一样。
-不能用于模板参数类型。
+
+限制：
+
+* 不能用于模板参数类型。
+* 不能用在函数参数和返回类型上
+* 不能用在类的数据成员的类型上
 
 ## Range-Based for Loops
 语法：`for (iterVarDeclaration : expression) statementToExecute`，相当于：
@@ -316,10 +321,7 @@ Lambda可以变得非常复杂，可以有：
 使用std::function：`std::function<bool(long)> multipleOf5 = [](long x) { return x % 5 == 0; };`
 使用模板参数也可以，但可能产生多个模板函数：`template<typename Func> void useIt(Func func);`
 Lambda本身不能递归，但是可以借助function对象：`std::function<int(int)> factorial = [&](int x) { return (x==1) ? 1 : (x * factorial(x-1)); };`
-auto虽然比std:function更有效更方便，但并不总可用：
-
-* 不能用在函数参数和返回类型上
-* 不能用在类的数据成员的类型上
+auto虽然比std:function更有效更方便，但并不总处处可用。
 
 ### Specifying Function Types
 一个函数的类型指：它的不带名字/形参的声明，如`bool f(long a);`的类型为bool (long)。
