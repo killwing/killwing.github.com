@@ -64,23 +64,23 @@ canvas对象的属性和方法：
 
 
 ## 2. Drawing on the Canvas
-矩形：
-`fillRect(x, y, width, height)`
-`strokeRect(x, y,width, height)`
-`clearRect(x, y, width, height)`
+`fillRect(x, y, width, height)`：填充矩形
+`strokeRect(x, y,width, height)`：描边矩形
+`clearRect(x, y, width, height)`：擦除矩形
 
-路径：
-`beginPath()`
-`closePath()`
-`moveTo(x, y)`
-`lineTo(x, y)`
-`stroke()`
+`beginPath()`：开始路径
+`closePath()`：闭合路径
+`moveTo(x, y)`：移动
+`lineTo(x, y)`：直线
 
-曲线：
-`arc(x, y, radius, startAngle, endAngle, anticlockwise)`
-`arcTo(x1, y1, x2, y2, radius)`
-`bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)`
-`quadraticCurveTo(cpx, cpy, x, y)`
+`rect(x, y, width, height)`：矩形
+`arc(x, y, radius, startAngle, endAngle, anticlockwise)`：弧线
+`arcTo(x1, y1, x2, y2, radius)`：夹角弧线
+`bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)`：贝塞尔曲线
+`quadraticCurveTo(cpx, cpy, x, y)`：二次方曲线
+
+`stroke()`：描边
+`clip()`：裁剪区域
 
 属性：
 fillStyle: 填充样式
