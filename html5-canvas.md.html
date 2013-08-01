@@ -3,6 +3,7 @@
 <title>HTML5 Canvas</title>
 <xmp theme="readable" style="display:none;">
 http://chimera.labs.oreilly.com/books/1234000001654
+http://www.w3.org/html/wg/drafts/2dcontext/html5_canvas/
 
 ## 1. Introduction to HTML5 Canvas
 HTML5 Canvas是屏幕上可被JavaScript操纵的立即模式的位图区域。当调用Canvas JavaScript API的时候，canvas会在每一帧上完全重绘位图。这和在保留模式操作的Flash, Silverlight或SVG不一样，图形渲染器保存了一个对象的显示列表，对象根据其代码里设置的属性显示在屏幕上。
@@ -60,6 +61,37 @@ canvas对象的属性和方法：
     render();
 })();
 ```
+
+
+## 2. Drawing on the Canvas
+矩形：
+`fillRect(x, y, width, height)`
+`strokeRect(x, y,width, height)`
+`clearRect(x, y, width, height)`
+
+路径：
+`beginPath()`
+`closePath()`
+`moveTo(x, y)`
+`lineTo(x, y)`
+`stroke()`
+
+曲线：
+`arc(x, y, radius, startAngle, endAngle, anticlockwise)`
+`arcTo(x1, y1, x2, y2, radius)`
+`bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)`
+`quadraticCurveTo(cpx, cpy, x, y)`
+
+属性：
+fillStyle: 填充样式
+lineCap: 端点形状 butt/round/square
+lineJoin: 连接处形状 miter/bevel/round
+miterLimit: 斜接的比例，默认10
+lineWidth: 线宽，默认1.0
+strokeStyle: 线条样式
+
+当前路径和当前位图不属于当前的context状态。
+当前context状态可以像栈一样保存和恢复：`context.save()`, `context.restore()`
 
 
 </xmp>
