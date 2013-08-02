@@ -4,6 +4,7 @@
 <xmp theme="readable" style="display:none;">
 http://chimera.labs.oreilly.com/books/1234000001654
 http://www.w3.org/html/wg/drafts/2dcontext/html5_canvas/
+http://www.whatwg.org/specs/web-apps/current-work/#the-canvas-element
 
 ## 1. Introduction to HTML5 Canvas
 HTML5 Canvas是屏幕上可被JavaScript操纵的立即模式的位图区域。当调用Canvas JavaScript API的时候，canvas会在每一帧上完全重绘位图。这和在保留模式操作的Flash, Silverlight或SVG不一样，图形渲染器保存了一个对象的显示列表，对象根据其代码里设置的属性显示在屏幕上。
@@ -40,7 +41,7 @@ var context = theCanvas.getContext("2d");
 
 `CanvasRenderingContext2D`使用笛卡尔座标系，原点(0,0)在左上角，并向右下角增长。
 
-context有个当前绘制状态，全局地对整个canvas起作用，包括：
+context有个当前绘制状态，全局地对（之后绘制）整个canvas起作用，包括：
 
 * 变换矩阵：用来scale, rotate, transform和translate的方法。
 * 裁剪区域：由clip方法创建。
@@ -64,23 +65,24 @@ canvas对象的属性和方法：
 
 
 ## 2. Drawing on the Canvas
+路径与填充：
 `fillRect(x, y, width, height)`：填充矩形
 `strokeRect(x, y,width, height)`：描边矩形
 `clearRect(x, y, width, height)`：擦除矩形
 
 `beginPath()`：开始路径
 `closePath()`：闭合路径
+`isPointInPath(x, y)`: 检查一个点是否在当前路径上
+`stroke()`：描边
+`fill()`: 填充
 `moveTo(x, y)`：移动
 `lineTo(x, y)`：直线
-
 `rect(x, y, width, height)`：矩形
 `arc(x, y, radius, startAngle, endAngle, anticlockwise)`：弧线
 `arcTo(x1, y1, x2, y2, radius)`：夹角弧线
 `bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)`：贝塞尔曲线
 `quadraticCurveTo(cpx, cpy, x, y)`：二次方曲线
 
-`stroke()`：描边
-`clip()`：裁剪区域
 
 属性：
 fillStyle: 填充样式
@@ -89,9 +91,38 @@ lineJoin: 连接处形状 miter/bevel/round
 miterLimit: 斜接的比例，默认10
 lineWidth: 线宽，默认1.0
 strokeStyle: 线条样式
+globalAlpha: 全局透明度，默认1.0不透明
+globalCompositeOperation: 全局混合模式 copy/destination-atop/destination-in/destination-out/destination-over/lighter/source-atop/source-in/source-out/source-over/xor
+shadowOffsetX: 阴影X方向，可负
+shadowOffsetY: 阴影Y方向，可负
+shadowBlur: 阴影模糊
+shadowColor: 阴影颜色
+
+裁剪区域:
+`clip()`
+
+变换：
+`setTransform(m11, m12, m21, m22, dx, dy)`: 设置变换矩阵，重置值(1, 0, 0, 1, 0, 0)
+`rotate(angle)`: 旋转, 以座标原点
+`scale(x, y)`: 缩放, 以座标原点
+`translate(x, y)`: 改变座标原点的位置
+
+渐变：
+`createLinearGradient(x0, y0, x1, y1)`: 线性渐变，使用`addColorStop(relative-pos, color)`方法添加渐变点
+`createRadialGradient(x0, y0, r0, x1, y1, r1)`: 放射渐变
+`createPattern(image, repeatition)`: 图像填充，repeat/repeat-x/repeat-y/no-repeat
+
+焦点（暂不支持）：
+`drawCustomFocusRing()`
+`drawSystemFocusRing()`
 
 当前路径和当前位图不属于当前的context状态。
 当前context状态可以像栈一样保存和恢复：`context.save()`, `context.restore()`
+
+所有度数以弧度表示，转换：`degree * Math.PI/180`
+在填充样式和线条样式中的颜色表示："red", "#ff0000", "rgb(255, 0, 0)", "rgba(255, 0, 0, 0)", 以及渐变对象。
+
+如果canvas的高度或宽度被重新设置，其内容会被清空。
 
 
 </xmp>
