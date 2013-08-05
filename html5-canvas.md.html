@@ -52,7 +52,7 @@ canvas对象的属性和方法：
 * height: canvas的高度
 * width: canvas的宽度
 * getContext: 取得context对象。
-* toDataURL: 把canvas转化成base64字符串表示，以不同的MIME类型作为参数，如image/png, image/jpeg。
+* toDataURL: 把canvas转化成base64字符串表示，以不同的MIME类型作为参数，如image/png（默认）, image/jpeg。
 * toBlob: 返回一个图像文件的引用。
 
 `window.requestAnimationFrame`: 告诉程序浏览器已经准备好可以渲染动画的新的一帧了：
@@ -123,6 +123,18 @@ shadowColor: 阴影颜色
 在填充样式和线条样式中的颜色表示："red", "#ff0000", "rgb(255, 0, 0)", "rgba(255, 0, 0, 0)", 以及渐变对象。
 
 如果canvas的高度或宽度被重新设置，其内容会被清空。
+
+
+## 3. The HTML5 Canvas Text API
+文本：
+`fillText(text, x, y, maxWidth)`: 填充文本
+`strokeText(text, x, y, maxWidth)`: 描边文本
+`measureText(text)`: 返回TextMetrics对象，目前只有width属性
+
+属性：
+font: 字体样式，包括style(normal/italic/oblique/inherit)/weight(normal/bold/bolder/lighter/100/200/300/400/500/600/700/800/900/inherit/auto), size(px), face(serif/sans-serif/cursive/fantasy/monospace)，默认"10px sans-serif"
+textAlign: 文本对齐，center/start/end/left/right, 默认"center"
+textBaseline: 文本基线，top/hanging/middle/alphabetic/ideographic/bottom, 默认"middle"
 
 
 </xmp>
