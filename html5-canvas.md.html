@@ -2,13 +2,8 @@
 <html>
 <title>HTML5 Canvas</title>
 <xmp theme="readable" style="display:none;">
-http://chimera.labs.oreilly.com/books/1234000001654
-http://www.w3.org/html/wg/drafts/2dcontext/html5_canvas/
-http://www.whatwg.org/specs/web-apps/current-work/#the-canvas-element
-
-## 1. Introduction to HTML5 Canvas
-HTML5 Canvas是屏幕上可被JavaScript操纵的立即模式的位图区域。当调用Canvas JavaScript API的时候，canvas会在每一帧上完全重绘位图。这和在保留模式操作的Flash, Silverlight或SVG不一样，图形渲染器保存了一个对象的显示列表，对象根据其代码里设置的属性显示在屏幕上。
-
+## Basic
+### HTML5
 HTML5是一个在免费许可条款下开发的开放网络平台。
 
 基本的HTML5页面：
@@ -16,15 +11,16 @@ HTML5是一个在免费许可条款下开发的开放网络平台。
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>CH1EX1: Basic Hello World HTML Page</title>
+    <meta charset="UTF-8">
+    <title>Hello World</title>
 </head>
 <body>
-Hello World!
+    Hello World!
 </body>
 </html>
 ```
 
+### Compatibility Test
 测试浏览器支持：
 ```
 function canvasSupport() {
@@ -33,28 +29,7 @@ function canvasSupport() {
 ```
 兼容性测试库：http://www.modernizr.com/
 
-所有在canvas上的操作都要通过context对象（`CanvasRenderingContext2D`, 这里只涉及2D）来完成：
-```
-var theCanvas = document.getElementById("canvasOne");
-var context = theCanvas.getContext("2d");
-```
-
-`CanvasRenderingContext2D`使用笛卡尔座标系，原点(0,0)在左上角，并向右下角增长。
-
-context有个当前绘制状态，全局地对（之后绘制）整个canvas起作用，包括：
-
-* 变换矩阵：用来scale, rotate, transform和translate的方法。
-* 裁剪区域：由clip方法创建。
-* 属性：包括strokeStyle, fillStyle, globalAlpha, lineWidth, lineCap, lineJoin, miterLimit, shadowOffsetX, shadowOffsetY, shadowBlur, shadowColor, globalCompositeOperation, font, textAlign, textBaseline.
-
-canvas对象的属性和方法：
-
-* height: canvas的高度
-* width: canvas的宽度
-* getContext: 取得context对象。
-* toDataURL: 把canvas转化成base64字符串表示，以不同的MIME类型作为参数，如image/png（默认）, image/jpeg。
-* toBlob: 返回一个图像文件的引用。
-
+### Animation Loop
 `window.requestAnimationFrame`: 告诉程序浏览器已经准备好可以渲染动画的新的一帧了：
 ```
 (function animationloop(){
@@ -63,79 +38,133 @@ canvas对象的属性和方法：
 })();
 ```
 
-
-## 2. Drawing on the Canvas
-路径与填充：
-`fillRect(x, y, width, height)`：填充矩形
-`strokeRect(x, y,width, height)`：描边矩形
-`clearRect(x, y, width, height)`：擦除矩形
-
-`beginPath()`：开始路径
-`closePath()`：闭合路径
-`isPointInPath(x, y)`: 检查一个点是否在当前路径上
-`stroke()`：描边
-`fill()`: 填充
-`moveTo(x, y)`：移动
-`lineTo(x, y)`：直线
-`rect(x, y, width, height)`：矩形
-`arc(x, y, radius, startAngle, endAngle, anticlockwise)`：弧线
-`arcTo(x1, y1, x2, y2, radius)`：夹角弧线
-`bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)`：贝塞尔曲线
-`quadraticCurveTo(cpx, cpy, x, y)`：二次方曲线
-
-
+## API
+### Canvas Element
 属性：
-fillStyle: 填充样式
-lineCap: 端点形状 butt/round/square
-lineJoin: 连接处形状 miter/bevel/round
-miterLimit: 斜接的比例，默认10
-lineWidth: 线宽，默认1.0
-strokeStyle: 线条样式
-globalAlpha: 全局透明度，默认1.0不透明
-globalCompositeOperation: 全局混合模式 copy/destination-atop/destination-in/destination-out/destination-over/lighter/source-atop/source-in/source-out/source-over/xor
-shadowOffsetX: 阴影X方向，可负
-shadowOffsetY: 阴影Y方向，可负
-shadowBlur: 阴影模糊
-shadowColor: 阴影颜色
 
-裁剪区域:
-`clip()`
+* width: canvas的宽度
+* height: canvas的高度
 
-变换：
-`setTransform(m11, m12, m21, m22, dx, dy)`: 设置变换矩阵，重置值(1, 0, 0, 1, 0, 0)
-`rotate(angle)`: 旋转, 以座标原点
-`scale(x, y)`: 缩放, 以座标原点
-`translate(x, y)`: 改变座标原点的位置
+方法：
 
-渐变：
-`createLinearGradient(x0, y0, x1, y1)`: 线性渐变，使用`addColorStop(relative-pos, color)`方法添加渐变点
-`createRadialGradient(x0, y0, r0, x1, y1, r1)`: 放射渐变
-`createPattern(image, repeatition)`: 图像填充，repeat/repeat-x/repeat-y/no-repeat
+* getContext(contextId): 取得context对象。
+* toDataURL(type, args): 把canvas转化成base64字符串表示，以不同的MIME类型作为参数，如image/png（默认）, image/jpeg。
+* toBlob(): 返回一个图像文件的引用。
 
-焦点（暂不支持）：
-`drawCustomFocusRing()`
-`drawSystemFocusRing()`
-
-当前路径和当前位图不属于当前的context状态。
-当前context状态可以像栈一样保存和恢复：`context.save()`, `context.restore()`
-
-所有度数以弧度表示，转换：`degree * Math.PI/180`
-在填充样式和线条样式中的颜色表示："red", "#ff0000", "rgb(255, 0, 0)", "rgba(255, 0, 0, 0)", 以及渐变对象。
-
+Canvas是屏幕上可被JavaScript操纵的立即模式的位图区域。当调用Canvas JavaScript API的时候，canvas会在每一帧上完全重绘位图。这和在保留模式操作的Flash, Silverlight或SVG不一样，图形渲染器保存了一个对象的显示列表，对象根据其代码里设置的属性显示在屏幕上。
 如果canvas的高度或宽度被重新设置，其内容会被清空。
 
-
-## 3. The HTML5 Canvas Text API
-文本：
-`fillText(text, x, y, maxWidth)`: 填充文本
-`strokeText(text, x, y, maxWidth)`: 描边文本
-`measureText(text)`: 返回TextMetrics对象，目前只有width属性
-
+### Context
 属性：
-font: 字体样式，包括style(normal/italic/oblique/inherit)/weight(normal/bold/bolder/lighter/100/200/300/400/500/600/700/800/900/inherit/auto), size(px), face(serif/sans-serif/cursive/fantasy/monospace)，默认"10px sans-serif"
-textAlign: 文本对齐，center/start/end/left/right, 默认"center"
-textBaseline: 文本基线，top/hanging/middle/alphabetic/ideographic/bottom, 默认"middle"
 
+* canvas: 所属canvas对象
+
+方法：
+
+* save(): 保存context的状态
+* restore(): 恢复context的状态
+
+所有在canvas上的操作都要通过context对象（`CanvasRenderingContext2D`, 这里只涉及2D）来完成：
+```
+var theCanvas = document.getElementById('canvasId');
+var context = theCanvas.getContext('2d');
+```
+
+`CanvasRenderingContext2D`使用笛卡尔座标系，原点(0,0)在左上角，并向右下角增长。
+
+context有个当前绘制状态，全局地对（之后绘制）整个canvas起作用，包括：
+
+* 变换矩阵：由scale, rotate, transform和translate方法设置。
+* 裁剪区域：由clip方法创建。
+* 属性：包括strokeStyle, fillStyle, globalAlpha, lineWidth, lineCap, lineJoin, miterLimit, shadowOffsetX, shadowOffsetY, shadowBlur, shadowColor, globalCompositeOperation, font, textAlign, textBaseline.
+
+当前context状态可以像栈一样保存和恢复。
+当前路径和当前位图不属于当前的context状态。
+
+### Path
+方法：
+
+* beginPath()：开始路径
+* closePath()：闭合路径
+* fill(): 填充
+* stroke()：描边
+* clip(): 创建裁剪区域
+* moveTo(x, y)：移动
+* lineTo(x, y)：直线
+* quadraticCurveTo(cpx, cpy, x, y)：二次方曲线
+* bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)：贝塞尔曲线
+* arc(x, y, radius, startAngle, endAngle, anticlockwise)：弧线
+* rect(x, y, width, height)：矩形
+* arcTo(x1, y1, x2, y2, radius)：夹角弧线
+* isPointInPath(x, y): 检查一个点是否在当前路径上
+
+### Rectangle
+方法：
+
+* fillRect(x, y, width, height)：填充矩形
+* strokeRect(x, y,width, height)：描边矩形
+* clearRect(x, y, width, height)：擦除矩形
+
+### Text
+属性：
+
+* font: 字体样式，包括style(normal/italic/oblique/inherit), weight(normal/bold/bolder/lighter/100/200/300/400/500/600/700/800/900/inherit/auto), size(px), face(serif/sans-serif/cursive/fantasy/monospace)，默认"10px sans-serif"
+* textAlign: 文本对齐，center/start/end/left/right, 默认"center"
+* textBaseline: 文本基线，top/hanging/middle/alphabetic/ideographic/bottom, 默认"middle"
+
+方法：
+
+* fillText(text, x, y, maxWidth): 填充文本
+* strokeText(text, x, y, maxWidth): 描边文本
+* measureText(text): 返回TextMetrics对象，目前只有width属性
+
+### Style
+属性：
+
+* strokeStyle: 线条样式
+* fillStyle: 填充样式
+* shadowOffsetX: 阴影X方向，可负
+* shadowOffsetY: 阴影Y方向，可负
+* shadowBlur: 阴影模糊
+* shadowColor: 阴影颜色
+* globalAlpha: 全局透明度，默认1.0不透明
+* globalCompositeOperation: 全局混合模式 copy/destination-atop/destination-in/destination-out/destination-over/lighter/source-atop/source-in/source-out/source-over/xor
+* lineWidth: 线宽，默认1.0
+* lineCap: 端点形状 butt/round/square
+* lineJoin: 连接处形状 miter/bevel/round
+* miterLimit: 斜接的比例，默认10
+
+方法：
+
+* createLinearGradient(x0, y0, x1, y1): 线性渐变，返回`CanvasGradient`对象，使用`addColorStop(relative-pos, color)`方法添加渐变点。
+* createRadialGradient(x0, y0, r0, x1, y1, r1): 放射渐变，返回`CanvasGradient`对象。
+* createPattern(image, repeatition): 图像填充，repeat/repeat-x/repeat-y/no-repeat，返回`CanvasPattern`对象。
+
+在填充样式和线条样式中的颜色表示："red", "#ff0000", "rgb(255, 0, 0)", "rgba(255, 0, 0, 0)", 以及渐变对象。
+
+### Transformation
+方法：
+
+* rotate(angle): 旋转, 以座标原点
+* scale(x, y): 缩放, 以座标原点
+* translate(x, y): 改变座标原点的位置
+* transform(m11, m12, m21, m22, dx, dy): 矩阵变换
+* setTransform(m11, m12, m21, m22, dx, dy): 设置变换矩阵，重置值(1, 0, 0, 1, 0, 0)
+
+所有度数以弧度表示，转换：`degree * Math.PI/180`
+
+### Image
+
+### Pixel
+
+## Cheet Sheet
+![Cheet_Sheet](http://www.nihilogic.dk/labs/canvas_sheet/HTML5_Canvas_Cheat_Sheet.png)
+
+
+## Reference
+http://chimera.labs.oreilly.com/books/1234000001654
+http://www.w3.org/html/wg/drafts/2dcontext/html5_canvas/
+http://www.whatwg.org/specs/web-apps/current-work/#the-canvas-element
 
 </xmp>
 <script src="js/strapdown.js"></script>
