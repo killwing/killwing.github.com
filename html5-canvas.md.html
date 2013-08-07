@@ -154,8 +154,23 @@ context有个当前绘制状态，全局地对（之后绘制）整个canvas起�
 所有度数以弧度表示，转换：`degree * Math.PI/180`
 
 ### Image
+方法：
 
-### Pixel
+* drawImage(image, dx, dy, dw, dh): 绘制图像，可选指定宽高度。
+* drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh): 绘制图像，指定源图像范围。
+* createImageData(sw, sh): 创建图像数据，返回`ImageData`对象，`ImageData`有width, height, data三个属性。
+* createImageData(imagedata): 复制一份图像数据。
+* getImageData(sx, sy, sw, sh): 获取图像数据。
+* putImageData(imagedata, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight): 绘制图像数据，可选指定范围。
+
+加载图像：
+```
+var img = new Image();
+img.src = 'test.jpg';
+img.addEventListener('load', function() { render(); }, false);
+```
+
+`ImageData.data`是一个`CanvasPixelArray`对象，以32位颜色格式(r,g,b,a)保存了所有像素。每4个元素表示一个像素，每个元素值范围是0~255。
 
 ## Cheet Sheet
 ![Cheet_Sheet](http://www.nihilogic.dk/labs/canvas_sheet/HTML5_Canvas_Cheat_Sheet.png)
