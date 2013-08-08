@@ -172,6 +172,76 @@ img.addEventListener('load', function() { render(); }, false);
 
 `ImageData.data`是一个`CanvasPixelArray`对象，以32位颜色格式(r,g,b,a)保存了所有像素。每4个元素表示一个像素，每个元素值范围是0~255。
 
+
+## Collision Detection
+### ImageObj类
+`context`为全局对象。
+```
+function ImageObj(x, y, src) {
+    var self = this;
+    self.x = x;
+    self.y = y;
+    self.image = new Image;
+    self.image.src = src;
+    self.image.addEventListener('load', function() {
+        var image = self.image;
+        context.drawImage(image, 0, 0);
+        self.width = image.width;
+        self.height = image.height;
+        self.data = context.getImageData(0, 0, image.width, image.height).data;
+        context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+    }, false);
+};
+
+ImageObj.prototype.draw = function() {
+    context.drawImage(this.image, this.x, this.y);
+};
+```
+
+### 基于边框检测
+把图像当作完整的矩形，检测是否有重合部分。
+```
+function boundingBoxCollide(object1, object2) {
+    var left1 = object1.x;
+    var left2 = object2.x;
+    var right1 = object1.x + object1.width;
+    var right2 = object2.x + object2.width;
+    var top1 = object1.y;
+    var top2 = object2.y;
+    var bottom1 = object1.y + object1.height;
+    var bottom2 = object2.y + object2.height;
+
+    if (bottom1 < top2 || top1 > bottom2 || right1 < left2 || left1 > right2) {
+        return false;
+    }
+    return true;
+};
+```
+
+### 基于像素检测
+找出两个图像（矩形的）重合部分，再检查重合部分每个像素在两个图像上的alpha值，如果都不为0，则其是个重合的像素。
+```
+function pixelCollide(object1, object2) {
+    var xMin = Math.max(object1.x, object2.x);
+    var yMin = Math.max(object1.y, object2.y);
+    var xMax = Math.min(object1.x + object1.width, object2.x + object2.width);
+    var yMax = Math.min(object1.y + object1.height, object2.y + object2.height);
+
+    for (var x = xMin; x < xMax; ++x) {
+        for (var y = yMin; y < yMax; ++y) {
+            var pixel1 = ((x - object1.x) + (y - object1.y) * object1.width) * 4 + 3;
+            var pixel2 = ((x - object2.x) + (y - object2.y) * object2.width) * 4 + 3;
+            if (object1.data[pixel1] !== 0 && object2.data[pixel2] !== 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+```
+先进行基于边框的检测（快），如果有重合再进一步进行基于像素的检测（慢）。
+
+
 ## Cheet Sheet
 ![Cheet_Sheet](http://www.nihilogic.dk/labs/canvas_sheet/HTML5_Canvas_Cheat_Sheet.png)
 
