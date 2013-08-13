@@ -205,6 +205,12 @@ http://www.gotw.ca/gotw/
 * Prefer to use `auto x = as_signed(integer_expr);` or `auto x = as_unsigned(integer_expr);` to store the result of an integer computation that should be signed or unsigned. Using `auto` together with `as_signed` or `as_unsigned` guarantees portable code: that the variable will both be large enough and preserve the required signedness on all platforms.
 最好使用`auto x = as_signed(integer_expr);` 或`auto x = as_unsigned(integer_expr);`来保存整形计算出来的有符号或无符号的结果。把`auto`和`as_signed`或`as_unsigned`一起使用可以保证可移植的代码：变量在所有平台上将会足够大及保持所需要的符号性。
 
+
+## 94 AAA Style (Almost Always Auto)
+* Remember that preferring `auto` variables is motivated primarily by correctness, performance, maintainability, and robustness—and only lastly about typing convenience.
+记住优先使用`auto`主要是为了正确性，性能，可维护性以及强壮性，最后简化书写。
+
+
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
