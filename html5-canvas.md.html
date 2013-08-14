@@ -242,14 +242,28 @@ function pixelCollide(object1, object2) {
 先进行基于边框的检测（快），如果有重合再进一步进行基于像素的检测（慢）。
 
 
+## Animation
+### Formula
+#### 速度 velocity
+`v = s/t`: 单位时间的距离
+对于每帧（单位时间），新位置就等于现在的位置加上速度：`loc2 = loc1 + v`
+
+#### 加速度 acceleration
+`a = v/t`: 单位时间的速度，速度的变化
+对于每帧（单位时间），新速度就等于现在的速度加上加速度：`v2 = v1 + a`
+
+### Vector
+位置，速度，加速度都可以用向量来表示。
+
 ## Cheet Sheet
 ![Cheet_Sheet](http://www.nihilogic.dk/labs/canvas_sheet/HTML5_Canvas_Cheat_Sheet.png)
 
 
 ## Reference
-http://chimera.labs.oreilly.com/books/1234000001654
-http://www.w3.org/html/wg/drafts/2dcontext/html5_canvas/
-http://www.whatwg.org/specs/web-apps/current-work/#the-canvas-element
+[W3C HTML Canvas 2D Context](http://www.w3.org/html/wg/drafts/2dcontext/html5_canvas/)
+[HTML Living Standard The canvas element](http://www.whatwg.org/specs/web-apps/current-work/multipage/the-canvas-element.html#the-canvas-element)
+[HTML5 Canvas](http://chimera.labs.oreilly.com/books/1234000001654)
+[The Nature of Code](http://natureofcode.com/book/)
 
 </xmp>
 <script src="js/strapdown.js"></script>
