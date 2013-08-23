@@ -114,6 +114,17 @@ http://www.gotw.ca/gotw/
 如果一个变量（包括局部变量）不变，最好把它声明为`const`的。
 
 
+## 7 Minimizing Compile-Time Dependencies
+* Never `#include` unnecessary header files.
+从不`#include`不必要的头文件。
+
+* Prefer to `#include <iosfwd>` when a forward declaration of a stream will suffice.
+如果只需要一个stream的前向声明，优先包含`#include <iosfwd>`。
+
+* Never `#include` a header when a forward declaration will suffice.
+如果一个前向声明可以满足的话就不要`#include`头文件。
+
+
 ## 89 Smart Pointers
 * Prefer to use the standard smart pointers, `unique_ptr` by default and `shared_ptr` if sharing is needed. They are the common types that all C++ libraries can understand. Use other smart pointer types only if necessary for interoperability with other libraries, or when necessary for custom behavior you can’t achieve with deleters and allocators on the standard pointers.
 优先使用标准的智能指针，默认使用`unique_ptr`以及如果需要共享的话`shared_ptr`。它们是所有C++库都能理解的普通类型。仅在需要和其它库互操作或需要通过标准智能指针的删除器和分配器所不能达到的自定义的行为的时候使用其它的智能指针类型。
