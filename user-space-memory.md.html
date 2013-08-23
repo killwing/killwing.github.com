@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<title>User Space Memory</title>
+<xmp theme="readable" style="display:none;">
+## Memory Layout
+正文段(.text)：可执行代码段
+初始化数据段(.data)：已初始化的全局变量，局部及非局部静态变量
+非初始化数据段(.bss)：未赋初值的全局变量，局部及非局部静态变量，初始化为0。
+栈(.stack)：动态分配的内存
+堆(.heap)：局部变量
+
+```
+ +-----------------------------+  max
+ |                         |   |
+ |           stack         |   |
+ |                         v   |
+ +-----------------------------+
+ |                             |
+ |                             |
+ |                             |
+ |                             |
+ +-----------------------------+
+ |           heap (mmap)       |
+ +-----------------------------+
+ |                             |
+ |                             |
+ |                             |
+ |                             |
+ |                             |
+ +-----------------------------+  heap top
+ |                             |
+ |                         ^   |
+ |           heap (brk)    |   |
+ |                         |   |
+ |                             |
+ +-----------------------------+  heap bottom
+ |           bss               |
+ +-----------------------------+
+ |           data              |
+ +-----------------------------+
+ |           text              |
+ +-----------------------------+  0
+```
+
+
+## Allocation
+静态分配：编译时确定.text, .data, .bss, .stack的大小，.text和.data影响编译出来的文件大小。
+动态分配：glibc函数`malloc`/`free` (C++中`new`/`delete`)
+
+`malloc`调用系统调用`brk(sbrk)`/`mmap(mmap2)`分配内存。
+`malloc/new`调用的时候，分配虚拟内存，并不占用实际的物理内存，只有这块内存被初始化或使用的时候才分配物理内存。
+当申请内存小于阀值时，调用`brk`。
+当申请内存大于等于阀值时，调用`mmap`（并不在真正的堆上）。
+阀值`M_MMAP_THRESHOLD`默认为128k，而且可以动态调整：当分配的内存大于当前的`M_MMAP_THRESHOLD`，且小于等于`DEFAULT_MMAP_THRESHOLD_MAX`(默认512k)时，`M_MMAP_THRESHOLD`就被设为当前分配的值，而且`M_TRIM_THRESHOLD`被设为2倍于当前分配的值。如果`M_TRIM_THRESHOLD`, `M_TOP_PAD`, `M_MMAP_THRESHOLD`, `M_MMAP_MAX`任意一个被显式设置，则动态调整被禁止。
+
+`free` 调用系统调用`brk`/`munmap`释放内存。
+通过`mmap`分配的，立即释放回OS。
+通过`brk`分配的，并不立即释放，而是积累到阈值`M_TRIM_THRESHOLD`时才释放。如果这块内存不在堆顶也不能释放，必须等到堆顶内存先释放。
+
+
+## Utilities
+### size
+`size file`
+显示一个对象文件各段(.text, .data, .bss)大小。
+
+### ulimit
+`ulimit`
+
+* `-s` 显示系统默认分配的.stack大小。
+* `-a` 显示所有系统限制。
+* `-c` 控制coredump大小，unlimited为无限制。
+`/proc/sys/kernel/core_uses_pid`: 设为“1”，以pid为扩展名
+`/proc/sys/kernel/core_pattern`: 设置目录及文件名格式: `/mycores/core-%e-%p-%t` 命令名-pid-时间戳
+
+### pmap
+`pmap -d pid`
+`cat /proc/pid/maps`
+显示一个进程的内存映射。
+
+### pstack
+
+### strace
+跟踪进程系统调用或信号产生的情况。
+
+* `-f` 除了跟踪当前进程外，还跟踪其子进程。
+* `-o file` 将输出信息写到文件file中，而不是显示到标准错误输出（stderr）。
+* `-p pid` 绑定到一个由pid对应的正在运行的进程。此参数常用来调试后台进程。
+* `-r` 加上相对时间戳（消耗的时间）。
+* `-t` 加上绝对时间戳。
+
+### ltrace
+跟踪进程调用库函数的情况。
+
+* `-C` 解析C++名字粉碎的符号。
+
+### top
+`top -p pid`
+`cat /proc/pid/status`
+按f增减项, F按某项排序，H显示线程信息(此时PID显示的实际上是LWPID，或用`ps aux -L`)
+M按memory排序，P按cpu排序，N按PID排序
+
+关于内存信息
+o: VIRT (Virtual Image) - 进程使用的总虚拟内存大小。VIRT = SWAP + RES
+p: SWAP (Swapped size) - 进程被交换的虚拟内存大小。
+q: RES (Resident size) - 进程非被交换的物理内存大小。
+r: CODE (Code size) - 进程的程序代码占用物理内存大小，也叫 text resident set (TRS)。
+s: DATA (Data+Stack size) - 进程的非程序代码部份占用物理内存大小，也叫 data resident set (DRS)。
+t: SHR (Shared Mem size) - 进程使用的共享内存大小，即可以和其他进程共享的内存空间。
+
+其它:
+[htop](http://htop.sourceforge.net/)
+[atop](http://www.atoptool.nl/)
+
+### free
+`free -m`
+`cat /proc/meminfo`
+
+```
+             total       used       free     shared     buffers      cached
+Mem:          1002        769        232          0          62         421
+-/+ buffers/cache:        286        715
+Swap:         1153          0       1153
+```
+
+Buffer Cache和Page Cache: 前者针对磁盘块的读写（设备缓存），后者针对文件inode的读写（内存缓存）。`mem <-- page cache --> fs <-- buffer cache --> disk`
+(-buffers/cache) used内存数：286M (指的第一部分Mem行中的used - buffers - cached) 反映的是被程序实实在在用掉的内存（不包括系统缓存）
+(+buffers/cache) free内存数: 715M (指的第一部分Mem行中的free + buffers + cached) 反映的是可以挪用的内存总数（包括系统缓存）
+swap: 交换分区
+
+### vmstat
+显示memory, io, cpu等综合信息。
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
