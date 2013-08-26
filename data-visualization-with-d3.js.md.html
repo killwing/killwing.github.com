@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<title>Data Visualization with D3.js</title>
+<xmp theme="readable" style="display:none;">
+## SVG (Scalable Vector Graphics)
+SVG用XML表示，并可以在DOM里访问和更新。`<svg width="50" height="50"></svg>`
+
+基本形状元素：
+
+* Rectangle `<rect x="0" y="0" width="50" height="50" fill="green" />`
+* Circle `<circle cx="25" cy="25" r="25" fill="purple" />`
+* Ellipse `<ellipse cx="25" cy="25" rx="15" ry="10" fill="red" />`
+* Straight Line `<line x1="5" y1="5" x2="40" y2="40" stroke="gray" stroke-width="5" />`
+* Polyline `<polyline fill="none" stroke="blue" stroke-width="2" points="05,30 15,30 15,20 25,20 25,10 35,10" />`
+* Polygon `<polygon fill="yellow" stroke="blue" stroke-width="2" points="05,30 15,10 25,30" />`
+
+Path: `<path d="M 10 25 L 10 75 L 60 75 L 10 25" stroke="red" stroke-width="2" fill="none" />`
+
+* M(x, y): moveto
+* L(x, y): lineto
+* H(x): horizontal lineto
+* V(y): vertical lineto
+* C(x1, y1, x2, y2, x, y): curve to
+* S(x2, y2, x, y): shorthand/smooth curveto
+* Q(x1, y1, x, y): quadratic Bézier curveto
+* T(x, y): Shorthand/smooth quadratic Bézier curveto
+* A(rx, ry, x-axis-rotation, large-arc-flag, sweep-flag, x, y): elliptical arc
+* Z(): closepath
+大写表示绝对位置，小写表示相对位置。
+
+Text: `<text x="20" y="20" font-family="sans-serif" font-size="20px" fill="red" text-anchor="middle">Hello!</text>`
+
+Group Element: `<g transform="translate(...)">..</g>`
+可以对组应用变换：
+
+* matrix(a, b, c, d, e, f): 变换矩阵
+* translate(x, y=0): 改变座标原点位置
+* scale(x, y=x)
+* skewX(a)
+* skewY(b)
+
+
+## Binding Data
+```
+d3.select('body').selectAll('p').data([1,2,3]).enter().append('p').text('hello');
+```
+D3的大部分方法返回一个选择集合，`data()`方法也只有这个方法返回三个虚拟选择集合：
+enter: 表示还未绑定到数据上的元素占位符集合（元素少，缺少元素将被创建加入）
+update: 表示已有绑定到数据上的元素集合
+exit: 表示未被绑定到数据上的多余元素集合（数据少，多余元素将被删除）
+[告诉D3你需要的东西而不是告诉D3怎么去做。](http://bost.ocks.org/mike/join/)
+[声明式编程](http://www.aqee.net/imperative-vs-declarative/)
+
+`data()`方法把数据绑定在每个DOM元素的`__data__`成员上。
+可以用回调函数取得并设置数据：`.text(function(d, i) { return d; })`，`d`表示原始绑定的数据，`i`表示索引序号，`this`可以引用当前DOM元素。
+
+
+## Path Data Generators
+线条生成器：
+```
+var lineData = [{ "x": 1, "y": 5}, {"x": 20, "y": 20}, {"x": 40, "y": 10}, {"x": 60, "y": 40}, {"x": 80, "y": 5}, {"x": 100, "y": 60}];
+var lineFunction = d3.svg.line().x(function(d) { return d.x; }).y(function(d) { return d.y; }).interpolate("linear");
+path.attr('d', lineFunction(lineData));
+```
+可选线形：linear/step-before/step-after/basis/basis-open/basis-closed/bundle/cardinal/cardinal-open/cardinal-closed/monotone
+
+其他生成器：
+d3.svg.line
+d3.svg.line.radial
+d3.svg.area
+d3.svg.area.radial
+d3.svg.arc
+d3.svg.symbol
+d3.svg.chord
+d3.svg.diagonal
+d3.svg.diagonal.radial
+不同生成器都有自己不同的方法来设置属性。
+
+
+## Scales
+线型变换：
+```
+var linearScale = d3.scale.linear().domain([0,10000]).range([0,100]);
+linearScale(100); // 1, 从[0,10000]到[0,100]缩小100倍
+```
+最大最小值可以用`d3.max`和`d3.min`取得。
+
+
+## Axes
+座标轴，可以利用scale来设置座标。
+```
+var axisScale = d3.scale.linear().domain([0, 100]).range([0, 400]);
+var xAxis = d3.svg.axis().scale(axisScale);
+var xAxisGroup = svgContainer.append('g').call(xAxis); // 显示在g组上
+```
+
+
+## Reference
+[Data-Driven Documents](http://d3js.org/)
+[Dashing D3.js](https://www.dashingd3js.com/)
+[Interactive Data Visualization for the Web](http://chimera.labs.oreilly.com/books/1230000000345)
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
