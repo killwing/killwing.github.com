@@ -526,6 +526,36 @@ wait参数：
 * notify_all: 通知所有等待线程。但只有一个会得到mutex的锁。
 * notify调用不需要和mutex联用，但一般在不同线程操作共享数据时需要同一个mutex保护。
 
+```
+std::mutex m;
+std::condition_variable cv;
+std::string data;
+bool ready = false; // access should be protected by mutex
+
+void worker_thread() {
+    {
+        std::unique_lock<std::mutex> lk(m);
+        cv.wait(lk, []{return ready;}); // same as "while (!ready) { cv.wait(lk); }"
+    }
+    // processing data (if r/w concurrently, data should be protected)
+    data += " after processing";
+}
+
+int main() {
+    std::thread worker(worker_thread);
+
+    data = "example data";
+    {
+        // signals data ready for processing
+        std::lock_guard<std::mutex> lk(m);
+        ready = true;
+    }
+    // no need protected by mutex
+    cv.notify_one();
+    worker.join();
+}
+```
+
 ### Thread-Local Data
 全局，命名空间内，静态，类静态，局部静态的变量都可以是thread_local的。比如可以用作thread name。
 
