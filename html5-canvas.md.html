@@ -161,7 +161,7 @@ context有个当前绘制状态，全局地对（之后绘制）整个canvas起�
 * createImageData(sw, sh): 创建图像数据，返回`ImageData`对象，`ImageData`有width, height, data三个属性。
 * createImageData(imagedata): 复制一份图像数据。
 * getImageData(sx, sy, sw, sh): 获取图像数据。
-* putImageData(imagedata, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight): 绘制图像数据，可选指定范围。
+* putImageData(imagedata, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight): 绘制图像数据，可选指定范围。此方法[不会进行混合模式计算](http://stackoverflow.com/questions/6269929/why-doesnt-the-alpha-pixel-in-html-canvas-blend-in-with-the-background-color)，[而且有性能问题](http://stackoverflow.com/questions/5210874/html5-canvas-image-caching-putimagedata-questions)。
 
 加载图像：
 ```
@@ -188,6 +188,7 @@ function ImageObj(x, y, src) {
     self.image.src = src;
     self.image.addEventListener('load', function() {
         var image = self.image;
+        self.data = context.getImageData(0, 0, image.width, image.height).data;
         context.drawImage(image, 0, 0);
         self.width = image.width;
         self.height = image.height;
@@ -243,6 +244,7 @@ function pixelCollide(object1, object2) {
 }
 ```
 先进行基于边框的检测（快），如果有重合再进一步进行基于像素的检测（慢）。
+注意此方法基于左上角位置，且座标要为整数。
 
 
 ## Animation
