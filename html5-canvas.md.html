@@ -204,10 +204,24 @@ DOM元素：`<video autoplay loop controls src="example.mp4">`，原型`HTMLVide
 
 * progress：视频数据每次加载的时候
 * canplaythrough：加载的数据足够可以播放的时候
+* loadedmetadata：加载完数据的时候
 
 不同于图像（可以直接创建Image实例），视频必须在HTML页面要有一个DOM元素（可以不显示）。
 使用`drawImage()`绘制视频的当前帧在canvas上，因此需要循环更新。
 
+### WebRTC
+用`navigator.getUserMedia`捕获摄像头视频。
+```
+navigator.getUserMedia({video: true, audio:true}, function(userMedia) {
+    var video = document.getElementById("thevideo");
+    video.src = window.URL.createObjectURL(userMedia);
+    video.onloadedmetadata = function() {
+        console.log('success!');
+    };
+}, function() {
+    console.log('failed to getUserMedia'); 
+});
+```
 
 ## Collision Detection
 ### Image辅助类
