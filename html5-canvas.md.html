@@ -219,7 +219,7 @@ navigator.getUserMedia({video: true, audio:true}, function(userMedia) {
         console.log('success!');
     };
 }, function() {
-    console.log('failed to getUserMedia'); 
+    console.log('failed to getUserMedia');
 });
 ```
 
@@ -322,6 +322,66 @@ function checkCollide(object1, object2, accurate) {
     return false;
 }
 ```
+
+## Interaction
+### Keyboard
+事件：
+
+* keypress：按下并且释放某个键
+* keydown：按下某个按键
+* keyup：放开某个按键
+
+### Mouse
+事件：
+
+* click: 单击
+* dblclick：双击
+* mousedown：按下鼠标
+* mouseup：松开鼠标
+* mouseover：移动到某对象范围
+* mousemove：移动鼠标
+* mouseout：离开某对象范围
+
+事件捕获的座标：
+
+* client: 相对浏览器可视区域（窗口）
+* page: 相对当前页面
+* screen: 相对显示器屏幕
+
+要得到在canvas上的座标需要计算：
+```
+var clientRect = theCanvas.getBoundingClientRect();
+var mouse = {};
+theCanvas.addEventListener('mousemove', function(e) {
+    mouse.x = e.clientX - clientRect.left;
+    mouse.y = e.clientY - clientRect.top;
+});
+```
+
+### Touch
+事件:
+
+* touchstart：手指触碰
+* touchmove：手指拖动
+* touchend：手指离开
+
+捕获的事件对象列表：
+
+* touches：当前位于屏幕上的所有手指动作的列表。触碰手指的数组。
+* targetTouches：当前 DOM 元素上的手指动作的列表。
+* changedTouches：涉及当前事件的手指动作的列表。
+
+事件对象：
+
+* identifier：唯一标识触摸会话中的当前手指。
+* target：作为动作目标的 DOM 元素。
+* client/page/screen坐标：动作在屏幕上发生的位置。
+* radius坐标和rotationAngle：与手指触碰形状类似的圆形。
+
+禁止浏览器的触碰行为：
+
+* 禁止缩放: `<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">`
+* 禁止滚动: `event.preventDefault();`
 
 
 ## Animation
