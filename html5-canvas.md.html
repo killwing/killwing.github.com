@@ -177,6 +177,37 @@ img.addEventListener('load', function() { render(); }, false);
 
 ## Audio & Video
 ### Audio
+DOM元素：`<audio autoplay loop controls src="example.mp3">`，原型`HTMLAudioElement`。
+属性：
+
+* currentSrc：音频文件的地址
+* autoplay：自动播放
+* loop：循环播放
+* volume：音量[0, 1)
+* controls：显示播放控件
+* duration：音频长度（秒）
+* currentTime：当前播放时间（秒）
+* ended：完成播放
+* muted：静音
+* paused：暂停
+* buffered：返回一个`TimeRanges`类型，用`start(0)`或`end(0)`取得已缓冲的长度（秒）
+* preload：在页面显示之前加载
+
+方法：
+
+* load()：开始加载地址里的音频
+* play()：播放
+* pause()：暂停
+* canPlayType(mime): 测试支持音频类型，返回""/maybe/probably
+
+事件：
+
+* progress：音频数据每次加载的时候
+* canplaythrough：加载的数据足够可以播放的时候
+* loadedmetadata：加载完数据的时候
+* playing：正在播放的时候
+* volumechange：音量变化的时候
+* ended：播放完毕的时候
 
 ### Video
 DOM元素：`<video autoplay loop controls src="example.mp4">`，原型`HTMLVideoElement`。
@@ -186,6 +217,7 @@ DOM元素：`<video autoplay loop controls src="example.mp4">`，原型`HTMLVide
 * autoplay：自动播放
 * loop：循环播放
 * volume：音量[0, 1)
+* controls：显示播放控件
 * poster：加载视频时显示图像的地址
 * duration：视频长度（秒）
 * currentTime：当前播放时间（秒）
@@ -206,7 +238,7 @@ DOM元素：`<video autoplay loop controls src="example.mp4">`，原型`HTMLVide
 * canplaythrough：加载的数据足够可以播放的时候
 * loadedmetadata：加载完数据的时候
 
-不同于图像（可以直接创建Image实例），视频必须在HTML页面要有一个DOM元素（可以不显示）。
+如果要将视频显示在canvas上，不同于图像（可以直接创建Image实例），视频必须在HTML页面要有一个DOM元素（可以不显示，一般使用JS动态创建一个）。
 使用`drawImage()`绘制视频的当前帧在canvas上，因此需要循环更新。
 
 ### WebRTC
@@ -272,12 +304,13 @@ inherits(Img, Sprite);
 ```
 function boundingBoxCollide(object1, object2) {
     var left1 = object1.x;
-    var left2 = object2.x;
-    var right1 = object1.x + object1.width;
-    var right2 = object2.x + object2.width;
     var top1 = object1.y;
-    var top2 = object2.y;
+    var right1 = object1.x + object1.width;
     var bottom1 = object1.y + object1.height;
+
+    var left2 = object2.x;
+    var top2 = object2.y;
+    var right2 = object2.x + object2.width;
     var bottom2 = object2.y + object2.height;
 
     if (bottom1 < top2 || top1 > bottom2 || right1 < left2 || left1 > right2) {
@@ -286,6 +319,7 @@ function boundingBoxCollide(object1, object2) {
     return true;
 };
 ```
+当object1的width和height等于0时，即为一点，常用于鼠标的点击范围测试。
 
 ### 基于像素检测
 找出两个图像（矩形的）重合部分，再检查重合部分每个像素在两个图像上的alpha值，如果都不为0，则其是个重合的像素。
@@ -350,11 +384,18 @@ function checkCollide(object1, object2, accurate) {
 
 要得到在canvas上的座标需要计算：
 ```
-var clientRect = theCanvas.getBoundingClientRect();
-var mouse = {};
 theCanvas.addEventListener('mousemove', function(e) {
-    mouse.x = e.clientX - clientRect.left;
-    mouse.y = e.clientY - clientRect.top;
+    var x;
+    var y;
+    if (event.pageX || event.pageY) {
+         x = event.pageX;
+         y = event.pageY;
+    } else {
+         x = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
+         y = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
+    }
+    mouse.x = x - theCanvas.offsetLeft;
+    mouse.y = y - theCanvas.offsetTop;
 });
 ```
 
