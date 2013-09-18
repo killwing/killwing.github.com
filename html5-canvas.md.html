@@ -177,6 +177,7 @@ img.addEventListener('load', function() { render(); }, false);
 
 ## Audio & Video
 ### Audio
+#### Audio Element
 DOM元素：`<audio autoplay loop controls src="example.mp3">`，原型`HTMLAudioElement`。
 属性：
 
@@ -208,6 +209,25 @@ DOM元素：`<audio autoplay loop controls src="example.mp3">`，原型`HTMLAudi
 * playing：正在播放的时候
 * volumechange：音量变化的时候
 * ended：播放完毕的时候
+
+#### Web Audio API
+对象：`AudioContext/webkitAudioContext`
+Audio element适用于比较长的音频或音乐，Web Audio API适用于音频片段或音效。
+```
+var audioContext = new webkitAudioContext();
+var request = new XMLHttpRequest();
+request.open('GET', url, true);
+request.responseType = 'arraybuffer';
+request.onload = function() {
+    audioContext.decodeAudioData(request.response, function(buffer) {
+        var source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        source.noteOn(0); // 立即播放，只能放一次，将来被start()代替
+    }, onError);
+};
+request.send();
+```
 
 ### Video
 DOM元素：`<video autoplay loop controls src="example.mp4">`，原型`HTMLVideoElement`。
