@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<title>ECMAScript5</title>
+<xmp theme="readable" style="display:none;">
+## 对象属性特性(Property Descriptor)
+
+Descriptor|Default|Comment
+-|-|-
+value|undefined|当读取属性时返回的值
+get|undefined|属性获取方法
+set|undefined|属性设置方法
+configurable|false|属性是否可被删除，以及其特性是否可以改变
+enumerable|false|属性是否可被`for...in`/`Object.keys()`枚举
+writable|false|属性是否可以改变
+
+### 创建
+`Object.create(proto, props)` 使用一个指定的原型对象和一个额外的属性对象创建一个新对象。
+
+### 定义
+`Object.defineProperty(obj, prop, descriptor)`
+`Object.defineProperties(obj, descriptors)`
+
+### 检索
+`Object.getOwnPropertyDescriptor(obj, prop)` 返回属性特性对象。
+`Object.getPrototypeOf(obj)` 返回对象的原型，等同于`Object.__proto__`。
+`Object.keys(obj)` 返回一个字符串数组，包含对象自己的可枚举（enumerable）属性。
+`Object.getOwnPropertyNames(obj, prop)` 同上，但还包含 enumerable 标志设置为 false 的属性。
+
+定义，检索都只针对自己的属性，不包括原型链中的属性。
+
+### 锁定
+`Object.preventExtensions(obj)` 阻止将任何新属性添加到对象。
+`Object.isExtensible(obj)` 测试对象是否可扩展。
+`Object.seal(obj)` 首先调用`Object.preventExtensions()`，阻止添加新属性，然后将所有对象特性的 configurable 标志设置为 false。
+`Object.isSealed(obj)` 测试对象是否被封印。
+`Object.freeze(obj)` 调用`Object.seal()`来封印对象， 然后将对象特性的 writeable 标志设置为 false。
+`Object.isFrozen(obj)` 测试对象是否冻结。
+
+静态方法中的锁定方法都不针对原型，且操作禁止时不会抛出错误除非使用严格模式，没有解锁方法。
+
+### Accessor
+定义和检索getter/setter的实例方法(Mozilla扩展):
+`__defineGetter__(name, callback)`
+`__defineSetter__(name, callback)`
+`__lookupGetter__(name)`
+`__lookupSetter__(name)`
+
+gettter/setter的字面定义法：
+```
+obj = {  
+    _x: 1,   
+    get name() {return this._x},   
+    set name(v) {this._x = v}  
+}
+```
+
+
+## String
+
+## Array
+判断一个对象是不是数组：Array.isArray()
+
+## Date
+
+## JSON
+
+## Function
+bind：返回一个函数待后调用，并绑定this到一个指定对象上，也可以绑定参数。
+
+## 严格模式
+使用：`'use strict';`，可以仅作用在函数作用域上。
+在严格模式下：
+
+静态绑定
+
+* 禁止使用with语句。
+* `eval()`运行在一个沙盒中，其中定义的变量仅在其内部可见。
+
+安全
+
+* 全局函数的this绑定到undefind。
+* 禁止在函数内部遍历调用栈。
+
+违反属性特性的操作会抛出错误
+
+* 对一个对象的只读属性进行赋值。
+* 对一个使用getter方法读取的属性进行赋值。
+* 对禁止扩展的对象添加新属性。
+* 删除一个不可删除的属性。
+
+重名
+
+* 对象中不能有重名的属性。
+* 函数不能有重名的参数。
+
+函数的参数对象arguments
+
+* 不允许对arguments赋值
+* arguments不再追踪参数的变化
+* 禁止使用arguments.callee
+
+其它
+
+* 必须先用var或const声明一个变量才能使用。
+* 函数必须声明在全局作用域或函数作用域的顶层。
+* 禁止八进制表示法（整数的首位是0）。
+* 禁止删除变量, 只能删除可删除的对象属性。
+* 禁止使用保留字作为变量名：implements, interface, let, package, private, protected, public, static, yield, class, enum, export, extends, import, super, const。
+
+## Reference
+[ECMA-262 第5版](http://www.ibm.com/developerworks/cn/web/wa-ecma262/index.html)
+[ECMA 5 Mozilla Features Implemented in V8](https://github.com/joyent/node/wiki/ECMA-5-Mozilla-Features-Implemented-in-V8)
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>

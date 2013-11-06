@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<title>ECMAScript3</title>
+<xmp theme="readable" style="display:none;">
+
+## 语法
+习惯在每行语句的结尾加上一个分号(可选，但一行多个语句时需要)。
+代码块：{ }
+注释：和C一样，"//"及"/*...*/" (不建议使用，因为/.../还可以表示正则)。
+
+
+## 数据类型
+### 原始类型
+五种原始类型：Undefined, Null, Boolean, Number和String（其他都是对象）。
+
+Undefined类型只有一个值undefined。当声明的变量未初始化时，该变量的默认值是undefined。未声明的变量也是Undefined类型，除typeof外的运算符只能用于已声明的变量上。
+Null类型只有一个专用值null。undefined指声明了变量但未对其初始化时的值，null则用于表示尚未存在的对象。
+Boolean类型有两个值true和false。
+Number类型，这种类型既可以表示32位的整数，还可以表示64位的浮点数。
+
+* 二进制浮点数不能正确地处理十进制的小数，所以0.1+0.2并不等于0.3。
+* 八进制：以0开头，十六进制：以0x开头，科学计数：5.618e7
+* Number.MAX_VALUE和Number.MIN_VALUE，定义了Number值集合的外边界，所有数都必须在这两个值之间，不过计算生成的数值结果可以不落在这两个值之间。
+* 当计算生成的数大于Number.MAX_VALUE时，它将被赋予值Number.POSITIVE_INFINITY，意味着不再有数字值。同样，生成的数值小于Number.MIN_VALUE的计算也会被赋予值Number.NEGATIVE_INFINITY。
+* Number.POSITIVE_INFINITY的值为Infinity，Number.NEGATIVE_INFINITY的值为-Infinity。可以对任何数调用isFinite()方法，以确保该数不是无穷大。
+* NaN表示非数（Not a Number），不等于任何值（包括它自己），用isNaN()方法测试。
+
+String类型，用''或""声明。
+
+* 常量不可修改。
+* 字符内部是16位Unicode的，可以用'\u0041'码位表示。
+* 有个length属性。
+
+### 类型测试
+可用typeof运算符测试类型，值域:'number', 'string', 'boolean', 'undefined', 'function', 'object'。(eg: typeof s)
+typeof如果变量是一种引用类型（比如数组）或Null类型（null被认为是对象的占位符）, 返回的是'object'。
+instanceof运算符用于识别正在处理的对象的类型。(eg: s instanceof String)
+
+### 类型转换
+Boolean, Number, String实例都是伪对象，所有对象都有toString()方法。
+把String类型转换成数字：parseInt()把值转换成整数，parseFloat()把值转换成浮点数。不是有效数字或其他类型返回的都是NaN。
+强制类型转换
+
+* Boolean()，当要转换的值是至少有一个字符的字符串, 非0数字或对象时，将返回true。如果该值是空字符串, 数字0, undefined, NaN或null，它将返回false。
+* Number()，与parseInt()和parseFloat()方法的处理方式相似，只是它转换的是整个值，而不是部分值。
+* String()，与调用toString()方法的唯一不同之处在于，对null和undefined值强制类型转换可以生成字符串而不引发错误。
+
+
+## 变量
+必须以字母，`_`或`$`开始，关键字(if, this, new...)和保留字(int, import, class...)不能作为变量名，大小写敏感(js都对大小写敏感)。
+通过var语句来声明变量，可以在声明的同时向变量赋值。
+通过const语句来声明常量，在声明的同时向变量赋值（不赋值就一直为undfined），修改无效，也不能被重新声明。
+如果所赋值的变量还未进行过声明(没有使用过var)，该变量会被自动声明为全局变量。再次声明变量，也不会丢失其原始值。
+变量是弱类型的，可以直接赋值数字和字符串等。
+
+
+## 作用域
+当在函数内声明了一个变量后，就只能在该函数中访问该变量。当退出该函数后，这个变量会被撤销，称为本地变量。其在函数体内有效，而无块作用域。函数参数自动声明为本地变量。
+当在函数之外声明了一个变量，则页面上的所有函数都可以访问该变量。这些变量的生存期从声明它们之后开始，在页面关闭时结束。
+在顶级作用域中声明的变量将作为全局对象的属性被保存。
+作用域为词法作用域，其作用域为在定义时(词法分析时)就确定下来的，而并非在执行时确定。
+
+```
+var str = "global";    
+function scopeTest(){    
+    print(str);    
+    var str = "local";    
+    print(str);    
+}    
+     
+scopeTest();   
+// 输出：  
+// undefined   
+// local
+```
+
+
+## 操作符
+算术: `+, -, *, /, %, ++, —`
+
+* 如果把数字与字符串相加，结果将成为字符串。
+
+位: `~, &, |, ^, <<, >>, >>>(无符号)`
+
+* 所有整数字面量都默认存储为有符号整数。只有位运算符才能创建无符号整数(eg: var iUnsigned64 = -64 >>> 0;)。
+
+赋值: `=, +=, -=, *=, /=, %=`
+比较: `==, ===, !=, !==, >, <, >=, <=`
+
+* 比较数字和字符串，都会把字符串转换成数字。
+* 其中一个是true，先转换成1(false则转换为0)再做比较。
+* 其中一个值是对象，另一个是数字/字符串，则将对象转换为原始值(通过toString()或者valueOf()方法)再做比较。
+* 全等号(===)和非全等号(!==)比较前不做可能的类型转换，类型不同直接返回false。
+
+逻辑: `&&, ||, !`
+
+* 如果第一个运算数的值为false，那么&&产生第一个运算数的值，否则它产生第二个运算数的值。
+* 如果第一个运算数的值为true，那么||产生第一个运算数的值，否则它产生第二个运算数的值。
+
+条件: `variablename = (condition) ? value1 : value2`
+逗号: 在一条语句中执行多个运算。
+其它
+
+* `delete`: 删除对以前定义的对象属性或方法的引用。不能删除开发者未定义的属性和方法。
+* `void`: 对任何值返回undefined。通常用于避免输出不应该输出的值。
+
+
+## 语句
+if...else, switch, for, while, do...while, break, continue, 和C语法一样。 switch语句可以用于字符串。
+for...in: for (var in obj) {...}
+
+* 每次var的值是key，需要obj[key]访问具体内容。
+* 迭代时key出现的顺序是不确定的。
+* 会包括函数及原型中的属性（用hasOwnProperty过滤）。
+
+with语句用于设置代码在特定对象中的作用域。with语句效率较低不建议使用。
+
+
+## 引用类型
+### 对象
+对象是由new运算符加上要实例化的对象的名字创建的。 var oObject = new Object; 或 var oObject = { }; 销毁: oObject = null;
+```
+// 构造函数  
+function Car(sColor,iDoors,iMpg) {  
+    this.color = sColor;  
+    this.doors = iDoors;  
+    this.mpg = iMpg;  
+    this.showColor = function() {  // 重复创建函数
+        alert(this.color);  
+    };     
+}
+  
+var oCar1 = new Car("red",4,23);  // 以new方式调用，如果返回值不是一个对象（包括没有返回值），则返回的是this  
+var oCar2 = new Car("blue",3,25);  
+```
+
+通过new 操作符来作用与一个函数，实质上会发生这样的动作：首先，创建一个空对象，然后用函数的 apply 方法，将这个空对象传入作为 apply 的第一个参数，及上下文参数。这样函数内部的 this 将会被这个空的对象所替代：
+```
+var triangle = new Shape( "triangle" );    
+// 上一句相当于下面的代码  
+var triangle = {};    
+Shape.apply(triangle, [ "triangle" ]);  
+triangle.__proto__ = Shape.prototype;
+```
+
+* new创建一个对象时，可以在其构造函数（一种类型就是一种构造函数）上定义其原型或者直接指定另一个对象为其原型（MyClass.prototype=），原型里的属性为所有对象共享。这就叫原型继承，所有对象都由Object对象原型继承而来。
+* 实例成员：MyClass.prototype对象成员（this为实例对象）；静态成员：MyClass.prototype.constructor函数（一般是MyClass函数本身，this为undefined）的成员。
+* Boolean, Number, String都有其引用类型，但最好避免使用。也应该避免使用new Object, new Array，而应该使用字面值{ }, [ ]定义。
+* 引用始终指向最终实际的对象，而并非引用本身。
+* 约定在属性前后加下划线说明属性和方法应该被看做私有的。
+* object.prop和object['prop']是一回事，对象的属性名都是以字符串来索引的, 连数组的下标也是。索引一个不存在的属性返回undefined。
+* delete用来删除一个属性。
+
+### Object
+
+#### JSON
+[JavaScript Object Notation](http://json.org/): 对象的字面表示。
+
+名称/值”对的集合(Object): 无序的，以"{"开始，"}"结束，"名称"是一个String（如果是个合法的标识符则引号是可选的），每个"名称"后跟一个":"，"名称/值"对之间使用","分隔。
+值的有序列表(Array): 有序集合，以"["开始，"]"结束，值之间使用","分隔。
+值(value): 可以是String、Number、true、false、 null、Object或者Array，这些结构可以嵌套。
+字符串(String): 是由双引号包围的任意数量Unicode字符的集合，使用反斜线转义。
+数值(Number): 与C或者Java的数值非常相似，除了八进制与十六进制格式。
+空白可以加入到任何符号之间。
+
+用new来构建对象/数组的方法已deprecated，直接使用{ }, [ ]来代替。
+用eval(string)和JSON.parse()来从一个string获得JSON对象，后者更安全。
+JSON.stringify()将对象转为JSON字符串表示。
+
+### Date
+
+### Array
+length属性(并非只读属性)：表示这个数组的最大整数属性名+1，不一定等于数组里属性的个数。设置更大的length不会分配更多的空间，但设置更小的length会导致多的属性被删除。
+字符串也可以作为数组的下标。
+delete一个数组元素会导致一个空洞，应该使用splice方法。
+
+### RegExp
+定义：`/pattern/[switches]`, 如果pattern本身就是个变量，则要用new RegExp(pattern, 'switches')，这里pattern是字符串形式，注意escape特殊字符。
+
+* i - 忽略大小写开关
+* g - 全局搜索开关
+* m - 多行搜索开关(重定义^与$的意义)
+
+String中支持正则的方法：match(), replace(), split(), search()，$1, $2可以引用匹配的分组，$&引用匹配的整个串。
+正则匹配时，次数`+,*,{ }`后面加上`?`可以进行非贪婪匹配。
+一个匹配url的例子：
+```
+var parse_url = /^(?:([A-Za-z]+):)?(\/{0,3})([0-9.\-A-Za-z]+)(?::(\d+))?(?:\/([^?#]*))?(?:\?([^#]*))?(?:#(.*))?$/;  
+// 结果分组为: ['url', 'scheme', 'slash', 'host', 'port', 'path', 'query', 'hash'];  
+// e.g.: ["http://www.google.com:80/search?q=word&n=123&x=abc#tag", "http", "//", "www.google.com", "80", "search", "q=word&n=123&x=abc", "tag"]  
+```
+
+### Function
+```
+var functionName = function(arg0, arg1, ... argN) {  
+    statements  
+}  
+
+function functionName(arg0, arg1, ... argN) {  
+    statements  
+}
+```
+如果函数无明确的返回值，或调用了没有参数的return语句，那么它真正返回的值是undefined。
+可以用arguments访问参数。arguments并不是一个真正的数组，不具有数组的一些方法（可以用数组的slice.apply(arguments)来转化成一个数组）。
+任何遗漏的参数都会以undefined传递给函数，多余的函数将忽略。
+函数实际上也是一种功能完整的对象，是一种引用类型。所有函数都应看作Function类的实例。
+尽管可以使用Function构造函数创建函数，但最好不要使用它，因为用它定义函数比用传统方式要慢得多。
+属性length表示了函数期望的参数个数。valueOf()方法和 toString()方法返回的都是函数的源代码。
+在JavaScript中，this表示当前上下文即调用者的引用:
+
+* 当一个函数（包括对象的静态函数）是一个对象的属性：this总是指向调用该函数的对象。
+* 当一个函数不是一个对象的属性：this被绑定到全局变量。
+* new：this绑定到新对象上。
+* call或者apply：this将被绑定到call或者apply的第一个参数。apply的第二个参数为一个函数需要的参数组成的一个数组，而call则需要跟若干个参数，参数之间以逗号隔开。
+
+函数可以递归调用，但没有尾递归。
+
+
+## 面向对象
+### prototype
+构造函数会重复生成函数，为每个对象都创建独立的函数版本，prototype里的属性和方法则为每个对象实例共享。
+prototype还可以为本地对象添加或重定义属性和方法。
+prototype只有在检索的时候才用到，更新和删除不会触及原形链里的对象。
+
+### 绑定
+所有变量都采用晚绑定（late binding）: 指的是编译器或解释程序在运行前，不知道对象的类型。使用晚绑定，无需检查对象的类型，只需检查对象是否支持属性和方法即可。即调用的时候才去检查。
+```
+var o = new Object();  
+Object.prototype.sayHi = function() {  
+    alert("hi");  
+};  
+o.sayHi();
+```
+
+### 静态成员
+直接为函数对象添加一个属性：
+```
+function Car() { ... };  
+Car.mark = "ABC";
+```
+
+### 继承
+原型链继承: 用另一类型(父类)的对象重写类(子类)的prototype属性。
+
+```
+function ClassA(sColor) {  
+    this.color = sColor;  
+}  
+ClassA.prototype.sayColor = function() {  
+    alert(this.color);  
+};  
+  
+function ClassB(sColor, sName) {  
+    ClassA.call(this, sColor);
+    this.name = sName;  
+}  
+ClassB.prototype = new ClassA();
+ClassB.prototype.sayName = function() {  
+    alert(this.name);  
+};  
+  
+// 只需要原型函数的更common的继承方法：  
+inherits = function(ctor, superCtor) {  
+    ctor.super_ = superCtor;  
+    ctor.prototype = Object.create(superCtor.prototype, {  // ES5
+        constructor: {  
+            value: ctor,  
+            enumerable: false,  
+            writable: true,  
+            configurable: true  
+        }  
+    });  
+};  
+inherits(ClassB, ClassA);
+```
+
+
+## 函数式
+### 闭包
+闭包指的是词法表示包括不被计算的变量的函数，即函数可以使用函数之外定义的变量：
+```
+function createCounter() {  
+    var i = 0;  
+    return function () {return ++i;}; // 匿名函数  
+}  
+c1 = createCounter()  
+c2 = createCounter()
+```
+
+用闭包来实现对象：
+```
+function Person(){    
+    var name = "default";       
+       
+    return {    
+       getName : function(){    
+           return name;    
+       },    
+       setName : function(newName){    
+           name = newName;    
+       }    
+    }    
+};    
+     
+var john = Person();    
+print(john.getName());    
+john.setName("john");    
+print(john.getName());    
+     
+var jack = Person();    
+print(jack.getName());    
+jack.setName("jack");    
+print(jack.getName());
+```
+
+### 匿名函数
+只执行一次的匿名函数不会污染全局对象（指不需要在全局域中添加不必要的函数名）：
+```
+var datamodel = {    
+    table : [],    
+    tree : {}    
+};    
+     
+(function(dm){    
+    for(var i = 0; i < dm.table.rows; i++){    
+       var row = dm.table.rows[i];    
+       for(var j = 0; j < row.cells; i++){    
+           drawCell(i, j);    
+       }    
+    }      
+})(datamodel)
+```
+
+### 高阶函数
+以一个或多个函数为参数的函数称之为高阶函数:
+```
+Array.prototype.map = function(func /*, obj */){    
+    var len = this.length;    
+    //check the argument    
+    if(typeof func != "function"){    
+       throw new Error("argument should be a function!");    
+    }    
+       
+    var res = [];    
+    var obj = arguments[1];    
+    for(var i = 0; i < len; i++){    
+       //func.call(), apply the func to this[i]    
+       res[i] = func.call(obj, this[i], i, this);    
+    }    
+       
+    return res;    
+}    
+  
+var mapped = [1, 2, 3, 4, 5].map(function(x){return x * 2});
+```
+
+### 柯里化 Currying
+预先将函数的某些参数传入，得到一个简单的函数，但是预先传入的参数被保存在闭包中:
+```
+var adder = function(num) {    
+    return function(y) {    
+       return num + y;      
+    }    
+}    
+     
+var inc = adder(1);    
+var dec = adder(-1);
+```
+
+### Y-结合子
+实现匿名函数的递归操作：
+```
+var Y = function(f) {    
+  return (function(g) {    
+    return g(g);    
+  })(function(h) {    
+    return function() {    
+      return f(h(h)).apply(null, arguments);    
+    };    
+  });    
+};  
+  
+Y(function(func){    
+    return function(x){    
+       return x == 0 ? 1 : x * func(x-1);    
+    }    
+})(10);    
+  
+// 更简单地，使用arguments.callee属性  
+(function(x){    
+   return x == 0 ? 1 : x * arguments.callee(x-1);    
+})(10);
+```
+
+
+## 异常
+exception可以是字符串、整数、逻辑值或者对象。
+```
+try {  
+    Alert("Welcome guest!")      
+} catch(e) {  
+    alert(e.description)  
+    throw "my error"  
+}
+```
+
+
+## Coding Style
+[JSLint](http://www.jslint.com/)
+[JSHint](http://www.jshint.com/)
+[Google Style](http://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml)
+
+
+## Reference
+[Ecma-262](http://www.ecma-international.org/publications/standards/Ecma-262-arch.htm)
+[JavaScript | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
