@@ -34,7 +34,7 @@ String类型，用''或""声明。
 ### 类型测试
 可用typeof运算符测试类型，值域:'number', 'string', 'boolean', 'undefined', 'function', 'object'。(eg: typeof s)
 typeof如果变量是一种引用类型（比如数组）或Null类型（null被认为是对象的占位符）, 返回的是'object'。
-instanceof运算符用于识别正在处理的对象的类型。(eg: s instanceof String)
+instanceof运算符用于识别正在处理的对象的类型，判断类型的prototype是否在对象的原型链`__proto__`中。(eg: s instanceof String)
 
 ### 类型转换
 Boolean, Number, String实例都是伪对象，所有对象都有toString()方法。
@@ -61,16 +61,16 @@ Boolean, Number, String实例都是伪对象，所有对象都有toString()方�
 作用域为词法作用域，其作用域为在定义时(词法分析时)就确定下来的，而并非在执行时确定。
 
 ```
-var str = "global";    
-function scopeTest(){    
-    print(str);    
-    var str = "local";    
-    print(str);    
-}    
-     
-scopeTest();   
-// 输出：  
-// undefined   
+var str = "global";
+function scopeTest(){
+    print(str);
+    var str = "local";
+    print(str);
+}
+
+scopeTest();
+// 输出：
+// undefined
 // local
 ```
 
@@ -101,7 +101,7 @@ scopeTest();
 逗号: 在一条语句中执行多个运算。
 其它
 
-* `delete`: 删除对以前定义的对象属性或方法的引用。不能删除开发者未定义的属性和方法。
+* `delete`: 删除对象属性或方法的引用。
 * `void`: 对任何值返回undefined。通常用于避免输出不应该输出的值。
 
 
@@ -117,44 +117,11 @@ with语句用于设置代码在特定对象中的作用域。with语句效率较
 
 
 ## 引用类型
-### 对象
-对象是由new运算符加上要实例化的对象的名字创建的。 var oObject = new Object; 或 var oObject = { }; 销毁: oObject = null;
-```
-// 构造函数  
-function Car(sColor,iDoors,iMpg) {  
-    this.color = sColor;  
-    this.doors = iDoors;  
-    this.mpg = iMpg;  
-    this.showColor = function() {  // 重复创建函数
-        alert(this.color);  
-    };     
-}
-  
-var oCar1 = new Car("red",4,23);  // 以new方式调用，如果返回值不是一个对象（包括没有返回值），则返回的是this  
-var oCar2 = new Car("blue",3,25);  
-```
-
-通过new 操作符来作用与一个函数，实质上会发生这样的动作：首先，创建一个空对象，然后用函数的 apply 方法，将这个空对象传入作为 apply 的第一个参数，及上下文参数。这样函数内部的 this 将会被这个空的对象所替代：
-```
-var triangle = new Shape( "triangle" );    
-// 上一句相当于下面的代码  
-var triangle = {};    
-Shape.apply(triangle, [ "triangle" ]);  
-triangle.__proto__ = Shape.prototype;
-```
-
-* new创建一个对象时，可以在其构造函数（一种类型就是一种构造函数）上定义其原型或者直接指定另一个对象为其原型（MyClass.prototype=），原型里的属性为所有对象共享。这就叫原型继承，所有对象都由Object对象原型继承而来。
-* 实例成员：MyClass.prototype对象成员（this为实例对象）；静态成员：MyClass.prototype.constructor函数（一般是MyClass函数本身，this为undefined）的成员。
-* Boolean, Number, String都有其引用类型，但最好避免使用。也应该避免使用new Object, new Array，而应该使用字面值{ }, [ ]定义。
-* 引用始终指向最终实际的对象，而并非引用本身。
-* 约定在属性前后加下划线说明属性和方法应该被看做私有的。
-* object.prop和object['prop']是一回事，对象的属性名都是以字符串来索引的, 连数组的下标也是。索引一个不存在的属性返回undefined。
-* delete用来删除一个属性。
+引用始终指向最终实际的对象，而并非引用本身。
+Boolean, Number, String都有其引用类型，但最好避免使用。也应该避免使用`new Object`, `new Array`, `new Function`，而应该使用字面值`{ }`, `[ ]`, `function()`定义。
 
 ### Object
-
-#### JSON
-[JavaScript Object Notation](http://json.org/): 对象的字面表示。
+字面表示：[JSON JavaScript Object Notation](http://json.org/)
 
 名称/值”对的集合(Object): 无序的，以"{"开始，"}"结束，"名称"是一个String（如果是个合法的标识符则引号是可选的），每个"名称"后跟一个":"，"名称/值"对之间使用","分隔。
 值的有序列表(Array): 有序集合，以"["开始，"]"结束，值之间使用","分隔。
@@ -163,115 +130,156 @@ triangle.__proto__ = Shape.prototype;
 数值(Number): 与C或者Java的数值非常相似，除了八进制与十六进制格式。
 空白可以加入到任何符号之间。
 
-用new来构建对象/数组的方法已deprecated，直接使用{ }, [ ]来代替。
-用eval(string)和JSON.parse()来从一个string获得JSON对象，后者更安全。
-JSON.stringify()将对象转为JSON字符串表示。
-
-### Date
+object.prop和object['prop']是一回事，对象的属性名都是以字符串来索引的, 连数组的下标也是。索引一个不存在的属性返回undefined。
 
 ### Array
+字面表示：`[ ]`
 length属性(并非只读属性)：表示这个数组的最大整数属性名+1，不一定等于数组里属性的个数。设置更大的length不会分配更多的空间，但设置更小的length会导致多的属性被删除。
 字符串也可以作为数组的下标。
 delete一个数组元素会导致一个空洞，应该使用splice方法。
 
 ### RegExp
-定义：`/pattern/[switches]`, 如果pattern本身就是个变量，则要用new RegExp(pattern, 'switches')，这里pattern是字符串形式，注意escape特殊字符。
+字面表示：`/pattern/[switches]`, 如果pattern本身就是个变量，则要用new RegExp(pattern, 'switches')，这里pattern是字符串形式，注意escape特殊字符。
 
 * i - 忽略大小写开关
 * g - 全局搜索开关
 * m - 多行搜索开关(重定义^与$的意义)
 
-String中支持正则的方法：match(), replace(), split(), search()，$1, $2可以引用匹配的分组，$&引用匹配的整个串。
+String中支持正则的方法：`match()`, `replace()`, `split()`, `search()`，`$1`, `$2`可以引用匹配的分组，`$&`引用匹配的整个串。
 正则匹配时，次数`+,*,{ }`后面加上`?`可以进行非贪婪匹配。
 一个匹配url的例子：
 ```
-var parse_url = /^(?:([A-Za-z]+):)?(\/{0,3})([0-9.\-A-Za-z]+)(?::(\d+))?(?:\/([^?#]*))?(?:\?([^#]*))?(?:#(.*))?$/;  
-// 结果分组为: ['url', 'scheme', 'slash', 'host', 'port', 'path', 'query', 'hash'];  
-// e.g.: ["http://www.google.com:80/search?q=word&n=123&x=abc#tag", "http", "//", "www.google.com", "80", "search", "q=word&n=123&x=abc", "tag"]  
+var parse_url = /^(?:([A-Za-z]+):)?(\/{0,3})([0-9.\-A-Za-z]+)(?::(\d+))?(?:\/([^?#]*))?(?:\?([^#]*))?(?:#(.*))?$/;
+// 结果分组为: ['url', 'scheme', 'slash', 'host', 'port', 'path', 'query', 'hash'];
+// e.g.: ["http://www.google.com:80/search?q=word&n=123&x=abc#tag", "http", "//", "www.google.com", "80", "search", "q=word&n=123&x=abc", "tag"]
 ```
+
+### Date
 
 ### Function
+字面表示：
 ```
-var functionName = function(arg0, arg1, ... argN) {  
-    statements  
-}  
+var functionName = function(arg0, arg1, ... argN) {
+    statements
+}
 
-function functionName(arg0, arg1, ... argN) {  
-    statements  
+function functionName(arg0, arg1, ... argN) {
+    statements
 }
 ```
 如果函数无明确的返回值，或调用了没有参数的return语句，那么它真正返回的值是undefined。
-可以用arguments访问参数。arguments并不是一个真正的数组，不具有数组的一些方法（可以用数组的slice.apply(arguments)来转化成一个数组）。
+可以用arguments访问参数。arguments并不是一个真正的数组，不具有数组的一些方法（可以用数组的`slice.apply(arguments)`来转化成一个数组）。
 任何遗漏的参数都会以undefined传递给函数，多余的函数将忽略。
 函数实际上也是一种功能完整的对象，是一种引用类型。所有函数都应看作Function类的实例。
-尽管可以使用Function构造函数创建函数，但最好不要使用它，因为用它定义函数比用传统方式要慢得多。
-属性length表示了函数期望的参数个数。valueOf()方法和 toString()方法返回的都是函数的源代码。
-在JavaScript中，this表示当前上下文即调用者的引用:
+属性length表示了函数期望的参数个数。`valueOf()`和`toString()`返回的是函数的源代码。
+函数可以递归调用，但没有尾递归。
+
+this表示当前上下文即调用者的引用:
 
 * 当一个函数（包括对象的静态函数）是一个对象的属性：this总是指向调用该函数的对象。
-* 当一个函数不是一个对象的属性：this被绑定到全局变量。
+* 当一个函数不是一个对象的属性（包括内部嵌套函数）：this被绑定到全局对象（ES5严格模式中为undefined）。
 * new：this绑定到新对象上。
-* call或者apply：this将被绑定到call或者apply的第一个参数。apply的第二个参数为一个函数需要的参数组成的一个数组，而call则需要跟若干个参数，参数之间以逗号隔开。
-
-函数可以递归调用，但没有尾递归。
+* `call()`或者`apply()`：this将被绑定到call或者apply的第一个参数。apply的第二个参数为一个函数需要的参数组成的一个数组，而call则需要跟若干个参数，参数之间以逗号隔开。
+* 全局范围内的this指向全局对象（在浏览器中是window）。
 
 
 ## 面向对象
-### prototype
-构造函数会重复生成函数，为每个对象都创建独立的函数版本，prototype里的属性和方法则为每个对象实例共享。
-prototype还可以为本地对象添加或重定义属性和方法。
-prototype只有在检索的时候才用到，更新和删除不会触及原形链里的对象。
+### 类和对象
+类由一个函数定义（构造函数），其实例对象由new操作符创建。
+成员函数一般定义在（构造）函数的prototype成员对象上，函数对象本身为所有实例共享。
+静态成员直接定义在（构造）函数对象上。
+```
+function Rect(color, width, height) {
+    this.color = color;
+    this.width = width;
+    this.height = height;
+}
+Rect.prototype.showColor = function() {  // 原型共享
+    console.log(this.color);
+};
+Rect.showTypeInfo = function() { // static
+    console.log("Rect");
+};
+
+Rect.showTypeInfo();
+var rect = new Rect('red', 4, 23);
+rect.showColor();
+rect = null; // 释放
+```
+
+new创建一个类的实例的机制：
+
+1. 创建一个空对象。
+1. 调用构造函数的 apply 方法，将这个空对象传入作为 apply 的第一个参数，及上下文参数。这样构造函数内部的 this 就会被这个空的对象所替代。
+1. 设置这个对象的`__proto__`属性为类的原型(prototype)。
+1. 返回这个对象。
+
+```
+var rect = new Rect('red', 4, 23);
+// 上一句相当于下面的代码
+var rect = {};
+Rect.apply(rect, ['red', 4, 23]);
+rect.__proto__ = Rect.prototype;
+```
+
+
+### 原型和继承
+原型：一般指构造函数的`prototype`属性对象，prototype里的属性和方法为new出来的每个对象实例共享。
+原型链：一般指实例对象的`__proto__`构成的链，`__proto__`指向构造函数的原型对象。
+
+利用原型可以为本地对象添加或重定义属性和方法。
+原型只有在检索的时候才用到，更新和删除不会触及原形对象，但会隐藏原型里的属性。所以一般原型里只定义方法，数据成员在构造函数里用`this.data`定义。
+
+![javascript-object-layout](http://www.mollypages.org/misc/jsobj.jpg)
+
+* 只有函数有prototype属性。
+* prototype属性里的constructor函数是其构造函数本身。
+* `Function`和`Object`本身也是函数的实例对象，原型是`Function.prototype`。
+* 所有对象都由Object对象原型继承而来，Object原型对象是根节点，其`__proto__`指向了null。
+
+原型继承: 在使用对象的属性或方法时，如果对象本身找不到，会按照原型链`__proto__`的顺序查找属性，直至找到。
+这样就可以用父类的对象重写子类的prototype属性来实现继承：
+```
+function Super(color) {
+    this.color = color;
+}
+Super.prototype.sayColor = function() {
+    console.log(this.color);
+};
+
+function Derived(color, name) {
+    Super.call(this, color);
+    this.name = name;
+}
+Derived.prototype = new Super(); // set super as prototype
+Derived.prototype.constructor = Derived; // reset constructor
+Derived.prototype.sayName = function() {
+    console.log(this.name);
+};
+
+// util函数实现继承 from Node.js
+inherits = function(ctor, superCtor) {
+    ctor.super_ = superCtor;
+    ctor.prototype = Object.create(superCtor.prototype, {  // ES5
+        constructor: {
+            value: ctor,
+            enumerable: false,
+            writable: true,
+            configurable: true
+        }
+    });
+};
+inherits(Derived, Super);
+```
 
 ### 绑定
 所有变量都采用晚绑定（late binding）: 指的是编译器或解释程序在运行前，不知道对象的类型。使用晚绑定，无需检查对象的类型，只需检查对象是否支持属性和方法即可。即调用的时候才去检查。
 ```
-var o = new Object();  
-Object.prototype.sayHi = function() {  
-    alert("hi");  
-};  
+var o = new Object();
+Object.prototype.sayHi = function() {
+    console.log("hi");
+};
 o.sayHi();
-```
-
-### 静态成员
-直接为函数对象添加一个属性：
-```
-function Car() { ... };  
-Car.mark = "ABC";
-```
-
-### 继承
-原型链继承: 用另一类型(父类)的对象重写类(子类)的prototype属性。
-
-```
-function ClassA(sColor) {  
-    this.color = sColor;  
-}  
-ClassA.prototype.sayColor = function() {  
-    alert(this.color);  
-};  
-  
-function ClassB(sColor, sName) {  
-    ClassA.call(this, sColor);
-    this.name = sName;  
-}  
-ClassB.prototype = new ClassA();
-ClassB.prototype.sayName = function() {  
-    alert(this.name);  
-};  
-  
-// 只需要原型函数的更common的继承方法：  
-inherits = function(ctor, superCtor) {  
-    ctor.super_ = superCtor;  
-    ctor.prototype = Object.create(superCtor.prototype, {  // ES5
-        constructor: {  
-            value: ctor,  
-            enumerable: false,  
-            writable: true,  
-            configurable: true  
-        }  
-    });  
-};  
-inherits(ClassB, ClassA);
 ```
 
 
@@ -279,116 +287,116 @@ inherits(ClassB, ClassA);
 ### 闭包
 闭包指的是词法表示包括不被计算的变量的函数，即函数可以使用函数之外定义的变量：
 ```
-function createCounter() {  
-    var i = 0;  
-    return function () {return ++i;}; // 匿名函数  
-}  
-c1 = createCounter()  
+function createCounter() {
+    var i = 0;
+    return function () {return ++i;}; // 匿名函数
+}
+c1 = createCounter()
 c2 = createCounter()
 ```
 
 用闭包来实现对象：
 ```
-function Person(){    
-    var name = "default";       
-       
-    return {    
-       getName : function(){    
-           return name;    
-       },    
-       setName : function(newName){    
-           name = newName;    
-       }    
-    }    
-};    
-     
-var john = Person();    
-print(john.getName());    
-john.setName("john");    
-print(john.getName());    
-     
-var jack = Person();    
-print(jack.getName());    
-jack.setName("jack");    
+function Person(){
+    var name = "default";
+
+    return {
+       getName : function(){
+           return name;
+       },
+       setName : function(newName){
+           name = newName;
+       }
+    }
+};
+
+var john = Person();
+print(john.getName());
+john.setName("john");
+print(john.getName());
+
+var jack = Person();
+print(jack.getName());
+jack.setName("jack");
 print(jack.getName());
 ```
 
 ### 匿名函数
 只执行一次的匿名函数不会污染全局对象（指不需要在全局域中添加不必要的函数名）：
 ```
-var datamodel = {    
-    table : [],    
-    tree : {}    
-};    
-     
-(function(dm){    
-    for(var i = 0; i < dm.table.rows; i++){    
-       var row = dm.table.rows[i];    
-       for(var j = 0; j < row.cells; i++){    
-           drawCell(i, j);    
-       }    
-    }      
+var datamodel = {
+    table : [],
+    tree : {}
+};
+
+(function(dm){
+    for(var i = 0; i < dm.table.rows; i++){
+       var row = dm.table.rows[i];
+       for(var j = 0; j < row.cells; i++){
+           drawCell(i, j);
+       }
+    }
 })(datamodel)
 ```
 
 ### 高阶函数
 以一个或多个函数为参数的函数称之为高阶函数:
 ```
-Array.prototype.map = function(func /*, obj */){    
-    var len = this.length;    
-    //check the argument    
-    if(typeof func != "function"){    
-       throw new Error("argument should be a function!");    
-    }    
-       
-    var res = [];    
-    var obj = arguments[1];    
-    for(var i = 0; i < len; i++){    
-       //func.call(), apply the func to this[i]    
-       res[i] = func.call(obj, this[i], i, this);    
-    }    
-       
-    return res;    
-}    
-  
+Array.prototype.map = function(func /*, obj */){
+    var len = this.length;
+    //check the argument
+    if(typeof func != "function"){
+       throw new Error("argument should be a function!");
+    }
+
+    var res = [];
+    var obj = arguments[1];
+    for(var i = 0; i < len; i++){
+       //func.call(), apply the func to this[i]
+       res[i] = func.call(obj, this[i], i, this);
+    }
+
+    return res;
+}
+
 var mapped = [1, 2, 3, 4, 5].map(function(x){return x * 2});
 ```
 
 ### 柯里化 Currying
 预先将函数的某些参数传入，得到一个简单的函数，但是预先传入的参数被保存在闭包中:
 ```
-var adder = function(num) {    
-    return function(y) {    
-       return num + y;      
-    }    
-}    
-     
-var inc = adder(1);    
+var adder = function(num) {
+    return function(y) {
+       return num + y;
+    }
+}
+
+var inc = adder(1);
 var dec = adder(-1);
 ```
 
 ### Y-结合子
 实现匿名函数的递归操作：
 ```
-var Y = function(f) {    
-  return (function(g) {    
-    return g(g);    
-  })(function(h) {    
-    return function() {    
-      return f(h(h)).apply(null, arguments);    
-    };    
-  });    
-};  
-  
-Y(function(func){    
-    return function(x){    
-       return x == 0 ? 1 : x * func(x-1);    
-    }    
-})(10);    
-  
-// 更简单地，使用arguments.callee属性  
-(function(x){    
-   return x == 0 ? 1 : x * arguments.callee(x-1);    
+var Y = function(f) {
+  return (function(g) {
+    return g(g);
+  })(function(h) {
+    return function() {
+      return f(h(h)).apply(null, arguments);
+    };
+  });
+};
+
+Y(function(func){
+    return function(x){
+       return x == 0 ? 1 : x * func(x-1);
+    }
+})(10);
+
+// 更简单地，使用arguments.callee属性
+(function(x){
+   return x == 0 ? 1 : x * arguments.callee(x-1);
 })(10);
 ```
 
@@ -396,11 +404,11 @@ Y(function(func){
 ## 异常
 exception可以是字符串、整数、逻辑值或者对象。
 ```
-try {  
-    Alert("Welcome guest!")      
-} catch(e) {  
-    alert(e.description)  
-    throw "my error"  
+try {
+    console.log("Welcome guest!")
+} catch(e) {
+    console.log(e.description)
+    throw "my error"
 }
 ```
 
@@ -414,6 +422,8 @@ try {
 ## Reference
 [Ecma-262](http://www.ecma-international.org/publications/standards/Ecma-262-arch.htm)
 [JavaScript | MDN](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[OOP in JS](http://phrogz.net/JS/classes/OOPinJS.html)
+[JavaScript Diagrams](http://www.mollypages.org/misc/index.mp)
 
 </xmp>
 <script src="js/strapdown.js"></script>

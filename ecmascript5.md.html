@@ -31,7 +31,7 @@ writable|false|属性是否可以改变
 ### 锁定
 `Object.preventExtensions(obj)` 阻止将任何新属性添加到对象。
 `Object.isExtensible(obj)` 测试对象是否可扩展。
-`Object.seal(obj)` 首先调用`Object.preventExtensions()`，阻止添加新属性，然后将所有对象特性的 configurable 标志设置为 false。
+`Object.seal(obj)` 调用`Object.preventExtensions()`，阻止添加新属性，然后将所有对象特性的 configurable 标志设置为 false。
 `Object.isSealed(obj)` 测试对象是否被封印。
 `Object.freeze(obj)` 调用`Object.seal()`来封印对象， 然后将对象特性的 writeable 标志设置为 false。
 `Object.isFrozen(obj)` 测试对象是否冻结。
@@ -47,25 +47,54 @@ writable|false|属性是否可以改变
 
 gettter/setter的字面定义法：
 ```
-obj = {  
-    _x: 1,   
-    get name() {return this._x},   
-    set name(v) {this._x = v}  
+obj = {
+    _x: 1,
+    get name() {return this._x},
+    set name(v) {this._x = v}
 }
 ```
 
 
 ## String
+实例方法：
+`trim()` 返回去除两边空白的字符串。
+`trimRight()` (Mozilla扩展)返回去除右边空白的字符串。
+`trimLeft()` (Mozilla扩展)返回去除左边空白的字符串。
 
 ## Array
-判断一个对象是不是数组：Array.isArray()
+`Array.isArray()` 判断一个对象是不是数组
+
+实例方法：
+`indexOf(value)` 使用"==="比较来查找元素，返回第一个找到的下标或-1。
+`lastIndexOf(value)` 反向查找。
+`every(callback)` 对每个元素测试，应用函数都返回true则返回true （应用回调函数的入参: item,index,array，下同）。
+`some(callback)` 对每个元素测试，应用函数只要有一个返回true则返回true。
+`filter(callback)` 返回那些应用函数返回true的元素组成的数组。
+`forEach(callback)` 直接调用应用函数，无返回值。
+`map(callback)` 返回那些应用函数的返回值组成的数组。
+`reduce(callback[, initialValue])` 迭代元素和归并，应用回调函数的入参: pre,cur,index,array，从第二个元素开始（此时pre为第一个元素），当前应用函数的返回值作为下一个元素的第一个参数pre，最终返回最后一次调用的返回值。
+`reduceRight(callback[, initialValue])` 反向归并。
 
 ## Date
+`Date.now()` 获取当前时间的数值表示，相当于`(new Date()).getTime()`。
+
+实例方法：
+`toISOString()` 返回日期的ISO字符串表示。
 
 ## JSON
+`JSON.parse(string)` 从一个字符串获得JSON对象。
+`JSON.stringify(obj [, replacer [, space]])` 将JSON对象转为字符串。
+
 
 ## Function
-bind：返回一个函数待后调用，并绑定this到一个指定对象上，也可以绑定参数。
+`bind(thisArg[, arg1[, argN]])` 返回一个函数待后调用，并绑定this到一个指定对象上，也可以绑定参数。
+
+例子:
+使用定时器回调成员函数：`setTimeout(this.foo.bind(this), 1000);`
+
+把`call`绑定在`bind`上：`var bind = Function.prototype.call.bind(Function.prototype.bind);`
+`bind(func, this, arg);` -> `Function.prototype.bind.call(func, this, arg);` -> `func.bind(this, arg);` -> `function() { func.call(this, arg); }`
+
 
 ## 严格模式
 使用：`'use strict';`，可以仅作用在函数作用域上。
