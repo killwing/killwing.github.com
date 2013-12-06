@@ -32,9 +32,9 @@ String类型，用''或""声明。
 * 有个length属性。
 
 ### 类型测试
-可用typeof运算符测试类型，值域:'number', 'string', 'boolean', 'undefined', 'function', 'object'。(eg: typeof s)
-typeof如果变量是一种引用类型（比如数组）或Null类型（null被认为是对象的占位符）, 返回的是'object'。
-instanceof运算符用于识别正在处理的对象的类型，判断类型的prototype是否在对象的原型链`__proto__`中。(eg: s instanceof String)
+可用`typeof`运算符测试类型，值域:'number', 'string', 'boolean', 'undefined', 'function', 'object'。(eg: `typeof s`)
+`typeof`如果变量是一种引用类型（比如数组）或Null类型（null被认为是对象的占位符）, 返回的是'object'。
+`instanceof`运算符用于识别正在处理的对象的类型，判断类型的prototype是否在对象的原型链`__proto__`中。(eg: `s instanceof String`)
 
 ### 类型转换
 Boolean, Number, String实例都是伪对象，所有对象都有toString()方法。
@@ -103,6 +103,7 @@ scopeTest();
 
 * `delete`: 删除对象属性或方法的引用。
 * `void`: 对任何值返回undefined。通常用于避免输出不应该输出的值。
+* `in`: 测试一个对象里是否有指定的属性，会查找原型链。
 
 
 ## 语句

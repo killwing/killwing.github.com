@@ -2,12 +2,164 @@
 <html>
 <title>ECMAScript6</title>
 <xmp theme="readable" style="display:none;">
+## Block Scoping
+`let`可以使变量作用域限制在block`{ }`范围之内。
+for循环中用`let`声明的的迭代变量只在循环体内可见。
+
+## Iteration
+一个迭代器(iterator)是一个有`next()`方法的对象，并返回`{value, done}`。
+一个可迭代的对象有一个特殊的方法，这个方法返回其迭代器。
+用`for-of`来迭代一个可迭代的对象(`for-in`枚举对象的属性)。
+
+
+## Generators
+> First-class coroutines, represented as objects encapsulating suspended execution contexts.
+
+generator函数产生一个特殊的迭代器(generator)，每运行到`yield`返回为一次迭代，并保留context，下次迭代从上次`yield`处继续往下运行，如果运行到函数结束而没有由`yield`返回则迭代结束（返回对象属性`done`变为true）。
+声明一个generator函数 `function *foo(){ }`。
+
+```
+function *Counter(){
+    let n = 0;
+    while (n < 2) {
+        yield n++;
+    }
+    return 10;
+}
+
+var countIter = new Counter();
+
+// 用next方法迭代
+console.log(countIter.next());
+console.log(countIter.next());
+console.log(countIter.next());
+
+// 或用for-of迭代
+for (let c of countIter) {
+    console.log(c);
+}
+```
+
+输出：
+```
+{ value: 0, done: false }
+{ value: 1, done: false }
+{ value: 10, done: true }
+
+0
+1
+```
+
+
+`next`可以传入参数以替代上次yield的位置：
+```
+function *pow() {
+    let ret = Math.pow(yield "x", yield "y");
+    return ret;
+}
+
+var p = pow();
+console.log(p.next().value); // "x"
+console.log(p.next(2).value); // "y"
+console.log(p.next(10).value); // 1024
+```
+
+
+## Collections
+### Map
+`Map`是一个key/value关联结构，任意类型的值都可以作为key或value。
+key的相等性用`===`比较，除了`NaN`与自身相等，`-0`和`+0`不等。
+
+实例方法/属性：
+`get(key)` 取得key对应的值，没有则返回`undefined`。
+`set(key, value)` 设置key对应的值。
+`has(key)` 测试key对应的是否有值。
+`delete(key)` 删除一个key对应的值。
+`clear()` 清空。
+`size` map的长度。
+
+与`Object`的比较：
+
+* `Object`有一些原型里的默认key/value对，虽然`Map`也继承自`Object`但存取值的方式不一样。
+* `Object`的key只能是`String`，`Map`可以是任意类型。
+* 通过`size`属性可以直接得到`Map`的长度，`Object`需要自己计算。
+
+### WeakMap
+`WeakMap`是一种特殊的`Map`，其key的类型是对象，但此key对对象的引用不影响GC。
+`WeakMap`没有size属性，不可枚举键值。
+
+实例方法：
+`get(key [, defaultValue])` 取得key对应的值，没有可以返回默认值。
+`set(key, value)` 设置key对应的值。
+`has(key)` 测试key对应的是否有值。
+`delete(key)` 删除一个key对应的值。
+`clear()` 清空。
+
+### Set
+`Set`可以存储任意类型的唯一值。
+
+实例方法/属性：
+`add(value)` 加入一个值。
+`delete(value)` 删除一个值。
+`has(value)` 测试是否有值。
+`clear()` 清空。
+`forEach(callbackFn[, thisArg])` 按插入的顺序迭代set。
+`size` set的长度。
+
+
+## Proxies
+Proxies提供了一个元编程API，可以通过traps(代理方法)重新定义原始对象的语义。
+
+`new Proxy(target, hanlder)` target是被代理的对象，hanlder是traps的集合。
+`Proxy.create(handler, proto)`
+
+```
+var handler = {
+    get: function(target, name) {
+        return name in target? target[name] : 42;
+    }
+};
+
+var p = new Proxy({}, handler);
+p.a = 1;
+p.b = undefined;
+
+console.log(p.a, p.b, p.c); // 1, undefined, 42
+```
+
 
 ## class
 class并不是一个新的结构，只是一个语法糖。类和对象的机制还是基于原型链。
 
+
+## module
+
+
+## Numeric Literals
+二进制：0o7177, 0O7177
+八进制：0b010111, 0B010111
+
+
+## Object
+`Object.observe(obj, callback)` 运行时观测一个对象的变化，相关改变信息通过回调返回。
+
+
+## String
+实例方法：
+`repeat(n)` 重复一个字符串。
+`startsWith(searchString [, position])` 测试是否以指定字符串起始，可以指定起始位置。
+`endsWith(searchString [, position])` 测试是否以指定字符串结束，可以指定结束位置。
+`contains(searchString [, position])` 测试是否包含指定字符串，可以指定查找位置。
+
+
+## Array
+`Array.from(arrayish)` 从一个类似数组的对象构造一个数组，这些对象可以索引访问且有length属性。
+`Array.of([elem1], [elem2], ...)` 从一些值构造数组，避免直接用构造函数的一些陷阱。
+
+
 ## Reference
 [ES6 Features Implemented in V8](https://github.com/joyent/node/wiki/ES6-%28a.k.a.-Harmony%29-Features-Implemented-in-V8-and-Available-in-Node)
+[ECMAScript 6 support in Mozilla](https://developer.mozilla.org/en-US/docs/Web/JavaScript/ECMAScript_6_support_in_Mozilla)
 
 </xmp>
 <script src="js/strapdown.js"></script>
