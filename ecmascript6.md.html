@@ -51,7 +51,7 @@ for (let c of countIter) {
 ```
 
 
-`next`可以传入参数以替代上次yield的位置：
+`next(param)`可以传入参数作为上次yield表达式的返回值：
 ```
 function *pow() {
     let ret = Math.pow(yield "x", yield "y");
@@ -63,6 +63,8 @@ console.log(p.next().value); // "x"
 console.log(p.next(2).value); // "y"
 console.log(p.next(10).value); // 1024
 ```
+`throw(error)`可以在yield处抛出异常。
+
 
 
 ## Collections
