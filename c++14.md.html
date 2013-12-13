@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<title>C++14</title>
+<xmp theme="readable" style="display:none;">
+## Lambda
+### Generic Lambdas
+lambda函数参数类型可以声明为`auto`，遵循模板参数推导的规则。
+```
+([](auto x, auto y) { cout << x + y << endl; })(1, 2);
+```
+
+### Initialized Lambda Captures
+允许新声明捕获变量并用任意的表达式初始化，其类型根据初始化表达式推断（类似auto）:
+
+* 任意声明lambda的变量 `[value(10 + exValue)] { return value; }`
+* 通过move捕获 `[value(std::move(exValue))] { return value; }`
+
+
+## Return Type Deduction
+### Normal Functions
+使用`auto`作为返回类型，可以根据return语句（不必须是`return expr;`形式）的表达式类型推断函数（包括lambda）的返回类型。
+
+* 如果有多个return表达式，它们必须可以推断为相同的类型。
+* 可以存在递归，但递归调用必须在至少一个return语句之后。
+
+```
+auto fibonacci(int i) {
+    if (i == 1) {
+        return i; // 1st deduction
+    } else {
+        return fibonacci(i-1) + i;
+    }
+}
+```
+
+### decltype(auto)
+`decltype(auto)`允许auto声明使用decltype的规则对给定表达式的类型进行推导，也可以用于函数返回类型的推导。
+
+
+## Relaxing Requirements on constexpr Functions
+`constexpr`函数比C++11更宽松，可以包含：
+
+* 任何非`static`和`thread_local`的变量声明，必须同时初始化。
+* 条件分支语句`if`和`switch`，循环语句`while`和`for`。
+* 表达式可以改变函数局部变量的值。
+
+被声明为`constexpr`的非静态成员函数可以为非`const`。
+
+
+## Variable Templates
+变量模板，把变量声明为一个模板：
+```
+template<typename T> T pi = T(3.1415926535897932385); // pi<int> 则为3
+template<int i> int tenfold = 10 * i; // tenfold<5> 则为50
+```
+通常的模板的规则（如特化）都适用于变量模板的声明和定义。
+变量模板作为类成员必须是静态成员。
+
+
+## Member Initializers and Aggregates
+聚合体（aggregate）：是一个数组或者一个类，并且类里没有用户定义的构造函数，没有私有或保护非静态成员，没有基类，没有虚函数。
+C++14去除了"没有默认成员初始化（类内初始化）的非静态成员"这一原有限制。
+
+
+## Binary Literals
+使用前缀0b或0B来表示二进制字面值。`0b01010101`
+
+
+## `'` as Digit Separator
+使用单引号来分隔数字。`1'000'000`
+
+
+## [[deprecated]] attribute
+使用这个属性可以使编译器产生警告信息，表示不建议使用此实体。
+
+
+## STL Enhancements
+### Integer Sequence
+header: `<utility>`
+
+编译期的整数序列。
+`std::index_sequence`是一个特殊的`std::integer_sequence`，其类型为`std::size_t`:
+```
+template<std::size_t... Ints>
+using index_sequence = std::integer_sequence<std::size_t, Ints...>;
+```
+
+把`std::array`转为`std::tuple`:
+```
+template<typename Array, std::size_t... I>
+auto a2t_impl(const Array& a, std::index_sequence<I...>) {
+    return std::make_tuple(a[I]...);
+}
+
+template<typename T, std::size_t N, typename Indices = std::make_index_sequence<N>>
+auto a2t(const std::array<T, N>& a) {
+    return a2t_impl(a, Indices());
+}
+```
+
+### Standard User-Defined Literals
+标准自定义字面值（非标准自定义必须以下划线开头）：
+
+* `s` 从字符串字面值创建`std::basic_string`类型。`"hello"s.size(); // 5`
+* `h`、`min`、`s`、`ms`、`us`、`ns` 从数字字面值创建`std::chrono::duration`时间间隔。
+
+### Others
+* `std::cbegin` `std::cend`
+* `std::shared_mutex` `std::shared_lock`
+* `std::make_unique`
+* 允许通过可以和实际的键类型进行比较操作的类型对四种关联容器(set/multiset/map/multimap)进行查找。
+* 允许使用类型代替常数索引，从`std::tuple`中获取值，限制是tuple中不能有多于一个这种类型的值。
+
+## Misc
+* Tweak to Certain C++ Contextual Conversions
+* Clarifying Memory Allocation
+* C++ Sized Deallocation
+
+
+## Reference
+[Working Draft, Standard for Programming Language C++ (N3797)](http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2013/n3797.pdf)
+[C++14, C++11 and C++98 Support in Clang](http://clang.llvm.org/cxx_status.html)
+[C++14 Wikipedia](http://zh.wikipedia.org/wiki/C%2B%2B14)
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
+
