@@ -124,6 +124,9 @@ http://www.gotw.ca/gotw/
 * Never `#include` a header when a forward declaration will suffice.
 如果一个前向声明可以满足的话就不要`#include`头文件。
 
+* For widely-included classes whose implementations may change, or to provide ABI-safety or binary compatibility, consider using the compiler-firewall idiom (Pimpl Idiom) to hide implementation details. Use an opaque pointer (a pointer to a declared but undefined class) declared as `struct impl; std::unique_ptr<impl> pimpl;` to store private nonvirtual members.
+对于会被广泛包含而实现又经常改变的类，或为了提供ABI安全性或二进制兼容性，考虑使用编译期防火墙手法（Pimpl）来隐藏实现细节。使用一个不透明指针（一个声明了但未定义的类的指针）并声明为`struct impl; std::unique_ptr<impl> pimpl;`来存放私有非虚成员。
+
 
 ## 89 Smart Pointers
 * Prefer to use the standard smart pointers, `unique_ptr` by default and `shared_ptr` if sharing is needed. They are the common types that all C++ libraries can understand. Use other smart pointer types only if necessary for interoperability with other libraries, or when necessary for custom behavior you can’t achieve with deleters and allocators on the standard pointers.
