@@ -127,6 +127,9 @@ http://www.gotw.ca/gotw/
 * For widely-included classes whose implementations may change, or to provide ABI-safety or binary compatibility, consider using the compiler-firewall idiom (Pimpl Idiom) to hide implementation details. Use an opaque pointer (a pointer to a declared but undefined class) declared as `struct impl; std::unique_ptr<impl> pimpl;` to store private nonvirtual members.
 对于会被广泛包含而实现又经常改变的类，或为了提供ABI安全性或二进制兼容性，考虑使用编译期防火墙手法（Pimpl）来隐藏实现细节。使用一个不透明指针（一个声明了但未定义的类的指针）并声明为`struct impl; std::unique_ptr<impl> pimpl;`来存放私有非虚成员。
 
+* Never inherit when composition is sufficient.
+如果组合能满足就不要用继承。
+
 
 ## 89 Smart Pointers
 * Prefer to use the standard smart pointers, `unique_ptr` by default and `shared_ptr` if sharing is needed. They are the common types that all C++ libraries can understand. Use other smart pointer types only if necessary for interoperability with other libraries, or when necessary for custom behavior you can’t achieve with deleters and allocators on the standard pointers.
@@ -224,6 +227,22 @@ http://www.gotw.ca/gotw/
 * Remember that preferring `auto` variables is motivated primarily by correctness, performance, maintainability, and robustness—and only lastly about typing convenience.
 记住优先使用`auto`主要是为了正确性，性能，可维护性以及强壮性，最后简化书写。
 
+
+## 95 Thread Safety and Synchronization
+* Reads (`const` operations) on a shared object are safe to run concurrently with each other without synchronization.
+在一个共享对象上的读操作（`const`操作）可以安全地并发进行而不需要同步。
+
+* A type should only be fully internally synchronized if and only if its purpose is to provide inter-thread communication (e.g., a message queue) or synchronization (e.g., a mutex).
+如果一个类型的目的只是提供线程间通信（如：一个消息队列）或同步（如：一个互斥体），它应该是完全内部同步的。
+
+* The code that knows about and owns a writeable shared variable is responsible for synchronizing access to it.
+知道和拥有（可能被不同线程）可写共享变量的代码有责任同步地访问它。
+
+* It is always true that the code that knows about and owns a writeable shared variable is responsible for synchronizing access to it. If the writeable shared state is hidden inside the implementation of some class, then it’s simply that class’ internals that are the ‘owning code’ that has to synchronize access to (just) the shared state that only it knows about.
+上一条总为真。如果可写的共享状态被一些类隐藏在实现内部，那么只有这些类的内部代码拥有并知道它的共享状态从而必须同步地访问它。
+
+* If you design a class where two objects may invisibly share state under the covers, it is your class’ responsibility to internally synchronize access to that `mutable` shared state (only) that it owns and that only it can see, because the calling code can’t. If you opt for under-the-covers-sharing strategies like copy-on-write, be aware of the duty you’re taking on for yourself and code with care.
+如果你设计一个类，它的两个对象可能在内部共享状态，你的类有责任在内部同步地访问它所拥有也只有它能看见的`mutable`共享变量，因为调用代码无法做到。如果你采用了内部共享技术如写时复制，了解你自己（设计的类）的责任，小心编码。
 
 </xmp>
 <script src="js/strapdown.js"></script>
