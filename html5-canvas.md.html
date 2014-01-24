@@ -467,6 +467,12 @@ Vector.add = function(v1, v2) {
 Vector.sub = function(v1, v2) {
     return new Vector(v1.x - v2.x, v1.y - v2.y);
 };
+Vector.mult = function(v, n) {
+    return new Vector(v.x * n, v.y * n);
+};
+Vector.div = function(v, n) {
+    return new Vector(v.x / n, v.y / n);
+};
 Vector.prototype.set = function(x, y) {
     if (typeof x === 'object' && typeof y === 'undefined') {
         this.x = x.x;
@@ -475,6 +481,10 @@ Vector.prototype.set = function(x, y) {
         this.x = x;
         this.y = y;
     }
+};
+Vector.prototype.reset = function(x, y) {
+    this.x = 0;
+    this.y = 0;
 };
 Vector.prototype.debug = function() {
     console.debug('x: ', this.x, 'y: ', this.y);
@@ -514,12 +524,20 @@ Vector.prototype.limit = function(max) {
 
 ### Formula
 #### 速度 velocity
-`v = s/t`: 单位时间的距离
+`v = s / t`: 单位时间的距离
 对于每帧（单位时间），新位置就等于现在的位置加上速度：`loc2 = loc1 + v`
 
 #### 加速度 acceleration
-`a = v/t`: 单位时间的速度，速度的变化
+`a = v / t`: 单位时间的速度，速度的变化
 对于每帧（单位时间），新速度就等于现在的速度加上加速度：`v2 = v1 + a`
+
+#### 力 force
+`f = m * a`: 牛顿第二运动定律
+对于单位质量（比如一个像素），加速度就等于力：`f = a`
+
+重力`G = m * g`: `g = 9.8 m/s2`
+摩擦力`f = -⊽ * μ * N`: `⊽`单位速度（仅方向），`N`正压力
+[流体阻力](http://zh.wikipedia.org/wiki/%E9%98%BB%E5%8A%9B%E6%96%B9%E7%A8%8B): `F = -⊽ * ρ * v^2 * A * C * 1/2`
 
 
 ## Reference
