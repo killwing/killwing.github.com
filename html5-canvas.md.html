@@ -524,20 +524,20 @@ Vector.prototype.limit = function(max) {
 
 ### Formula
 #### 速度 velocity
-`v = s / t`: 单位时间的距离
+\`v = s/t\` 单位时间的距离
 对于每帧（单位时间），新位置就等于现在的位置加上速度：`loc2 = loc1 + v`
 
 #### 加速度 acceleration
-`a = v / t`: 单位时间的速度，速度的变化
+\`a = v/t\` 单位时间的速度，速度的变化
 对于每帧（单位时间），新速度就等于现在的速度加上加速度：`v2 = v1 + a`
 
 #### 力 force
-`f = m * a`: 牛顿第二运动定律
+\`f = ma\` 牛顿第二运动定律
 对于单位质量（比如一个像素），加速度就等于力：`f = a`
 
-重力`G = m * g`: `g = 9.8 m/s2`
-摩擦力`f = -⊽ * μ * N`: `⊽`单位速度（仅方向），`N`正压力
-[流体阻力](http://zh.wikipedia.org/wiki/%E9%98%BB%E5%8A%9B%E6%96%B9%E7%A8%8B): `F = -⊽ * ρ * v^2 * A * C * 1/2`
+[重力](http://zh.wikipedia.org/wiki/%E9%87%8D%E9%87%8F): \`G = mg\`
+[滑动摩擦力](http://zh.wikipedia.org/wiki/%E6%BB%91%E5%8A%A8%E6%91%A9%E6%93%A6): \`f = -μN hat(v)\`
+[流体阻力](http://zh.wikipedia.org/wiki/%E9%98%BB%E5%8A%9B%E6%96%B9%E7%A8%8B): \`F_d = -1/2ρv^2AC_d hat(v)\`
 
 
 ## Reference
@@ -548,4 +548,6 @@ Vector.prototype.limit = function(max) {
 
 </xmp>
 <script src="js/strapdown.js"></script>
+<script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full"></script>
+</script>
 </html>
