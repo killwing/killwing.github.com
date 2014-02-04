@@ -45,6 +45,8 @@ function canvasSupport() {
 * width: canvas的宽度
 * height: canvas的高度
 
+用style设置宽高度只是放大缩小而不改变画布区域像素数目。
+
 方法：
 
 * getContext(contextId): 取得context对象。
@@ -84,7 +86,7 @@ context有个当前绘制状态，全局地对（之后绘制）整个canvas起�
 ### Path
 方法：
 
-* beginPath()：开始路径
+* beginPath()：开始路径或重置当前路径
 * closePath()：闭合路径
 * fill(): 填充
 * stroke()：描边
@@ -94,6 +96,7 @@ context有个当前绘制状态，全局地对（之后绘制）整个canvas起�
 * quadraticCurveTo(cpx, cpy, x, y)：二次方曲线
 * bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y)：贝塞尔曲线
 * arc(x, y, radius, startAngle, endAngle, anticlockwise)：弧线
+* ellipse(x, y, radiusX, radiusY, rotation, startAngle, endAngle, anticlockwise)：椭圆
 * rect(x, y, width, height)：矩形
 * arcTo(x1, y1, x2, y2, radius)：夹角弧线
 * isPointInPath(x, y): 检查一个点是否在当前路径上
