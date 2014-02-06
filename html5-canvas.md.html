@@ -54,7 +54,7 @@ function canvasSupport() {
 * toBlob(): 返回一个图像文件的引用。
 
 Canvas是屏幕上可被JavaScript操纵的立即模式的位图区域。当调用Canvas JavaScript API的时候，canvas会在每一帧上完全重绘位图。这和在保留模式操作的Flash, Silverlight或SVG不一样，图形渲染器保存了一个对象的显示列表，对象根据其代码里设置的属性显示在屏幕上。
-如果canvas的高度或宽度被重新设置，其内容会被清空。Canvas DOM元素原型是`HTMLCanvasElement`。
+如果canvas的高度或宽度被重新设置，其内容会被清空（context也会被重置）。Canvas DOM元素原型是`HTMLCanvasElement`。
 
 ### Context
 属性：
@@ -452,109 +452,12 @@ theCanvas.addEventListener('mousemove', function(e) {
 * 禁止滚动: `event.preventDefault();`
 
 
-## Animation
-### Vector
-既有方向(direction)又有大小(magnitude)的量叫做向量。
-位置，方向，速度，加速度，力都可以用向量来表示。
-```
-function Vector(x, y) {
-    this.set(x, y);
-};
-Vector.random2D = function() {
-    var r = Math.random() * 2 * Math.PI;
-    return new Vector(Math.cos(r), Math.sin(r));
-};
-Vector.add = function(v1, v2) {
-    return new Vector(v1.x + v2.x, v1.y + v2.y);
-};
-Vector.sub = function(v1, v2) {
-    return new Vector(v1.x - v2.x, v1.y - v2.y);
-};
-Vector.mult = function(v, n) {
-    return new Vector(v.x * n, v.y * n);
-};
-Vector.div = function(v, n) {
-    return new Vector(v.x / n, v.y / n);
-};
-Vector.prototype.set = function(x, y) {
-    if (typeof x === 'object' && typeof y === 'undefined') {
-        this.x = x.x;
-        this.y = x.y;
-    } else {
-        this.x = x;
-        this.y = y;
-    }
-};
-Vector.prototype.reset = function(x, y) {
-    this.x = 0;
-    this.y = 0;
-};
-Vector.prototype.debug = function() {
-    console.debug('x: ', this.x, 'y: ', this.y);
-};
-Vector.prototype.add = function(v) {
-    this.x += v.x;
-    this.y += v.y;
-};
-Vector.prototype.sub = function(v) {
-    this.x -= v.x;
-    this.y -= v.y;
-};
-Vector.prototype.mult = function(n) {
-    this.x *= n;
-    this.y *= n;
-};
-Vector.prototype.div = function(n) {
-    this.x /= n;
-    this.y /= n;
-};
-Vector.prototype.mag = function(v) {
-    return Math.sqrt(this.x * this.x + this.y * this.y);
-};
-Vector.prototype.normalize = function(v) {
-    var m = this.mag();
-    if (m != 0) {
-        this.div(m);
-    }
-};
-Vector.prototype.limit = function(max) {
-    if (this.mag() > max) {
-        this.normalize();
-        this.mult(max);
-    }
-};
-Vector.prototype.heading = function() {
-    return Math.atan2(this.y, this.x);
-};
-```
-
-### Formula
-#### 速度 velocity
-\`v = s/t\` 单位时间的距离
-对于每帧（单位时间），新位置就等于现在的位置加上速度：`loc2 = loc1 + v`
-
-#### 加速度 acceleration
-\`a = v/t\` 单位时间的速度，速度的变化
-对于每帧（单位时间），新速度就等于现在的速度加上加速度：`v2 = v1 + a`
-
-#### 力 force
-\`f = ma\` 牛顿第二运动定律
-对于单位质量（比如一个像素），加速度就等于力：`f = a`
-
-[重力](http://zh.wikipedia.org/wiki/%E9%87%8D%E9%87%8F): \`W = mg\`
-[滑动摩擦力](http://zh.wikipedia.org/wiki/%E6%BB%91%E5%8A%A8%E6%91%A9%E6%93%A6): \`f = -μN hat(v)\`
-[流体阻力](http://zh.wikipedia.org/wiki/%E9%98%BB%E5%8A%9B%E6%96%B9%E7%A8%8B): \`F_d = -1/2ρv^2AC_d hat(v)\`
-[万有引力](http://zh.wikipedia.org/wiki/%E7%89%9B%E9%A1%BF%E4%B8%87%E6%9C%89%E5%BC%95%E5%8A%9B%E5%AE%9A%E5%BE%8B): \`F = G(m_1m_2)/r^2 hat(r)\`
-
-
 ## Reference
 [W3C HTML Canvas 2D Context](http://www.w3.org/html/wg/drafts/2dcontext/html5_canvas/)
 [HTML Living Standard The canvas element](http://www.whatwg.org/specs/web-apps/current-work/multipage/the-canvas-element.html#the-canvas-element)
 [HTML5 Canvas](http://chimera.labs.oreilly.com/books/1234000001654)
-[The Nature of Code](http://natureofcode.com/book/)
 
 </xmp>
 <script src="js/strapdown.js"></script>
-<script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full"></script>
 </script>
 </html>
