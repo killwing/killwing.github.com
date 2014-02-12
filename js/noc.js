@@ -251,11 +251,12 @@ Vector.prototype.heading = function() {
 };
 
 
-function Mover(location, velocity, acceleration) {
-    this.location = location;
+function Mover(location, velocity, acceleration, mass) {
+    this.location = location || new Vector(0, 0);
     this.velocity = velocity || new Vector(0, 0);
     this.acceleration = acceleration || new Vector(0, 0);
-    this.topSpeed = 5;
+    this.topSpeed = 10;
+    this.mass = mass || 5;
 }
 Mover.prototype.update = function() {
     this.velocity.add(this.acceleration);
@@ -267,7 +268,7 @@ Mover.prototype.display = function(ctx, noclear) {
         ctx.canvas.width = ctx.canvas.width;
     }
     ctx.beginPath();
-    ctx.arc(this.location.x, this.location.y, 32, 0, 2 * Math.PI, false);
+    ctx.arc(this.location.x, this.location.y, this.mass * 32/5, 0, 2 * Math.PI, false);
     ctx.globalAlpha = 0.3;
     ctx.fill();
     ctx.globalAlpha = 1;
@@ -285,6 +286,31 @@ Mover.prototype.checkEdges = function(width, height) {
     } else if (this.location.y < 0) {
         this.location.y = height;
     }
+};
+Mover.prototype.checkWalls = function(width, height) {
+    if (this.location.x > width) {
+        this.location.x = width;
+        this.velocity.x *= -1;
+    } else if (this.location.x < 0) {
+        this.location.x = 0;
+        this.velocity.x *= -1;
+    }
+
+    if (this.location.y > height) {
+        this.location.y = height;
+        this.velocity.y *= -1;
+    } else if (this.location.y < 0) {
+        this.location.y = 0;
+        this.velocity.y *= -1;
+    }
+};
+Mover.prototype.applyForce = function(force) {
+    var f = Vector.div(force, this.mass);
+    this.acceleration.add(f);
+};
+Mover.prototype.applyGravity = function() {
+    var g = 9.8 * 0.01;
+    this.acceleration.add(new Vector(0, g));
 };
 
 (function example_0_1() {
@@ -566,7 +592,6 @@ Mover.prototype.checkEdges = function(width, height) {
 
 (function example_1_8() {
     var m = new Mover(new Vector(WIDTH/2, HEIGHT/2), new Vector(0, 0), new Vector(-0.001, 0.01));
-    m.topSpeed = 10;
     var ew = new EgWidget('example_1_8', m.display.bind(m), function() {
         m.update();
         m.checkEdges(ew.width, ew.height);
@@ -637,4 +662,85 @@ Mover.prototype.checkEdges = function(width, height) {
     ew.run();
 })();
 
+(function example_2_1() {
+    var m = new Mover;
+    var wind = new Vector(0.01, 0);
+    var gravity = new Vector(0, 0.1);
+    m.applyForce(wind);
+    m.applyForce(gravity);
+    var ew = new EgWidget('example_2_1', m.display.bind(m), function() {
+        m.update();
+        m.checkWalls(ew.width, ew.height);
+    }, function() {
+        m.location.reset();
+        m.velocity.reset();
+        m.acceleration.reset();
+        m.applyForce(wind);
+        m.applyForce(gravity);
+    });
+    ew.run();
+})();
+
+(function example_2_2() {
+    var movers = [];
+    var wind = new Vector(0.01, 0);
+    var gravity = new Vector(0, 0.1);
+    for (var i = 0; i < 20; i++) {
+        var m = new Mover(null, null, null, Random.arbitrary(0.1, 5));
+        m.applyForce(wind);
+        m.applyForce(gravity);
+        movers.push(m);
+    }
+    var ew = new EgWidget('example_2_2', function(ctx) {
+        ew.clear();
+        movers.forEach(function(m) {
+            m.display(ctx, true);
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.update();
+            m.checkWalls(ew.width, ew.height);
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.location.reset();
+            m.velocity.reset();
+            m.acceleration.reset();
+            m.applyForce(wind);
+            m.applyForce(gravity);
+        });
+    });
+    ew.run();
+})();
+
+(function example_2_3() {
+    var movers = [];
+    var wind = new Vector(0.01, 0);
+    for (var i = 0; i < 20; i++) {
+        var m = new Mover(null, null, null, Random.arbitrary(0.1, 5));
+        m.applyForce(wind);
+        m.applyGravity();
+        movers.push(m);
+    }
+    var ew = new EgWidget('example_2_3', function(ctx) {
+        ew.clear();
+        movers.forEach(function(m) {
+            m.display(ctx, true);
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.update();
+            m.checkWalls(ew.width, ew.height);
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.location.reset();
+            m.velocity.reset();
+            m.acceleration.reset();
+            m.applyForce(wind);
+            m.applyGravity();
+        });
+    });
+    ew.run();
+})();
 
