@@ -414,9 +414,9 @@ function checkCollide(object1, object2, accurate) {
 theCanvas.addEventListener('mousemove', function(e) {
     var x;
     var y;
-    if (event.pageX || event.pageY) {
-         x = event.pageX;
-         y = event.pageY;
+    if (e.pageX || e.pageY) {
+         x = e.pageX;
+         y = e.pageY;
     } else {
          x = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
          y = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
