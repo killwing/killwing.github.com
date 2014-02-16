@@ -60,9 +60,18 @@ SCTP提供
 client: connect
 server: bind, listen, accept
 
-1. C -> S: SYN J, MSS1
-1. S -> C: SYN K, ACK J+1, MSS2
-1. C -> S: ACK K+1
+<pre class="sequence">
+Title: TCP three-way handshake: Client active open, Server passive open
+Note over Client: socket()
+Note over Server: socket(),bind(),listen()
+Note over Server: accept()
+Note over Client: connect()
+Client->Server: 1. SYN J
+Server->Client: 2. SYN K,ACK J+1
+Note left of Client: connect() return
+Client->Server: 3. ACK K+1
+Note right of Server: accept() return
+</pre>
 
 #### 2.6.2 TCP选项
 每一个SYN可以含多个TCP选项
@@ -75,10 +84,17 @@ server: bind, listen, accept
 主动关闭：close
 被动关闭：read返回EOF -> close
 
-1. C -> S: FIN M
-1. S -> C: ACK M+1
-1. S -> C: FIN N
-1. C -> S: ACK N+1
+<pre class="sequence">
+Title: TCP connection termination: Client active close, Server passive close
+Note over Client: close()
+Client->Server: 1. FIN M
+Note over Server: read() return 0
+Server->Client: 2. ACK M+1
+Note right of Server: half close
+Note over Server: close()
+Server->Client: 3. FIN N
+Client->Server: 4. ACK N+1
+</pre>
 
 在2-3之间，从被动关闭一端到主动关闭一端的数据流动是可能的，称为半关闭。
 当一个进程终止时，所有打开的描述符都被关闭，这会导致仍然打开的任何TCP连接上也发出一个FIN（不需要调close）。
@@ -88,6 +104,50 @@ server: bind, listen, accept
 可以用netstat监视状态
 
 #### 2.6.5 观察分组
+<pre class="sequence">
+Title: TCP connection: Client active, Server passive
+Note over Client: socket()
+Note over Server: socket(),bind(),listen()
+Note over Server: accept()
+Note over Client: connect()
+Client->Server: SYN J, MSS1
+Note left of Client: SYN_SENT
+Note right of Server: SYN_RCVD
+Server->Client: SYN K,ACK J+1, MSS2
+Note left of Client: ESTABLISHED
+Note left of Client: connect() return
+Client->Server: ACK K+1
+Note right of Server: ESTABLISHED
+Note right of Server: accept() return
+
+Note over Server: read()
+Note over Client: write()
+Client->Server: data req 1
+Note right of Server: read() return
+Note over Client: read()
+Note over Server: write()
+Server->Client: data ack 1, data req 2
+Note left of Client: read() return
+Client->Server: data ack 2
+Note over Server: read()
+
+Note over Client: close()
+Client->Server: FIN M
+Note left of Client: FIN_WAIT_1
+Note right of Server: CLOSE_WAIT
+Note over Server: read() return 0
+Server->Client: ACK M+1
+Note left of Client: FIN_WAIT_2
+Note over Server: close()
+Server->Client: FIN N
+Note right of Server: LAST_ACK
+Note left of Client: TIME_WAIT
+Client->Server: ACK N+1
+Note right of Server: CLOSED
+Note left of Client: 2MSL timeout
+Note left of Client: CLOSED
+</pre>
+
 不同方向上MSS值不同不成问题。
 捎带：服务器对客户端的请求的确认是伴随其应答发送，通常在服务器请求并产生应答的时间少于200ms时发生，否则分2个分节发送。
 从TCP切换到UDP将丧失TCP提供给应用进程的全部可靠性，迫使可靠服务的一大堆细节从TCP转移到UDP应用进程。UDP则避免了TCP连接建立和终止所需的开销。
@@ -106,10 +166,19 @@ TIME_WAIT状态存在的两个理由
 client: connect
 server: bind, listen, accept
 
-1. C -> S: INIT(Ta, J)
-1. S -> C: Ta:INIT ACK(Tz, K, cookie C)
-1. C -> S: Tz: COOKIE ECHO C
-1. S -> C: Ta: COOKIE ACK
+<pre class="sequence">
+Title: SCTP four-way handshake: Client active open, Server passive open
+Note over Client: socket()
+Note over Server: socket(),bind(),listen()
+Note over Server: accept()
+Note over Client: connect()
+Client->Server: INIT(Ta, J)
+Server->Client: Ta:INIT ACK(Tz, K, cookie C)
+Client->Server: Tz: COOKIE ECHO C
+Note right of Server: accept() return
+Server->Client: Ta: COOKIE ACK
+Note left of Client: connect() return
+</pre>
 
 在关联有效期内，验证标记Ta必须在对端发送的每个分组中出现，验证标记Tz也必须在本端发送的每个分组中出现。
 四路握手结束时，两端各自选择一个主目的地址用作数据要发送到的目的地。
@@ -119,9 +188,15 @@ server: bind, listen, accept
 主动关闭：close
 被动关闭：read返回EOF -> close
 
-1. C -> S: SHUTDOWN
-1. S -> C: SHUTDOWN ACK
-1. C -> S: SHUTDOWN COMPLETE
+<pre class="sequence">
+Title: SCTP connection termination: Client active close, Server passive close
+Note over Client: close()
+Client->Server: SHUTDOWN
+Note over Server: read() return 0
+Note over Server: close()
+Server->Client: SHUTDOWN ACK
+Client->Server: SHUTDOWN COMPLETE
+</pre>
 
 没有半关闭的关联，当一端关闭某个关联时，另一端必须停止发送新的数据。
 没有TIME_WAIT状态，因为使用了验证标记。
@@ -133,7 +208,7 @@ server: bind, listen, accept
 ### 2.9 端口号
 0~1023: 众所周知的端口，可能的话，相同端口号就分给TCP/UDP/SCTP的同一给定服务。Unix下启动这些端口的服务需要root权限。
 1024~49151: 已注册的端口。
-49152~65535: 私有端口，临时端口。49152 = 65536*3/4
+49152~65535: 私有端口，临时端口。`49152 = 65536*3/4`
 
 socket pair: 一个定义该连接的四元组，唯一标识一个网络上的每个TCP连接。标识每个端点的IP和端口号通常称为一个socket。
 SCTP的同一个关联可能需要多个四元组标识（IP地址各不相同但端口号一样）。
@@ -185,8 +260,12 @@ IPv6套接字结构sockaddr_in6，sin6_family(AF_INET6), sin6_addr, sin6_port。
 传出套接字地址结构的函数：accept, recvfrom, getsockname。
 
 ### 3.4 字节排序函数
-小端：低序字节存储在起始地址。大端：高序字节存储在起始地址。
+小端little-endian：低序字节存储在起始地址。(低地址放低位)
+大端big-endian：高序字节存储在起始地址。(低地址放高位)
+一个字节内部位的排序，不存在大小端问题，高位在前。
 转换函数：htons, htonl, ntohs, ntohl。
+
+位序：在RFC分组图示中，最左边的位是最早出现（最先读到）的最高有效位。
 
 ### 3.5 字节操纵函数
 Berkeley函数strings.h: bzero, bcopy, bcmp。
@@ -210,6 +289,215 @@ IPv4/6协议无关的wrap函数。
 
 
 ## 4 基本TCP套接字编程
+### 4.1 概述
+### 4.2 socket函数
+用socket函数指定期望的通信协议类型。
+
+* family: AF_NET, AF_NET6, AF_LOCAL, AF_ROUTE, AF_KEY
+* type: SOCK_STREAM, SOCK_DGRAM, SOCK_SEQPACKET, SOCK_RAW
+* protocol: IPPROTO_TCP, IPPROTO_UDP, IPPROTO_SCTP
+
+AF前缀表示地址族，PF前缀表示协议族（不常用）。
+
+### 4.3 connect函数
+TCP客户端用connect函数来建立与TCP服务器的连接。
+
+客户在调用connect函数前不必非得调用bind函数，需要的话内核会确定源IP地址，并选择一个临时端口作为源端口。
+
+出错返回：
+
+* 若没有收到SYN分节的响应，则返回ETIMEOUT错误。
+* 若收到SYN的响应是RST，则返回ECONNREFUSED错误。表示服务器上指定的端口没有进程等待连接。
+* 若发出的SYN在中间的某个路由器上引发了一个目的地不可达的ICMP错误，则返回EHOSTUNREACH/ENETUNREACH错误。
+
+若connect失败则该套接字不再可用，必须关闭。创建新的套接字重新连接。
+
+RST是TCP在发生错误时发送的一种TCP分节。产生RST的三种情况是：
+
+* SYN到达而服务器上指定的端口没有进程等待连接（监听）。
+* TCP想取消一个已有连接。
+* TCP接收到一个根本不存在的连接上的分节。
+
+### 4.4 bind函数
+bind函数把一个本地协议地址赋予一个套接字。
+
+对于TCP：
+如果未曾用bind绑定一个端口，当调用connect或listen时，内核就要为相应的套接字选择一个临时端口。
+如果不绑定一个IP地址，对于客户端，内核将根据所有外出网络接口来选择源IP地址；对于服务器，内核就把客户发送的SYN的目的IP地址作为服务器的源IP地址。
+
+通配地址：INADDR_ANY (IPv4), in6addr_any (IPv6)
+
+### 4.5 listen函数
+listen函数仅由TCP服务器调用：把一个未连接的套接字转换成一个被动套接字，指示内核应该接受指向该套接字的连接请求。
+
+内核为任何一个给定的监听套接字维护两个队列：
+
+* 未完成连接队列：收到SYN分节，并发送SYNACK，处于SYN_RCVD状态。
+* 已完成连接队列：已完成三次握手，处于ESTABLISHED状态，长度由backlog参数指定。（还没被accept，收到的数据会被缓存）
+
+在三次握手正常完成的前提下，未完成连接队列中任何一项在其中的存留时间就是一个RTT。
+
+当一个客户端SYN到达时，如果这些队列是满的，TCP就忽略该分节，而不发送RST。
+
+### 4.6 accept函数
+accept函数由TCP服务器调用，从已完成连接队列头返回下一个已完成连接。
+第一个参数是监听套接字，返回已连接套接字描述符。
+
+### 4.7 fork和exec函数
+fork调用一次，返回两次。
+父进程中调用fork之前打开的描述符在fork返回之后和子进程共享（引用计数变为2，为0时资源才会被释放）。
+
+### 4.8 并发服务器
+
+### 4.9 close函数
+close函数用来关闭套接字，并终止TCP连接。
+
+close调用后，该套接字描述符不能再由调用进程使用，TCP将尝试发送已排队等待发送到对端的任何数据，然后才是正常的TCP终止序列。
+
+在引用计数不为0的时候，用shutdown函数代替close以强制在某个TCP连接上发送一个FIN。
+
+### 4.10 getsockname和getpeername函数
+返回与某个套接字关联的本地（外地）协议地址。
+
+如果bind了一个通配IP地址，连接一旦建立，getsockname就可以用于返回由内核赋予该连接使用的本地源IP地址。
+
+### 4.11 小结
+
+## 5 TCP客户/服务器程序实例
+### 5.1 概述
+### 5.2 TCP回射服务器程序：main函数
+### 5.3 TCP回射服务器程序：str_echo函数
+### 5.4 TCP回射客户程序：main函数
+### 5.4 TCP回射客户程序：str_cli函数
+### 5.6 正常启动
+用netstat和ps检查进程状态
+`netstat -a`
+`ps -o pid,ppid,tty,stat,args,wchan`
+
+### 5.7 正常终止
+### 5.8 POSIX信号处理
+有两个信号不能被捕获SIGKILL和SIGSTOP。
+在一个信号处理函数运行期间，正被递交的信号是阻塞的。
+如果一个信号在被阻塞期间产生了一次或多次，那么解阻塞之后只递交一次。
+
+### 5.9 处理SIGCHLD信号
+当阻塞于某个**慢系统调用**的一个进程**捕获**某个信号且相应信号处理函数返回时，该系统调用可能返回一个EINTR错误。
+
+### 5.10 wait和waitpid函数
+要防止僵尸进程，在SIGCHLD信号处理函数中以WNOHANG选项循环调用waitpid而不是wait。
+
+注意三种情况：
+
+* 当fork子进程时，必须捕获SIGCHLD信号。
+* 当捕获信号时，必须处理中断的系统调用。
+* SIGCHLD的信号处理函数必须正确编写，应使用waitpid函数以免留下僵尸进程。
+
+### 5.11 accept返回前连接中止
+当accept返回一个非致命错误，只需再次调用accept。
+
+### 5.12 服务器进程终止
+### 5.13 SIGPIPE信号
+当一个进程向某个已收到RST的套接字执行写操作时，内核向该进程发送一个SIGPIPE信号，默认行为是终止进程。
+
+### 5.14 服务器主机崩溃
+### 5.15 服务器主机崩溃后重启
+如果客户端不主动向服务器发送数据也想检测出主机崩溃，需要使用SO_KEEPALIVE套接字选项或心跳函数。
+
+### 5.16 服务器主机关机
+使用select或poll函数，是的服务器进程的终止一经发生，客户端就能检测到。
+
+### 5.17 TCP程序例子小结
+### 5.18 数据格式
+解决数据格式问题：
+
+* 把所有数值数据作为字符串来传递。
+* 显式定义所支持的数据类型的二进制格式（位数，对齐限制，32/64bit，字节序）。
+
+### 5.19 小结
+
+## 6 I/O复用：select和poll函数
+### 6.1 概述
+I/O复用：内核一旦发现进程指定的一个或多个I/O条件就绪，它就通知进程。
+
+### 6.2 I/O模型
+一个输入操作通常包括两个阶段：
+
+1. 当所等待的分组到达时，它被复制到内核中的某个缓冲区。
+1. 把数据从内核缓冲区复制到应用进程缓冲区。
+
+五种I/O模型：
+
+* 阻塞式I/O：一直阻塞
+* 非阻塞式I/O：主动轮询检查
+* I/O复用：轮询函数阻塞，就绪通知
+* 信号驱动式I/O：就绪信号通知
+* 异步I/O：完成通知
+
+同步I/O操作：导致请求阻塞进程，直到I/O操作完成。（前4种，第二阶段的I/O操作都阻塞进程）
+异步I/O操作：不导致请求进程阻塞。（最后一种）
+
+### 6.3 select函数
+select函数允许进程指示内核等待多个事件中的任何一个发送，并只在有一个或多个事件发生或经历一段指定的时间后才唤醒它。
+
+描述符不局限于套接字，任何描述符都可以用select来测试。
+select等待时通常会被进程在等待期间捕获的信号中断，并从信号处理函数返回。
+select使用描述符集，通常是个整数数组，其中每个整数中的每一位对应一个描述符。
+使用四个宏来设定描述符：FD_ZERO/FD_SET/FD_CLR/FD_ISSET，常量FD_SETSIZE（通常是1024）是fd_set中的描述符总数。
+指定select函数的三个参数指针都为空，就可以得到一个比sleep更精确的定时器（微秒）。
+第一个参数maxfdp1，为了效率原因，它的值应为待测试的最大描述符加1。
+每次调用select函数前，都得再次把所有描述符集内关心的位都置为1。
+
+描述符就绪条件：
+
+* 可读
+    * 有数据可读，read返回大于0
+    * 连接的读半部关闭（接收了FIN），read返回0
+    * 给监听套接字准备好新连接
+* 可写
+    * 有可用于写的空间
+    * 连接的写半部关闭，write将产生SIGPIPE信号
+    * 使用非阻塞connect的套接字已建立连接或已失败
+* 异常
+    * TCP带外数据
+
+对于套接字上发生的错误，则标记为既可读又可写，read/write返回-1。
+
+### 6.4 str_cli函数（修订版）
+### 6.5 批量输入
+ping程序是测量RTT的一个简单方法。
+
+### 6.6 shutdown函数
+close有两个限制，可以用shutdown函数来避免：
+
+* close把描述符引用计数减一，仅在0时才关闭套接字。而shutdown可以不管引用计数都触发TCP正常终止序列。
+* close终止读和写两个方向的数据传送。
+
+shutdown行为（howto参数）：
+
+* SHUT_RD：关闭连接的读半部（并不发送FIN），套接字不再有数据可接收，接收缓冲区的现有数据都丢弃，接收的来自对端的任何数据都被确认并丢弃。
+* SHUT_WR：关闭连接的写半部，称为半关闭，当前留在套接字发送缓冲区的数据将被发送掉，后跟TCP的正常终止序列。
+* SHUT_RDWR：关闭连接的读写。
+
+### 6.7 str_cli函数（再修订版）
+### 6.8 TCP回射服务器程序（修订版）
+当一个服务器处理多个客户时，它绝对不能阻塞只与单个客户相关的某个函数调用。解决：使用非阻塞I/O；单独进程/线程；设置超时。
+
+### 6.9 pselect函数
+pselect是能够处理信号阻塞并提供了更高时间精度的select增强版本。
+
+### 6.10 poll函数
+poll在处理流设备时能提供额外的信息。
+poll没有select的最大描述符问题，由调用者指定长度。也不需要每次重设关心的事件。
+poll识别三类数据：普通(NORM)，优先级带(BAND)，高优先级(PRI)。
+测试就绪的错误部分(POLLERR/POLLHUP/POLLNVAL)不需指定，但发生时会在事件中返回。
+
+关于[epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)：
+epoll效率较高：epoll_wait返回时已经确定了哪些描述符上发生了事件，不用再像select或poll那样一个个检查比对所有描述符。
+相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
+
+
+### 6.11 TCP回射服务器程序（再修订版）
+### 6.12 小结
 
 
 ## 20 广播
@@ -337,4 +625,15 @@ IP多播基础设施是具备域间多播能力的因特网之一部分。
 
 </xmp>
 <script src="js/strapdown.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.4.4/underscore-min.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/raphael/2.1.2/raphael-min.js"></script>
+<script src="js/sequence-diagram-min.js"></script>
+<script>
+var seqs = document.querySelectorAll( ".sequence" );
+for (var i = 0; i < seqs.length; i++) {
+    var diagram = Diagram.parse(seqs[i].innerText);
+    seqs[i].innerHTML = '';
+    diagram.drawSVG(seqs[i], {theme: 'hand'});
+}
+</script>
 </html>
