@@ -178,6 +178,15 @@ var Util = {};
 Util.map = function(v, min1, max1, min2, max2) {
     return ((v - min1) / (max1 - min1)) * (max2 - min2) + min2;
 };
+Util.constrain = function(v, min, max) {
+    if (v < min) {
+        return min;
+    } else if (v > max) {
+        return max;
+    } else {
+        return v;
+    }
+};
 
 
 function Vector(x, y) {
@@ -255,12 +264,14 @@ function Mover(location, velocity, acceleration, mass) {
     this.location = location || new Vector(0, 0);
     this.velocity = velocity || new Vector(0, 0);
     this.acceleration = acceleration || new Vector(0, 0);
-    this.topSpeed = 10;
+    this.topSpeed = 0;
     this.mass = mass || 5;
 }
 Mover.prototype.update = function() {
     this.velocity.add(this.acceleration);
-    this.velocity.limit(this.topSpeed);
+    if (this.topSpeed != 0) {
+        this.velocity.limit(this.topSpeed);
+    }
     this.location.add(this.velocity);
 };
 Mover.prototype.display = function(ctx, noclear) {
@@ -273,6 +284,9 @@ Mover.prototype.display = function(ctx, noclear) {
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.stroke();
+};
+Mover.prototype.limitSpeed = function(s) {
+    this.topSpeed = s;
 };
 Mover.prototype.checkEdges = function(width, height) {
     if (this.location.x > width) {
@@ -311,6 +325,36 @@ Mover.prototype.applyForce = function(force) {
 Mover.prototype.applyGravity = function() {
     var g = 9.8 * 0.01;
     this.acceleration.add(new Vector(0, g));
+};
+Mover.prototype.applyFriction = function(c) {
+    var friction = Vector.mult(this.velocity, -1);
+    friction.normalize();
+    var normal = 1;
+    friction.mult(c * normal);
+
+    this.applyForce(friction);
+};
+Mover.prototype.applyFluidResistance = function(c) {
+    var density = 1;
+    var area = 1;
+    var speed = this.velocity.mag();
+    var drag = Vector.mult(this.velocity, -1);
+    drag.normalize();
+    drag.mult(speed * speed * c * density * area * 0.5);
+
+    this.applyForce(drag);
+};
+Mover.prototype.applyUniversalG = function(m) {
+    var force = Vector.sub(m.location, this.location);
+    var distance = force.mag();
+    distance = Util.constrain(distance, 10, 25);
+
+    var G = 4;
+    force.normalize();
+    var strength = (G * this.mass * m.mass) / (distance * distance);
+    force.mult(strength);
+
+    this.applyForce(force);
 };
 
 (function example_0_1() {
@@ -592,6 +636,7 @@ Mover.prototype.applyGravity = function() {
 
 (function example_1_8() {
     var m = new Mover(new Vector(WIDTH/2, HEIGHT/2), new Vector(0, 0), new Vector(-0.001, 0.01));
+    m.limitSpeed(10);
     var ew = new EgWidget('example_1_8', m.display.bind(m), function() {
         m.update();
         m.checkEdges(ew.width, ew.height);
@@ -605,6 +650,7 @@ Mover.prototype.applyGravity = function() {
 
 (function example_1_9() {
     var m = new Mover(new Vector(WIDTH/2, HEIGHT/2));
+    m.limitSpeed(5);
     var ew = new EgWidget('example_1_9', m.display.bind(m), function() {
         m.acceleration = Vector.random2D();
         m.acceleration.mult(Random.arbitrary(0, 2));
@@ -620,6 +666,7 @@ Mover.prototype.applyGravity = function() {
 
 (function example_1_10() {
     var m = new Mover(new Vector(WIDTH/2, HEIGHT/2));
+    m.limitSpeed(5);
     var ew = new EgWidget('example_1_10', m.display.bind(m), function() {
         var dir = Vector.sub(ew.mouse, m.location);
         dir.normalize();
@@ -637,7 +684,9 @@ Mover.prototype.applyGravity = function() {
 (function example_1_11() {
     var movers = [];
     for (var i = 0; i < 20; i++) {
-        movers.push(new Mover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT))));
+        var m = new Mover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT)));
+        m.limitSpeed(5);
+        movers.push(m);
     }
     var ew = new EgWidget('example_1_11', function(ctx) {
         ew.clear();
@@ -666,17 +715,16 @@ Mover.prototype.applyGravity = function() {
     var m = new Mover;
     var wind = new Vector(0.01, 0);
     var gravity = new Vector(0, 0.1);
-    m.applyForce(wind);
-    m.applyForce(gravity);
     var ew = new EgWidget('example_2_1', m.display.bind(m), function() {
+        m.acceleration.reset();
+        m.applyForce(wind);
+        m.applyForce(gravity);
         m.update();
         m.checkWalls(ew.width, ew.height);
     }, function() {
         m.location.reset();
         m.velocity.reset();
         m.acceleration.reset();
-        m.applyForce(wind);
-        m.applyForce(gravity);
     });
     ew.run();
 })();
@@ -686,10 +734,7 @@ Mover.prototype.applyGravity = function() {
     var wind = new Vector(0.01, 0);
     var gravity = new Vector(0, 0.1);
     for (var i = 0; i < 20; i++) {
-        var m = new Mover(null, null, null, Random.arbitrary(0.1, 5));
-        m.applyForce(wind);
-        m.applyForce(gravity);
-        movers.push(m);
+        movers.push(new Mover(null, null, null, Random.arbitrary(0.1, 5)));
     }
     var ew = new EgWidget('example_2_2', function(ctx) {
         ew.clear();
@@ -698,6 +743,9 @@ Mover.prototype.applyGravity = function() {
         });
     }, function() {
         movers.forEach(function(m) {
+            m.acceleration.reset();
+            m.applyForce(wind);
+            m.applyForce(gravity);
             m.update();
             m.checkWalls(ew.width, ew.height);
         });
@@ -706,8 +754,6 @@ Mover.prototype.applyGravity = function() {
             m.location.reset();
             m.velocity.reset();
             m.acceleration.reset();
-            m.applyForce(wind);
-            m.applyForce(gravity);
         });
     });
     ew.run();
@@ -717,10 +763,7 @@ Mover.prototype.applyGravity = function() {
     var movers = [];
     var wind = new Vector(0.01, 0);
     for (var i = 0; i < 20; i++) {
-        var m = new Mover(null, null, null, Random.arbitrary(0.1, 5));
-        m.applyForce(wind);
-        m.applyGravity();
-        movers.push(m);
+        movers.push(new Mover(null, null, null, Random.arbitrary(0.1, 5)));
     }
     var ew = new EgWidget('example_2_3', function(ctx) {
         ew.clear();
@@ -729,6 +772,9 @@ Mover.prototype.applyGravity = function() {
         });
     }, function() {
         movers.forEach(function(m) {
+            m.acceleration.reset();
+            m.applyForce(wind);
+            m.applyGravity();
             m.update();
             m.checkWalls(ew.width, ew.height);
         });
@@ -737,10 +783,171 @@ Mover.prototype.applyGravity = function() {
             m.location.reset();
             m.velocity.reset();
             m.acceleration.reset();
-            m.applyForce(wind);
-            m.applyGravity();
         });
     });
     ew.run();
 })();
 
+(function example_2_4() {
+    var movers = [];
+    var wind = new Vector(0.01, 0);
+    for (var i = 0; i < 5; i++) {
+        movers.push(new Mover(null, null, null, Random.arbitrary(1, 5)));
+    }
+    var ew = new EgWidget('example_2_4', function(ctx) {
+        ew.clear();
+        movers.forEach(function(m) {
+            m.display(ctx, true);
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.acceleration.reset();
+            m.applyForce(wind);
+            m.applyGravity();
+            m.applyFriction(0.05);
+            m.update();
+            m.checkWalls(ew.width, ew.height);
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.location.reset();
+            m.velocity.reset();
+            m.acceleration.reset();
+        });
+    });
+    ew.run();
+})();
+
+(function example_2_5() {
+    var movers = [];
+    for (var i = 0; i < 10; i++) {
+        movers.push(new Mover(new Vector(Random.arbitrary(0, WIDTH), 0), null, null, Random.arbitrary(1, 5)));
+    }
+    var ew = new EgWidget('example_2_5', function(ctx) {
+        ew.clear();
+        movers.forEach(function(m) {
+            m.display(ctx, true);
+        });
+        // draw fluid
+        ctx.globalAlpha = 0.5;
+        ctx.fillRect(0, ew.height/2, ew.width, ew.height/2);
+    }, function() {
+        movers.forEach(function(m) {
+            m.acceleration.reset();
+            if (m.location.y > ew.height/2) {
+                m.applyFluidResistance(0.1);
+            }
+            m.applyGravity();
+            m.update();
+            m.checkWalls(ew.width, ew.height);
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.location.set(Random.arbitrary(0, WIDTH), 0);
+            m.velocity.reset();
+            m.acceleration.reset();
+        });
+    });
+    ew.run();
+})();
+
+(function example_2_6() {
+    function Attractor() {
+        this.location = new Vector(WIDTH/2, HEIGHT/2);
+        this.mass = 20;
+    }
+    Attractor.prototype.display = function(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.location.x, this.location.y, this.mass * 1.5, 0, 2 * Math.PI, false);
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.stroke();
+    }
+
+    var a = new Attractor;
+    var m = new Mover(new Vector(WIDTH/3, HEIGHT/3), new Vector(0, 3), null, 2);
+    var ew = new EgWidget('example_2_6', function(ctx) {
+        ew.clear();
+        a.display(ctx);
+        m.display(ctx, true);
+    }, function() {
+        m.acceleration.reset();
+        m.applyUniversalG(a);
+        m.update();
+    }, function() {
+        m.location.set(WIDTH/3, HEIGHT/3);
+        m.velocity.set(0, 1);
+        m.acceleration.reset();
+    });
+    ew.run();
+})();
+
+(function example_2_7() {
+    function Attractor() {
+        this.location = new Vector(WIDTH/2, HEIGHT/2);
+        this.mass = 20;
+    }
+    Attractor.prototype.display = function(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.location.x, this.location.y, this.mass * 1.5, 0, 2 * Math.PI, false);
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.stroke();
+    }
+
+    var a = new Attractor;
+    var movers = [];
+    for (var i = 0; i < 10; i++) {
+        movers.push(new Mover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT)), null, null, Random.arbitrary(1, 5)));
+    }
+    var ew = new EgWidget('example_2_7', function(ctx) {
+        ew.clear();
+        movers.forEach(function(m) {
+            m.display(ctx, true);
+        });
+        a.display(ctx);
+    }, function() {
+        movers.forEach(function(m) {
+            m.acceleration.reset();
+            m.applyUniversalG(a);
+            m.update();
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.location.set(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT));
+            m.velocity.reset();
+            m.acceleration.reset();
+        });
+    });
+    ew.run();
+})();
+
+(function example_2_8() {
+    var movers = [];
+    for (var i = 0; i < 10; i++) {
+        movers.push(new Mover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT)), null, null, Random.arbitrary(1, 5)));
+    }
+    var ew = new EgWidget('example_2_8', function(ctx) {
+        ew.clear();
+        movers.forEach(function(m) {
+            m.display(ctx, true);
+        });
+    }, function() {
+        movers.forEach(function(m1) {
+            m1.acceleration.reset();
+            movers.forEach(function(m2) {
+                m1 != m2 && m1.applyUniversalG(m2);
+            });
+            m1.update();
+        });
+    }, function() {
+        movers.forEach(function(m) {
+            m.location.set(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT));
+            m.velocity.reset();
+            m.acceleration.reset();
+        });
+    });
+    ew.run();
+})();
