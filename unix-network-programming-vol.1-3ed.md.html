@@ -12,7 +12,7 @@
 ### 1.7 OSI模型
 网络应用绕过传输层直接使用IPv4/6是可能的，使用raw socket。
 
-协议数据单元PDU（Protocol Data Unit）是指对等层次之间传递的数据单位。 
+协议数据单元PDU（Protocol Data Unit）是指对等层次之间传递的数据单位。
 
 * 物理层: 位（bit）
 * 数据链路层: 帧（frame）
@@ -122,13 +122,14 @@ Note right of Server: accept() return
 
 Note over Server: read()
 Note over Client: write()
-Client->Server: data req 1
+Client->Server: PSH,ACK
+Server->Client: ACK
 Note right of Server: read() return
 Note over Client: read()
 Note over Server: write()
-Server->Client: data ack 1, data req 2
+Server->Client: PSH,ACK
+Client->Server: ACK
 Note left of Client: read() return
-Client->Server: data ack 2
 Note over Server: read()
 
 Note over Client: close()
@@ -381,7 +382,7 @@ close调用后，该套接字描述符不能再由调用进程使用，TCP将尝
 如果一个信号在被阻塞期间产生了一次或多次，那么解阻塞之后只递交一次。
 
 ### 5.9 处理SIGCHLD信号
-当阻塞于某个**慢系统调用**的一个进程**捕获**某个信号且相应信号处理函数返回时，该系统调用可能返回一个EINTR错误。
+当阻塞于某个**慢系统调用**的一个进程**捕获**某个信号且相应信号处理函数返回时，该系统调用可能返回一个错误，并设errno为EINTR。
 
 ### 5.10 wait和waitpid函数
 要防止僵尸进程，在SIGCHLD信号处理函数中以WNOHANG选项循环调用waitpid而不是wait。
@@ -493,6 +494,7 @@ poll识别三类数据：普通(NORM)，优先级带(BAND)，高优先级(PRI)�
 
 关于[epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)：
 epoll效率较高：epoll_wait返回时已经确定了哪些描述符上发生了事件，不用再像select或poll那样一个个检查比对所有描述符。
+支持水平触发LT(level triggered)和边缘触发ET(edge-triggered)两种行为。
 相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
 
 
@@ -629,7 +631,7 @@ IP多播基础设施是具备域间多播能力的因特网之一部分。
 <script src="http://cdnjs.cloudflare.com/ajax/libs/raphael/2.1.2/raphael-min.js"></script>
 <script src="js/sequence-diagram-min.js"></script>
 <script>
-var seqs = document.querySelectorAll( ".sequence" );
+var seqs = document.querySelectorAll(".sequence");
 for (var i = 0; i < seqs.length; i++) {
     var diagram = Diagram.parse(seqs[i].innerText);
     seqs[i].innerHTML = '';
