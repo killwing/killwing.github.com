@@ -7,6 +7,63 @@
 
 对于应用程序提供的每个服务，引入一个单独的事件处理程序来处理某一事件源的某一类型的事件。所有的事件处理程序被注册到一个反应器上，它使用一个同步事件多路分离器等待一个或多个事件源的指示事件。当指示事件发生时，同步事件多路分离器通知反应器，后者同步地分配与事件相关的事件处理程序，以便它可以执行请求的服务。
 
+<pre id="reactorSource" class="class">
+Diagram diagram +dynamic {
+  [@328,122]
+  class Handle;
+  [@20,223]
+  class SynchronousEventDemultiplexer {
+    Operation select;
+  }
+  [@124,20]
+  class Reactor {
+    Operation handle_events;
+    Operation register_handler;
+    Operation remove_handler;
+  }
+  [@511,61]
+  class EventHandler +abstract {
+    Operation handle_event +abstract;
+    Operation get_handle +abstract;
+  }
+  [@598,207]
+  class ConcreteEventHandlerA : EventHandler {
+    Operation handle_event;
+    Operation get_handle;
+  }
+  [@385,207]
+  class ConcreteEventHandlerB : EventHandler {
+    Operation handle_event;
+    Operation get_handle;
+  }
+  dependency uses {
+    client undefined : Reactor;
+    supplier undefined : SynchronousEventDemultiplexer;
+  }
+  association dispatches {
+    role _ : Reactor;
+    role _ : EventHandler +navigable;
+  }
+  [@corner:n-w]
+  association owns {
+    role _ : Handle;
+    role _ : EventHandler +navigable;
+  }
+  [@corner:e-s]
+  association notifies {
+    role _ : SynchronousEventDemultiplexer;
+    role _ : Handle +navigable;
+  }
+  [@corner:s-w]
+  association handle_set {
+    role _ : Reactor;
+    role _ : Handle +navigable;
+  }
+}
+</pre>
+
+<canvas id="reactor" class="UmlCanvas withoutInspector" width="800px" height="300px"></canvas>
+
 **句柄 Handle**
 用来标识事件源，如网络连接或打开文件，它们可以产生并排队指示事件。
 
@@ -30,11 +87,96 @@
 ## Proactor
 这个模式可以让事件驱动的应用程序高效地多路分解和分配由异步操作的完成所触发的服务请求，来达到并发带来的性能好处而避免其害处。
 
+<pre id="proactorSource" class="class">
+Diagram diagram +dynamic {
+  [@126,6]
+  class Initiator;
+  [@342,85]
+  class AsynchronousOperation {
+    Operation async_operation;
+  }
+  [@37,85]
+  class AsynchronousOperationProcessor {
+    Operation execute_async_operation;
+  }
+  [@14,202]
+  class CompletionEventQueue;
+  [@758,79]
+  class CompletionHandler +abstract {
+    Operation handle_event +abstract;
+  }
+  [@255,193]
+  class AsynchronousEventDemultiplexer {
+    Operation get_completion_event;
+  }
+  [@557,189]
+  class Proactor {
+    Operation handle_events;
+  }
+  [@730,191]
+  class ConcreteCompletionHandler : CompletionHandler {
+    Operation handle_event;
+  }
+  [@650,97]
+  class Handle;
+  dependency uses {
+    client undefined : Initiator;
+    supplier undefined : AsynchronousOperationProcessor;
+  }
+  [@corner:ese-n]
+  dependency invokes {
+    client undefined : Initiator;
+    supplier undefined : AsynchronousOperation;
+  }
+  [@corner:w-nw]
+  dependency use {
+    client undefined : Initiator;
+    supplier undefined : CompletionEventQueue;
+  }
+  [@corner:e-n]
+  dependency creates {
+    client undefined : Initiator;
+    supplier undefined : CompletionHandler;
+  }
+  dependency executes {
+    client undefined : AsynchronousOperationProcessor;
+    supplier undefined : AsynchronousOperation;
+  }
+  dependency dequeues {
+    client undefined : AsynchronousEventDemultiplexer;
+    supplier undefined : CompletionEventQueue;
+  }
+  dependency enqueues {
+    client undefined : AsynchronousOperationProcessor;
+    supplier undefined : CompletionEventQueue;
+  }
+  [@corner:n-ws]
+  dependency demultiplexes_and_dispatches {
+    client undefined : Proactor;
+    supplier undefined : CompletionHandler;
+  }
+  association _1 {
+    role _ : Proactor;
+    role _ : AsynchronousEventDemultiplexer +navigable;
+  }
+  association associated_with {
+    role _ : AsynchronousOperation;
+    role _ : Handle;
+  }
+  association _3 {
+    role _ : Handle;
+    role _ : CompletionHandler;
+  }
+}
+</pre>
 
+<canvas id="proactor" class="UmlCanvas withoutInspector" width="1000px" height="280px"></canvas>
 
 ## Reference
 [Pattern-Oriented Software Architecture: Patterns for Concurrent and Networked Objects](https://www.dre.vanderbilt.edu/~schmidt/POSA/POSA2/)
 [The Proactor Design Pattern: Concurrency Without Threads (asio)](http://think-async.com/Asio/asio-1.10.1/doc/asio/overview/core/async.html)
 </xmp>
 <script src="js/strapdown.js"></script>
+<script src="js/UmlCanvas.standalone.min.js"></script>
+<style>.UmlCanvas {border: 1px solid #999;} .class {display: none}</style>
 </html>
