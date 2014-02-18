@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<title>Architectural Patterns</title>
+<xmp theme="readable" style="display:none;">
+## Reactor
+这个模式可以让事件驱动的应用程序多路分解和分配从一个或多个客户端发送来的服务请求。
+
+对于应用程序提供的每个服务，引入一个单独的事件处理程序来处理某一事件源的某一类型的事件。所有的事件处理程序被注册到一个反应器上，它使用一个同步事件多路分离器等待一个或多个事件源的指示事件。当指示事件发生时，同步事件多路分离器通知反应器，后者同步地分配与事件相关的事件处理程序，以便它可以执行请求的服务。
+
+**句柄 Handle**
+用来标识事件源，如网络连接或打开文件，它们可以产生并排队指示事件。
+
+**同步事件多路分离器 Synchronous Event Demultiplexer**
+用来等待发生在一组句柄集上的一个或多个指示事件。
+一个常用的实例是：`select`, `poll`, `epoll`系列函数。
+
+**事件处理程序 Event Handler**
+由一个或多个钩子方法组成的接口。钩子方法用于处理发生在与其关联的句柄上的指示事件。
+
+**具体事件处理程序 Concrete Event Handler**
+钩子方法的具体实现，对应特定的服务。
+
+**反应器 Reactor**
+允许应用程序注册或删除事件处理程序和相应的句柄，并运行事件循环，等待和分配事件。
+
+优点：关注点分离；模块化，可重用性，可配置性；可移植性；粗粒度的并发控制。
+缺点：应用范围限制；非抢先方式；调试和测试的复杂性。
+
+
+## Proactor
+这个模式可以让事件驱动的应用程序高效地多路分解和分配由异步操作的完成所触发的服务请求，来达到并发带来的性能好处而避免其害处。
+
+
+
+## Reference
+[Pattern-Oriented Software Architecture: Patterns for Concurrent and Networked Objects](https://www.dre.vanderbilt.edu/~schmidt/POSA/POSA2/)
+[The Proactor Design Pattern: Concurrency Without Threads (asio)](http://think-async.com/Asio/asio-1.10.1/doc/asio/overview/core/async.html)
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
