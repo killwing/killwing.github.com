@@ -77,7 +77,7 @@ Note right of Server: accept() return
 每一个SYN可以含多个TCP选项
 
 * MSS：最大分节大小，在本连接中的每个TCP分节中愿意接受的最大数据量。发送端使用接收端的MSS作为发送分节的最大大小。设置：TCP_MAXSEG。
-* 最大窗口：连接的任何一端能够通告对端的最大窗口大小是65535。设置：SO_RCVBUF。
+* 窗口规模：TCP连接的任何一端能够通告对端的最大正常窗口大小是65535，这个选项指定了必须扩大（左移）的位数（0-14），因此最大窗口接近1GB（65535*2^14）。SO_RCVBUF选项影响这个选项。
 * 时间戳
 
 #### 2.6.3 TCP连接终止
@@ -96,7 +96,7 @@ Server->Client: 3. FIN N
 Client->Server: 4. ACK N+1
 </pre>
 
-在2-3之间，从被动关闭一端到主动关闭一端的数据流动是可能的，称为半关闭。
+在2-3之间，从被动关闭一端到主动关闭一端的数据流动是可能的，称为**半关闭**。
 当一个进程终止时，所有打开的描述符都被关闭，这会导致仍然打开的任何TCP连接上也发出一个FIN（不需要调close）。
 
 #### 2.6.4 TCP状态转换图
@@ -476,7 +476,7 @@ close有两个限制，可以用shutdown函数来避免：
 shutdown行为（howto参数）：
 
 * SHUT_RD：关闭连接的读半部（并不发送FIN），套接字不再有数据可接收，接收缓冲区的现有数据都丢弃，接收的来自对端的任何数据都被确认并丢弃。
-* SHUT_WR：关闭连接的写半部，称为半关闭，当前留在套接字发送缓冲区的数据将被发送掉，后跟TCP的正常终止序列。
+* SHUT_WR：关闭连接的写半部，称为**半关闭**，当前留在套接字发送缓冲区的数据将被发送掉，后跟TCP的正常终止序列。
 * SHUT_RDWR：关闭连接的读写。
 
 ### 6.7 str_cli函数（再修订版）
@@ -501,6 +501,189 @@ epoll效率较高：epoll_wait返回时已经确定了哪些描述符上发生�
 ### 6.11 TCP回射服务器程序（再修订版）
 ### 6.12 小结
 
+
+## 7 套接字选项
+### 7.1 概述
+### 7.2 getsockopt和setsockopt函数
+对于标志选项，0表示被禁止，非0表示启用。
+
+### 7.3 检查选项是否受支持并获取默认值
+### 7.4 套接字状态
+由TCP已连接套接字从监听套接字继承而来的选项：SO_DEBUG, SO_DONTROUTE, SO_KEEPALIVE, SO_LINGER, SO_OOBINLINE, SO_RCVBUF, SO_RCVLOWAT, SO_SNDBUF, SO_SNDLOWAT, TCP_MAXSEG, TCP_NODELAY.
+如果想在三次握手完成时就确保这些套接字选项是已经给已连接套接字设置好，必须先给监听套接字设置该选项。
+
+### 7.5 通用套接字选项
+设置参数级别：SOL_SOCKET
+
+**SO_BROADCAST 允许发送广播数据报 (UDP)**
+
+**SO_DEBUG 开启调式跟踪 (TCP)**
+信息保存在内核的某个环形缓冲区中，使用`trpt`程序查看。
+
+**SO_DONTROUTE 绕过外出路由表查询**
+
+**SO_ERROR 获取待处理错误并清除**
+当套接字上发生错误时，so_error被设为标准Unix错误值，内核以两种方式立即通知进程：
+
+* 如果阻塞在select调用上，返回可读或可写事件
+* 如果使用信号驱动I/O模型，产生一个SIGIO信号
+
+当read/write返回-1出错时，errno被置为so_error的值，so_error随后被置为0。
+
+**SO_KEEPALIVE 周期性测试连接是否存活 (TCP)**
+如果2小时内在该套接字的任何一方向上都没有数据交换，TCP就自动给对端发送一个保持存活探测分节：
+
+* 对端响应ACK：应用进程不会有任何通知。
+* 对端响应RST：套接字so_error被设为ECONNRESET。
+* 对端没有响应：每75s再发一个，共再发8次，即从第一个开始11分15秒后没有响应则放弃，so_error被设为ETIMEOUT。若收到ICMP错误，那就返回相应的错误（一般为EHOSTUNREACH）。
+
+时间参数为内核所维护，修改会影响该主机上所有开启本选项的套接字。
+本选项的功能是检测对端主机是否崩溃或不可达。也可能会终止一个有效连接。
+一般用于检测**半开连接**并终止它们：对端崩溃，本端一直等待永远不会到达的输入。
+
+检测TCP条件：
+
+本端|对端进程退出或崩溃|对端主机崩溃或对端主机不可达
+-|-|-
+主动发送数据|对端发送FIN，本端可通过select可读事件检测到<br>本端发送数据，对端响应RST，再写会产生SIGPIPE信号|本端TCP将超时，so_error被设为ETIMEOUT/EHOSTUNREACH
+主动接收数据|对端发送FIN，本端读到EOF|停止收到数据
+空闲，KA选项设置|对端发送FIN，本端可通过select可读事件检测到|探测分节无响应，so_error被设为ETIMEOUT/EHOSTUNREACH
+空闲，KA未设置|对端发送FIN，本端可通过select可读事件检测到|（无）
+
+**SO_LINGER 若有数据发送则延时关闭 (TCP/SCTP)**
+当选项开启时(l_onoff != 0)：
+
+* l_linger == 0: 当close时，丢弃发送和接收缓冲区的数据，并发送RST给对端，状态变为CLOSED。
+* l_linger > 0: 延滞的秒数，close阻塞直到：
+    * 所有数据都已发送完，包括FIN均被对方确认。（成功返回，但不能保证对端进程已经读到数据）
+    * 延滞时间到，返回错误。如果套接字是非阻塞型，则立即返回。（失败返回，错误为EWOULDBLOCK，丢弃发送缓冲区数据）
+
+让本端知道对端已读到数据的方法：
+
+* 调用shutdown(SHUT_WR)而不是close，后跟一个read，一直等到接收了对端的FIN才返回。
+* 使用应用级确认。
+
+**SO_OOBINLINE 让接收到的带外数据继续在线留存**
+接收函数的MGS_OOB标志不能用来读带外数据。
+
+**SO_RCVBUF/SO_SNDBUF 接收和发送缓冲区大小**
+对于TCP，套接字接收缓冲区中可用空间限定了通告对端的窗口大小。
+UDP没有发送缓冲区（但有一个大小，影响可发送的最大数据长度），只有接收缓冲区，当接收到的数据报装不进缓冲区时就被丢弃。
+给已连接套接字设置该选项对于可能存在的窗口规模选项没有任何影响。
+TCP套接字缓冲区大小至少应该是相应连接MSS值的四倍。
+设置套接字缓冲区大小时的性能考虑，在于全双工管道的的容量（称为带宽延迟积：带宽*RTT，RTT可以由ping程序测得）。
+POSIX函数fpathconf(_PC_SOCK_MAXBUF)可以获取可设的最大缓冲区大小上限。
+
+**SO_RCVLOWAT/SO_SNDLOWAT 接收和发送缓冲区低水位标记**
+由select函数使用：
+
+* 接收低水位标记是让select返回“可读”时套接字接收缓冲区中所需的数据量。默认都为1.
+* 发送低水位标记是让select返回“可写”时套接字发送缓冲区中所需的可用空间。默认TCP为2048，而UDP只要发送缓冲区大小（为SO_SNDBUF不变）大于该标记就总是可写。
+
+**SO_RCVTIMEO/SO_SNDTIMEO 接收和发送超时**
+接收超时影响5个输入函数：read, readv, recv, recvfrom, recvmsg
+发送超时影响5个输出函数：write, writev, send, sendto, sendmsg
+
+**SO_REUSEADDR/SO_REUSEPORT 允许重用本地地址和端口**
+SO_REUSEADDR的作用：
+
+* 允许启动一个监听服务器并绑定其端口，即使以前建立的相同本地端口的连接仍然存在（但进程实例已经不存在，处理连接的可以是原来进程的子进程）。
+* 允许在同一端口上启动同一服务器的多个实例进程，只要每个实例绑定不同的本地IP地址即可。对于外来请求，使用通配地址的实例总是在最后匹配。
+* 允许单个进程绑定同一端口到多个套接字上，只要每次绑定不同的本地IP地址即可。
+* 允许完全重复IP和端口的绑定，仅UDP可用。单播情况下对于外来请求，哪个套接字接收取决于实现。
+
+SO_REUSEPORT的作用：
+
+* 允许完全重复IP和端口的绑定，要绑定的每个套接字都必须指定此选项。
+* 如果绑定的IP地址是一个多播地址，则和SO_REUSEADDR等效。
+
+建议：
+
+* 对于TCP服务器，在绑定前总是设置SO_REUSEADDR选项。
+* 对于可以同时运行多次的多播应用程序，设置SO_REUSEADDR选项，并将参加多播组的地址作为本地IP地址绑定。
+
+**SO_TYPE 取得套接字类型**
+
+**SO_USELOOPBACK 路由套接字取得所发送数据的副本**
+仅用于路由域套接字，是唯一一个默认打开的SO_系列标志选项。
+
+### 7.6 IPv4套接字选项
+设置参数级别：IPPROTO_IP
+
+**IP_HDRINCL 随数据包含的IP头**
+如果本选项是给一个原始IP套接字设置的，那么必须构造自己的IP头以修改某些字段。
+
+**IP_OPTIONS IP头选项**
+
+**IP_RECVDSTADDR 返回目的IP地址**
+
+**IP_RECVIF 返回接收接口索引**
+
+**IP_TOS 服务类型和优先权**
+
+**IP_TTL 存活时间**
+TCP/UDP使用的默认值是64。
+
+### 7.7 ICMPv6套接字选项
+设置参数级别：IPPROTO_ICMPV6
+
+**ICMP6_FILTER 指定待传递的ICMPv6消息类型**
+
+### 7.8 IPv6套接字选项
+设置参数级别：IPPROTO_IPV6
+
+**IPV6_CHECKSUM 用于原始套接字的校验和字段偏移**
+**IPV6_DONTFRAG 丢弃大的分组而非将其分片**
+**IPV6_NEXTHOP 指定下一跳地址**
+**IPV6_PATHMTU 获取当前路径MTU**
+**IPV6_RECVDSTOPTS 接收目的地选项**
+**IPV6_RECVHOPLIMIT 接收单播跳限**
+**IPV6_RECVHOPOPTS 接收步跳选项**
+**IPV6_RECVPATHMTU 接收路径MTU**
+**IPV6_RECVKTINFO 接收分组信息**
+**IPV6_RECVTHDR 接收源路径**
+**IPV6_RECVTCLASS 接收流通类别**
+**IPV6_UNICAST_HOPS 默认单播跳限**
+**IPV6_USE_MIN_MTU 使用最小MTU**
+**IPV6_V6ONLY 禁止v4兼容**
+**IPV6_XXX 粘附性辅助数据**
+
+### 7.9 TCP套接字选项
+设置参数级别：IPPROTO_TCP
+
+**TCP_MAXSEG TCP最大分节大小**
+套接字连接后，返回TCP可以发送给对端的最大数据量，由对端使用SYN分节通告的MSS。未连接时返回默认值。
+
+**TCP_NODELAY 禁止Nagle算法**
+该算法默认是开启的，目的在于减少广域网上小分组（小于MSS）的数目，防止一个连接在任何时刻有多个小分组待确认。
+常常与另一个TCP算法：ACK延滞算法（ACK尽量与可能的数据一起发回，从而省掉一个TCP分节）联合使用。
+
+### *7.10 SCTP套接字选项*
+设置参数级别：IPPROTO_SCTP
+
+**SCTP_ADAPTION_LAYER 适配层指示**
+**SCTP_ASSOCINFO 检查并设置关联信息**
+**SCTP_AUTOCLOSE 自动关闭操作**
+**SCTP_DEFAULT_SEND_PARAM 默认发送参数**
+**SCTP_DISABLE_FRAGMENTS SCTP分片**
+**SCTP_EVENTS 感兴趣事件的通知**
+**SCTP_GET_PEER_ADDR_INFO 获取对端地址状态**
+**SCTP_I_WAIT_MAPPED_V4_ADDR 映射的v4地址**
+**SCTP_INITMSG 默认的INIT参数**
+**SCTP_MAXBURST 最大爆发大小**
+**SCTP_MAXSEG 最大分片大小**
+**SCTP_NODELAY 禁止Nagle算法**
+**SCTP_PEER_ADDR_PARAMS 对端地址参数**
+**SCTP_PRIMARY_ADDR 主目的地址**
+**SCTP_RTOINFO RTO信息**
+**SCTP_SET_PEER_PRIMARY_ADDR 对端主目的地址**
+**SCTP_STATUS 获取关联状态**
+
+### 7.11 fcntl函数
+和套接字有关的两个标志：O_NONBLOCK（非阻塞式I/O），O_ASYNC（信号驱动式I/O）。
+设置某个文件状态标志的唯一正确方法是：先获取当前标志，与新标志逻辑或（`|=flag`，清除是`&=~flag`）后再设置标志。
+
+### 7.12 小结
 
 ## 20 广播
 ### 20.1 概述
