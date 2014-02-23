@@ -210,13 +210,150 @@ Diagram diagram +dynamic {
 
 在独立进程或线程中同步地处理高层服务以简化并发编程，异步地处理底层服务以增强性能。如果在分离的同步和异步层中的服务必须相互通信或同步它们的处理，则允许它们通过一个排队层向对方传递消息。
 
+<pre id="hshaSource" class="class">
+Diagram diagram +dynamic {
+  [@15,6]
+  note ssl +width="600" +height="60" +text="Synchronous Service\nLayer";
+  [@15,186]
+  note asl +width="600" +height="60" +text="Asynchronous Service\nLayer";
+  [@15,92]
+  note ql +width="600" +height="60" +text="Queueing\nLayer";
+  [@166,15]
+  class SyncService1;
+  [@276,16]
+  class SyncService2;
+  [@396,15]
+  class SyncService3;
+  [@296,102]
+  class Queue;
+  [@277,202]
+  class AsyncService;
+  [@452,202]
+  class ExternalEventSource;
+  [@corner:s-w]
+  dependency read_write1 {
+    client undefined : SyncService1;
+    supplier undefined : Queue;
+  }
+  dependency read_write2 {
+    client undefined : SyncService2;
+    supplier undefined : Queue;
+  }
+  [@corner:s-e]
+  dependency read_write3 {
+    client undefined : SyncService3;
+    supplier undefined : Queue;
+  }
+  dependency enqueue_dequeue {
+    client undefined : AsyncService;
+    supplier undefined : Queue;
+  }
+  dependency interrupt {
+    client undefined : ExternalEventSource;
+    supplier undefined : AsyncService;
+  }
+}
+</pre>
+
+<canvas id="hsha" class="UmlCanvas withoutInspector" width="700px" height="260px"></canvas>
+
 **同步服务层 Synchronous Service Layer**
+完成高层处理服务。运行在独立进程或线程里的同步层里的服务在执行操作时会阻塞。
 
 **异步服务层 Asynchronous Service Layer**
+完成底层处理服务，这些服务一般由一个或多个外部事件源触发。异步层里的服务在执行操作时不会阻塞，从而不会过度降低其它服务的性能。
 
 **排队层 Queueing Layer**
+为同步层和异步层服务之间提供通信机制。当一层要把消息传到另一层时，将这些消息缓存在排队层中，排队层负责通知另一层的服务以获取它们，以类似“生产者/消费者”的方式交互。
 
 **外部事件源 External Event Source**
+产生被异步层接收和处理的事件。
+
+优点：关注点分离；简单化和性能；集中的层间通信。
+缺点：越界开销；高层应用服务可能不会从异步I/O的效率中获益；调试和测试的复杂性。
+
+
+## Leader/Follower
+提供一个高效的并发模型，多线程轮流共享一个事件源集合以检测，多路分离，分配和处理事件源上触发的服务请求。
+
+使用线程池机制，其中的多个线程互相协作，并在检测，多路分离，分配和处理事件时互斥同步。只允许一个线程（领导者）在等待事件源集合上发生事件，同时其它线程（追随者）排队等待成为领导者。当前的领导者线程从事件源集合中检测到一个事件后， 先将一个追随者线程提升为新的领导者，然后扮演处理线程的角色，对事件多路分离并分配给指定的事件处理程序，在处理线程中执行应用相关的事件处理。当前领导者线程在由所有线程共享的事件源上等待新的事件时，多个处理线程可以并发地处理事件，处理完后恢复到追随者角色并等待再次成为领导者。
+
+<pre id="lfSource" class="class">
+Diagram diagram +dynamic {
+  [@289,120]
+  class Handle;
+  [@35,86]
+  class HandleSet {
+    Operation handle_events;
+    Operation deactive_handle;
+    Operation reactive_handle;
+    Operation select;
+  }
+  [@228,11]
+  class ThreadPool {
+    Attribute synchronizer +private;
+    Operation join;
+    Operation promote_new_leader;
+  }
+  [@474,95]
+  class EventHandler +abstract {
+    Operation handle_event +abstract;
+    Operation get_handle +abstract;
+  }
+  [@561,203]
+  class ConcreteEventHandlerA : EventHandler {
+    Operation handle_event;
+    Operation get_handle;
+  }
+  [@333,203]
+  class ConcreteEventHandlerB : EventHandler {
+    Operation handle_event;
+    Operation get_handle;
+  }
+  [@corner:w-n]
+  association _1 {
+    role _ : ThreadPool +shared;
+    role _ : HandleSet;
+  }
+  association _2 {
+    role _ : HandleSet +shared;
+    role _ : Handle;
+  }
+  [@corner:e-n]
+  association demultiplexes {
+    role _ : ThreadPool +shared;
+    role _ : EventHandler;
+  }
+  association uses {
+    role _ : Handle;
+    role _ : EventHandler;
+  }
+  dependency _3 {
+    client undefined : ThreadPool;
+    supplier undefined : Handle;
+  }
+}
+</pre>
+
+<canvas id="lf" class="UmlCanvas withoutInspector" width="800px" height="300px"></canvas>
+
+**句柄 Handle**
+用来标识事件源，如网络连接或打开文件，它们可以产生并排队事件。
+
+**句柄集 Handle Set**
+句柄的集合，可以用来等待集合中句柄上发生的一个或多个事件。当发起一个集合中句柄上的操作而不阻塞时，句柄集返回到它的调用者。
+
+**事件处理程序 Event Handler**
+由一个或多个钩子方法组成的接口。这些方法表示操作的集合，用来处理发生在与其关联的句柄上的和应用相关的事件。
+
+**具体事件处理程序 Concrete Event Handler**
+钩子方法的具体实现，对应特定的服务。
+
+**线程池 Thread Pool**
+一组线程，共享一个同步器（信号或条件变量），并实现协调角色转换（追随-领导-处理）的协议。一个或多个追随者在同步器上排队等待成为领导者。
+
+优点：性能增强；编程简单。
+缺点：实现复杂；缺乏灵活性；网络I/O瓶颈。
 
 
 ## Reference
