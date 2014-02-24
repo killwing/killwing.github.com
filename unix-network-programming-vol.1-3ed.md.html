@@ -492,11 +492,17 @@ poll没有select的最大描述符问题，由调用者指定长度。也不需�
 poll识别三类数据：普通(NORM)，优先级带(BAND)，高优先级(PRI)。
 测试就绪的错误部分(POLLERR/POLLHUP/POLLNVAL)不需指定，但发生时会在事件中返回。
 
-关于[epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)：
-epoll效率较高：epoll_wait返回时已经确定了哪些描述符上发生了事件，不用再像select或poll那样一个个检查比对所有描述符。
-支持水平触发LT(level triggered)和边缘触发ET(edge-triggered)两种行为。
-相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
+----
+Linux中的[epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)：
+epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的所有描述符，不用再像select或poll那样每次一个个检查比对所有描述符，epoll_wait返回时已经确定了哪些描述符上发生了就绪事件。
 
+事件触发的两种行为：
+
+* 水平触发LT(Level Triggered): 默认行为，如果描述符一直在就绪状态就一直触发，就像poll的更快版本。
+* 边缘触发ET(Edge Triggered): 只有描述符状态改变（从未就绪变为就绪）时才触发一次而不会重复触发，效率较LT高。如果read/write返回EAGAIN则变为未就绪状态。因为就绪事件只触发一次，为了避免收不到更多的事件通知而使I/O操作阻塞，读写应该使用非阻塞描述符。
+
+事件类型：EPOLLIN/EPOLLOUT/EPOLLRDHUP/EPOLLPRI/EPOLLERR/EPOLLHUP/EPOLLET/EPOLLONESHOT
+相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
 
 ### 6.11 TCP回射服务器程序（再修订版）
 ### 6.12 小结
@@ -818,7 +824,7 @@ var seqs = document.querySelectorAll(".sequence");
 for (var i = 0; i < seqs.length; i++) {
     var diagram = Diagram.parse(seqs[i].innerText);
     seqs[i].innerHTML = '';
-    diagram.drawSVG(seqs[i], {theme: 'hand'});
+    //diagram.drawSVG(seqs[i], {theme: 'hand'});
 }
 </script>
 </html>
