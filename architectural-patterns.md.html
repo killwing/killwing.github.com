@@ -356,9 +356,85 @@ Diagram diagram +dynamic {
 缺点：实现复杂；缺乏灵活性；网络I/O瓶颈。
 
 
+## Actor
+行动者封装了行为和状态，它们之间只能通过异步消息来通信，消息被投递到对方接收者的邮箱里。
+
+<pre id="actorSource" class="class">
+Diagram diagram +dynamic {
+  [@159,52]
+  class Actor +abstract {
+    Attribute context +private;
+    Operation receive +private +abstract;
+    Operation send +protected;
+    Operation become +protected;
+    Operation unbecome +protected;
+  }
+  [@230,183]
+  class ConcreteActorA : Actor {
+    Operation receive +private;
+  }
+  [@62,183]
+  class ConcreteActorB : Actor {
+    Operation receive +private;
+  }
+  [@30,121]
+  class Behavior;
+  [@340,11]
+  class Mailbox;
+  [@335,100]
+  class Message;
+  [@36,72]
+  class State;
+  association _1 {
+    role _ : Actor +composite;
+    role _ : State;
+  }
+  association _2 {
+    role _ : Actor +composite;
+    role _ : Mailbox;
+  }
+  association _3 {
+    role _ : Actor;
+    role _ : Behavior;
+  }
+  association buffers {
+    role _ : Mailbox;
+    role _ : Message;
+  }
+  association handles {
+    role _ : Actor;
+    role _ : Message +navigable;
+  }
+}
+</pre>
+
+<canvas id="actor" class="UmlCanvas withoutInspector" width="500px" height="280px"></canvas>
+
+**行动者 Actor**
+计算实体，不同实体之间不共享任何成员，外部其它行动者不能查看和得到它的状态，只通过一个标识或引用来表示和传递其本身。行动者提供了一个消息循环来处理消息，可以是基于（轻量级）线程的或基于事件的，接收和处理消息不能阻塞。
+
+**具体行动者 Concrete Actor**
+具体实现了消息接收的方法以及相应消息的处理函数。
+
+**状态 State**
+行动者里的一些反应其可能所处状态的变量，可以是个显式状态机，如[有限状态机](http://www.erlang.org/documentation/doc-4.8.2/doc/design_principles/fsm.html)。状态对于行动者执行要什么样的操作是至关重要的，不能被其它行动者所直接修改破坏。
+
+**消息 Message**
+行动者之间用来交换数据的载体，是不可修改的常量，被异步地发送。一般使用模式匹配来分发消息给处理函数。
+
+**邮箱 Mailbox**
+连接发送者和接收者，一般是个用于缓存消息的先进先出队列FIFO，有多个生产者和一个消费者(MPSC)。每个行动者只有一个邮箱用来排队所有发送者发来的消息，排队是根据所有发送者发送消息的时间，对同一个发送者来说是有序的。
+
+**行为 Behavior**
+定义了对于收到的消息的反应，在那个时间点上采取相应的行动，比如对授权的客户端转发请求，否则拒绝。行为可以随时间或状态而改变。
+
+优点：关注点分离；高度抽象；避免竟态条件，死锁；分布式计算。
+缺点：难以状态同步；异步消息处理；逻辑协议复杂。
+
 ## Reference
 [Pattern-Oriented Software Architecture: Patterns for Concurrent and Networked Objects](https://www.dre.vanderbilt.edu/~schmidt/POSA/POSA2/)
 [The Proactor Design Pattern: Concurrency Without Threads (asio)](http://think-async.com/Asio/asio-1.10.1/doc/asio/overview/core/async.html)
+[What is an Actor? (akka)](http://doc.akka.io/docs/akka/2.2.3/general/actors.html)
 
 </xmp>
 <script src="js/strapdown.js"></script>
