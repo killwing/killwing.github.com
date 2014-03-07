@@ -53,6 +53,9 @@ checkout file first
 ### merge latest version to current checked out file
 `cleartool findmerge filename -flatest -merge`
 
+### find changes from specific date
+`cleartool find . -ver "created_since(5-March-2014)" -branch "brtype(branchname)" -exec 'cleartool desc -fmt "%d %u %n - %c" $CLEARCASE_PN'`
+
 ### resolve "Stale NFS file handle"
 Deactivate a Clearcase view (exit view first).
 `cleartool endview -server my_view`
