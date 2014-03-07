@@ -492,18 +492,6 @@ poll没有select的最大描述符问题，由调用者指定长度。也不需�
 poll识别三类数据：普通(NORM)，优先级带(BAND)，高优先级(PRI)。
 测试就绪的错误部分(POLLERR/POLLHUP/POLLNVAL)不需指定，但发生时会在事件中返回。
 
-----
-Linux中的[epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)：
-epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的所有描述符，不用再像select或poll那样每次一个个检查比对所有描述符，epoll_wait返回时已经确定了哪些描述符上发生了就绪事件。
-
-事件触发的两种行为：
-
-* 水平触发LT(Level Triggered): 默认行为，如果描述符一直在就绪状态就一直触发，就像poll的更快版本。
-* 边缘触发ET(Edge Triggered): 只有描述符状态改变（从未就绪变为就绪）时才触发一次而不会重复触发，效率较LT高。如果read/write返回EAGAIN则变为未就绪状态。因为就绪事件只触发一次，为了避免收不到更多的事件通知而使I/O操作阻塞，读写应该使用非阻塞描述符。
-
-事件类型：EPOLLIN/EPOLLOUT/EPOLLRDHUP/EPOLLPRI/EPOLLERR/EPOLLHUP/EPOLLET/EPOLLONESHOT
-相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
-
 ### 6.11 TCP回射服务器程序（再修订版）
 ### 6.12 小结
 
@@ -673,7 +661,8 @@ TCP/UDP使用的默认值是64。
 套接字连接后，返回TCP可以发送给对端的最大数据量，由对端使用SYN分节通告的MSS。未连接时返回默认值。
 
 **TCP_NODELAY 禁止Nagle算法**
-该算法默认是开启的，目的在于减少广域网上小分组（小于MSS）的数目，防止一个连接在任何时刻有多个小分组待确认。
+Nagle算法：如果某个给定的连接上有待确认数据，由写操作而发送小分组（小于MSS）的行为不会发生，直到现有数据被确认为止。
+该算法默认是开启的，目的在于减少广域网上小分组的数目，防止一个连接在任何时刻有多个小分组待确认。
 常常与另一个TCP算法：ACK延滞算法（ACK尽量与可能的数据一起发回，从而省掉一个TCP分节）联合使用。
 
 ### *7.10 SCTP套接字选项*
@@ -768,6 +757,107 @@ connect用于UDP套接字时，由内核选择本地IP地址（未绑定端口�
 ## *9 基本SCTP套接字编程*
 
 ## *10 SCTP客户/服务器程序例子*
+
+## 14 高级I/O函数
+### 14.1 概述
+### 14.2 套接字超时
+设置超时的方法，都适用于输入输出操作：
+
+* 调用alarm产生SIGALARM信号
+* 在select中阻塞等待I/O
+* 设置SO_RCVTIMEO和SO_SNDTIMEO选项（对connect不适用，超时值75s）
+
+### 14.3 recv和send函数
+带flag的read和write：
+
+flags|说明|recv|send
+-|-|-|-
+MSG_DONTROUTE|绕过路由表查找，同SO_DONTROUTE||√
+MSG_DONTWAIT|仅本操作非阻塞|√|√
+MSG_OOB|发送或接收带外数据|√|√
+MSG_PEEK|窥看外来消息|√|
+MSG_WAITALL|等待所有数据，不在尚未读入请求的字节数前返回（在捕获信号，连接终止或发生错误时仍会返回）|√|
+
+### 14.4 readv和writev函数
+分散读：来自读操作的输入数据被分散到多个应用缓冲区中。
+集中写：来自多个应用缓冲区的数据被集中提供给单个写操作。
+
+writev是一个原子操作，对于基于记录的协议（如UDP）而言，一次调用只产生单个数据报。
+
+### 14.5 recvmsg和sendmsg函数
+最通用的I/O函数。
+只有recvmsg使用msghdr的msg_flags成员（传入传出参数），sendmsg忽略msg_flags成员。
+recvmsg返回的7个标志：
+
+* MSG_BCAST: 本数据报作为链路层广播收取或者其目的IP地址是一个广播地址。用于判定一个UDP数据报是否发往某个广播地址。
+* MSG_MCAST: 本数据报作为链路层多播收取。
+* MSG_TRUNC: 本数据被截断。
+* MSG_CTRUNC: 本数据的辅助数据被截断。
+* MSG_EOR: 返回数据结束的一个逻辑记录（TCP不用）。
+* MSG_OOB: 用于其它协议族。不为TCP带外数据返回。
+* MSG_NOTIFICATION: 由SCTP接收者返回，指示读入的消息是个事件通知。
+
+I/O函数的比较
+
+函数|任何描述符|仅套接字描述符|单个读/写缓冲区|分散读/集中写|可选标志|可选对端地址|可选控制信息
+-|-|-|-|-|-|-|-
+read, write|√||√||||
+readv, writev|√|||√|||
+recv, send||√|√||√||
+recvfrom, sendto||√|√||√|√|
+recvmsg, sendmsg||√||√|√|√|√
+
+### 14.6 辅助数据
+又称控制信息，使用msghdr的msg_control成员发送和接收。
+辅助数据对象：cmsghdr，处理宏CMSG_FIRSTHDR, CMSG_NXTHDR, CMSG_DATA, CMSG_LEN, CMSGSPACE.
+
+### 14.7 排队的数据量
+三种方法：
+
+* 如果是为了避免读阻塞，可以使用非阻塞式I/O。
+* 使用MSG_PEEK标志：只查看，并不读。对于UDP，是下一个数据报的大小。
+* ioctl的FIONREAD命令。对于UDP，是包括所有已排队的数据报。
+
+### 14.8 套接字和标准I/O
+标准I/O函数库可用于套接字：
+
+* fdopen可以从任何一个描述符创建一个标准I/O流，fileno可以获取流的对应描述符。
+* 标准I/O流可以是全双工的，只要以读写方式(r+)打开。但要注意处理读写缓冲。
+* 处理读写问题：给一个套接字打开两个标准I/O流分别用于读和写。
+
+标准I/O函数库执行三类缓冲：
+
+* 完全缓冲：只有缓冲区满，显式调用fflush或调用exit终止才发生I/O。缓冲区大小通常为8192字节。
+* 行缓冲：只有遇到一个换行符，显式调用fflush或调用exit终止才发生I/O。调用setvbuf把流变为行缓冲。
+* 不缓冲：每次调用输出函数都发生I/O。
+
+规则：
+
+* 标准错误输出总是不缓冲。
+* 标准输入输出和所有其它I/O都是完全缓冲，除非它们指代终端设备（使用行缓冲）。套接字不是终端设备，是完全缓冲的。
+
+在便利性不明显时，不要在套接字上使用标准I/O函式库以避免I/O缓冲带来的bug，在缓冲区而不是文本行上执行操作。
+
+### 14.9 高级轮询技术
+Solaris中的/dev/poll
+FreeBSD中的kqueue
+
+----
+Linux中的[epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)：
+epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的所有描述符，不用再像select或poll那样每次一个个检查比对所有描述符，epoll_wait返回时已经确定了哪些描述符上发生了就绪事件。
+
+事件触发的两种行为：
+
+* 水平触发LT(Level Triggered): 默认行为，如果描述符一直在就绪状态就一直触发，就像poll的更快版本。
+* 边缘触发ET(Edge Triggered): 只有描述符状态改变（从未就绪变为就绪）时才触发一次而不会重复触发，效率较LT高。如果read/write返回EAGAIN则变为未就绪状态。因为就绪事件只触发一次，为了避免收不到更多的事件通知而使I/O操作阻塞，读写应该使用非阻塞描述符。
+
+事件类型：EPOLLIN/EPOLLOUT/EPOLLRDHUP/EPOLLPRI/EPOLLERR/EPOLLHUP/EPOLLET/EPOLLONESHOT
+相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
+
+### 14.10 T/TCP: 事务目的TCP
+对TCP的修改版本，能够避免近来彼此通信过的主机之间的三次握手。
+
+### 14.11 小结
 
 
 ## 20 广播
