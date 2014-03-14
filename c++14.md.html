@@ -52,6 +52,7 @@ auto fibonacci(int i) {
 ```
 template<typename T> T pi = T(3.1415926535897932385); // pi<int> 则为3
 template<int i> int tenfold = 10 * i; // tenfold<5> 则为50
+template<typename T, typename U> constexpr bool is_same = std::is_same<T, U>::value; // 简写
 ```
 通常的模板的规则（如特化）都适用于变量模板的声明和定义。
 变量模板作为类成员必须是静态成员。
