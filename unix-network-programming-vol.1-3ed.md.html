@@ -759,6 +759,81 @@ connect用于UDP套接字时，由内核选择本地IP地址（未绑定端口�
 ## *10 SCTP客户/服务器程序例子*
 
 ## 11 名字与地址转换
+### 11.1 概述
+### 11.2 域名系统
+DNS主要用于主机名字与IP地址之间的映射。主机名可以是一个简单名字，也可以是一个全限定域名（FQDN）。
+DNS中的条目称为资源记录（RR）：
+
+* A：把一个主机名映射成一个32位的IPv4地址。
+* AAAA：把一个主机名映射成一个128位的IPv6地址。
+* PTR：指针记录，把IP地址映射成主机名。
+* MX：把一个主机指定作为给定主机的“邮件交换器”。
+* CNAME：规范名字（正式主机名），为常用服务（别名）指派CNAME记录。
+
+文件/etc/resolv.conf通常包含本地服务器主机的IP地址。
+DNS替代：静态主机文件（/etc/hosts），网络信息系统（NIS），轻量目录访问协议（LDAP）。
+
+### 11.3 gethostbyname函数
+查询A记录，把主机名映射成IPv4地址，同时还返回规范名字和别名。
+当发生错误时，设置h_errno而不是errno变量，可以用hstrerror得到错误描述。
+
+### 11.4 gethostbyaddr函数
+查询PTR记录，把IPv4地址映射为主机名。
+
+### 11.5 getservbyname和getservbyport函数
+根据给定名字/端口查找相应服务。
+从名字到端口号的映射关系保存在一个文件中（/etc/services）。
+
+### 11.6 getaddrinfo函数
+处理名字到地址及服务到端口转换，支持IPv4和IPv6。
+
+### 11.7 gai_strerror函数
+根据getaddrinfo返回的错误值得到错误描述。
+
+### 11.8 freeaddrinfo函数
+释放getaddrinfo返回结构所分配的空间。
+
+### 11.9 getaddrinfo函数：IPv6
+### 11.10 getaddrinfo函数：例子
+### 11.11 host_serv函数
+### 11.12 tcp_connect函数
+### 11.13 tcp_listen函数
+### 11.14 udp_client函数
+### 11.15 udp_connect函数
+### 11.16 udp_server函数
+### 11.17 getnameinfo函数
+getaddrinfo的互补函数，根据地址得到主机名和服务，协议无关。
+
+### 11.18 可重入函数
+gethostbyname, gethostbyaddr, getservbyname, getservbyport使用了静态存储，它们是不可重入的。
+inet_pton, inet_ntop可重入，inet_ntoa不可重入。
+getaddrinfo, getnameinfo可重入。
+errno全局变量保存了系统调用返回的错误，若没有任何错误发生，则errno的值不会改变。（SO_ERROR被获取后重置为0）
+标准I/O函数库是不可重入的。
+
+### 11.19 gethostbyname_r和gethostbyaddr_r函数
+改为可重入函数：
+
+* 由调用者分配空间，函数负责填写内容，如getnameinfo。
+* 由函数动态分配空间，调用者负责释放，如getaddrinfo。
+
+### 11.20 作废的IPv6地址解析函数
+Deprecated: RES_USE_INET6, gethostbyname2, getipnodebyname, getipnodebyaddr.
+
+### 11.21 其他网络相关信息
+信息|数据文件|结构|键值查找函数
+-|-|-|-
+主机|/etc/hosts/|hostent|gethostbyaddr, gethostbyname
+网络|/etc/networks|netent|getnetbyaddr, getnetbyname
+协议|/etc/protocols|protoent|getprotobyname, getprotobynumber
+服务|/etc/services|servent|getservbyname, getservbyport
+
+可以用getXXXent, setXXXent, endXXXent系列函数处理数据文件。
+只有主机和网络信息可通过DNS获取，协议和服务信息总是从文件中读取。
+
+### 11.22 小结
+可选方法：直接调用解析器函数（man resolver），以代替使用gethostbyname和gethostbyaddr。
+
 
 ## 14 高级I/O函数
 ### 14.1 概述
