@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<title>Sorting</title>
+<xmp theme="readable" style="display:none;">
+可视化需要harmony支持：Chrome中[开启harmony](chrome://flags/#enable-javascript-harmony)
+
+## 选择排序
+<svg id="selection"></svg>
+
+```
+function selection(a) {
+    for (let i = 0; i != a.length-1; ++i) {
+        var t = i; // min pos
+        // select minimum to front
+        for (let j = i+1; j != a.length; ++j) {
+            if (a[j] < a[t]) {
+                t = j;
+            }
+        }
+        swap(i, t);
+    }
+};
+```
+</xmp>
+<script src="js/strapdown.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/d3/3.4.2/d3.min.js"></script>
+<script src="js/algorithm.js"></script>
+<style> svg {border:thin solid black; display:block;} button {margin: 5px;}</style>
+</html>
