@@ -10,8 +10,8 @@ let COLOR = {
     SORTED: '#2ECC40'
 };
 
-function VisWidget(id, sort) {
-    this.svg = d3.select('#'+id).attr('width', WIDTH).attr('height', HEIGHT);
+function VisWidget(sort) {
+    this.svg = d3.select('#'+sort.name).attr('width', WIDTH).attr('height', HEIGHT);
     this.speed = 1000;
     this.sort = sort;
 
@@ -29,7 +29,7 @@ function VisWidget(id, sort) {
         .attr('fill', COLOR.UNSORTED);
 
     // controls
-    let svgElem = document.getElementById(id);
+    let svgElem = document.getElementById(sort.name);
     let resetBtn = document.createElement('button');
     resetBtn.innerHTML = 'RESET';
     resetBtn.onclick = this.onReset.bind(this);
@@ -124,7 +124,7 @@ VisWidget.prototype.done = function() {
     this.svg.selectAll('rect').attr('fill', COLOR.SORTED);
 }
 
-function *selectionSort(a, swap) {
+function *selection(a, swap) {
     for (let i = 0; i != a.length-1; ++i) {
         let t = i; // min pos
         // select minimum to front
@@ -137,5 +137,5 @@ function *selectionSort(a, swap) {
         yield i;
     }
 };
-new VisWidget('selection', selectionSort);
+new VisWidget(selection);
 

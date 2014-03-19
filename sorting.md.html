@@ -10,7 +10,7 @@
 ```
 function selection(a) {
     for (let i = 0; i != a.length-1; ++i) {
-        var t = i; // min pos
+        let t = i; // min pos
         // select minimum to front
         for (let j = i+1; j != a.length; ++j) {
             if (a[j] < a[t]) {
