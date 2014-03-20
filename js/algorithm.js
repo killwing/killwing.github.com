@@ -10,6 +10,65 @@ let COLOR = {
     SORTED: '#2ECC40'
 };
 
+function VisData() {
+    this.bars = [];
+    this.values = [];
+    this.length = N;
+    for (let i = 0; i < N; ++i) {
+        let b = {};
+        b.w = WIDTH / N - 1;
+        b.h = Math.random() * HEIGHT;
+        b.x = i * (WIDTH / N);
+        b.y = HEIGHT - b.h;
+        b.s = 'UNSORTED'; // state
+
+        this.bars.push(b);
+        this.values.push(b);
+    }
+}
+VisData.prototype.swap = function(i, j) {
+    // swap pos first
+    let temp = this.values[i].x;
+    this.values[i].x = this.values[j].x;
+    this.values[j].x = temp;
+
+    // swap the bar referenced
+    temp = this.values[i];
+    this.values[i] = this.values[j];
+    this.values[j] = temp;
+};
+VisData.prototype.get = function(i) {
+    return this.values[i];
+};
+VisData.prototype.less = function(i, j) {
+    return this.values[i].h < this.values[j].h;
+};
+VisData.prototype.greaterValue = function(i, v) {
+    return this.values[i].h > v.h;
+};
+VisData.prototype.assign = function(i, j) {
+    if (this.emptyX !== undefined) {
+        let newEmptyX = this.values[j].x;
+        this.values[j].x = this.emptyX;
+        this.emptyX = newEmptyX;
+        this.values[i] = this.values[j];
+    } else {
+        this.emptyX = this.values[j].x; // save empty pos
+        this.values[j].x = this.values[i].x;
+        this.values[i] = this.values[j];
+    }
+};
+VisData.prototype.assignValue = function(i, v) {
+    if (this.emptyX !== undefined) {
+        v.x = this.emptyX;
+        this.values[i] = v;
+        this.emptyX = undefined;
+    } // else no empty pos, other value can not be assigned
+};
+VisData.prototype.setSorted = function(i) {
+    this.values[i].s = 'SORTED';
+};
+
 function VisWidget(sort) {
     this.svg = d3.select('#'+sort.name).attr('width', WIDTH).attr('height', HEIGHT);
     this.speed = 1000;
@@ -19,7 +78,7 @@ function VisWidget(sort) {
 
     // init draw
     this.svg.selectAll('rect')
-        .data(this.bars)
+        .data(this.data.bars)
         .enter()
         .append('rect')
         .attr('x', function(d, i) { return d.x; })
@@ -46,20 +105,8 @@ function VisWidget(sort) {
     svgElem.parentNode.insertBefore(playBtn, svgElem.nextSibling);
 }
 VisWidget.prototype.init = function() {
-    this.bars = [];
-    this.values = [];
-    for (let i = 0; i < N; ++i) {
-        let b = {};
-        b.w = WIDTH / N - 1;
-        b.h = Math.random() * HEIGHT;
-        b.x = i * (WIDTH / N);
-        b.y = HEIGHT - b.h;
-        b.s = 'UNSORTED'; // state
-
-        this.bars.push(b);
-        this.values.push(b);
-    }
-    this.gen = new this.sort(this.values, this.swap.bind(this));
+    this.data = new VisData;
+    this.gen = new this.sort(this.data);
 };
 VisWidget.prototype.update = function() {
     let ret = this.gen.next();
@@ -69,11 +116,11 @@ VisWidget.prototype.update = function() {
     }
 
     // update state
-    this.values[ret.value].s = 'SORTED';
+    this.data.setSorted(ret.value);
 
     // redraw
     this.svg.selectAll('rect')
-        .data(this.bars)
+        .data(this.data.bars)
         .transition()
         .duration(1000)
         .attr('x', function(d, i) { return d.x; })
@@ -82,19 +129,10 @@ VisWidget.prototype.update = function() {
         .attr('height', function(d, i) { return d.h; })
         .attr('fill', function(d, i) { return COLOR[d.s]; })
 };
-VisWidget.prototype.swap = function(i, j) {
-    // swap pos first
-    let temp = this.values[i].x;
-    this.values[i].x = this.values[j].x;
-    this.values[j].x = temp;
-
-    // swap the bar referenced
-    temp = this.values[i];
-    this.values[i] = this.values[j];
-    this.values[j] = temp;
-};
 VisWidget.prototype.onPlay = function() {
-    this.timerId = setInterval(this.update.bind(this), this.speed);
+    if (!this.timerId) {
+        this.timerId = setInterval(this.update.bind(this), this.speed);
+    }
 };
 VisWidget.prototype.onStep = function() {
     // stop play first
@@ -111,7 +149,7 @@ VisWidget.prototype.onReset = function() {
     this.init();
 
     this.svg.selectAll('rect')
-        .data(this.bars)
+        .data(this.data.bars)
         .attr('x', function(d, i) { return d.x; })
         .attr('y', function(d, i) { return d.y; })
         .attr('width', function(d, i) { return d.w; })
@@ -122,20 +160,36 @@ VisWidget.prototype.done = function() {
     clearInterval(this.timerId);
     this.timerId = null;
     this.svg.selectAll('rect').attr('fill', COLOR.SORTED);
-}
+};
 
-function *selection(a, swap) {
+function *selection(a) {
     for (let i = 0; i != a.length-1; ++i) {
-        let t = i; // min pos
-        // select minimum to front
+        let t = i;
         for (let j = i+1; j != a.length; ++j) {
-            if (a[j].h < a[t].h) { // compare height as value
+            if (a.less(j, t)) {
                 t = j;
             }
         }
-        swap(i, t);
+        a.swap(i, t);
         yield i;
     }
-};
+}
 new VisWidget(selection);
 
+function *insertion(a) {
+    yield 0; // the 1st one is always sorted, change state for it
+    for (let i = 1; i != a.length; ++i) {
+        let t = a.get(i);
+        let j = i;
+        for (; j > 0; --j) {
+            if (a.greaterValue(j-1, t)) {
+                a.assign(j, j-1);
+            } else {
+                break;
+            }
+        }
+        a.assignValue(j, t);
+        yield j;
+    }
+}
+new VisWidget(insertion);

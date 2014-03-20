@@ -2,7 +2,7 @@
 <html>
 <title>Sorting</title>
 <xmp theme="readable" style="display:none;">
-可视化需要harmony支持：Chrome中[开启harmony](chrome://flags/#enable-javascript-harmony)
+可视化需要harmony支持，在Chrome中开启：[chrome://flags/#enable-javascript-harmony](chrome://flags/#enable-javascript-harmony)
 
 ## 选择排序
 <svg id="selection"></svg>
@@ -19,7 +19,28 @@ function selection(a) {
         }
         swap(i, t);
     }
-};
+}
+```
+
+## 插入排序
+<svg id="insertion"></svg>
+
+```
+function insertion(a) {
+    for (let i = 1; i != a.length; ++i) {
+        let t = a[i];
+        // insert current a[i] to front proper pos
+        let j = i;
+        for (; j > 0; --j) {
+            if (a[j-1] > t) {
+                a[j] = a[j-1];
+            } else {
+                break;
+            }
+        }
+        a[j] = t;
+    }
+}
 ```
 </xmp>
 <script src="js/strapdown.js"></script>
