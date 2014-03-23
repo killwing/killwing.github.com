@@ -5,43 +5,87 @@
 可视化需要harmony支持，在Chrome中开启：[chrome://flags/#enable-javascript-harmony](chrome://flags/#enable-javascript-harmony)
 
 ## 选择排序
+在所有<font color="red">未排序的元素</font>中，**选择**一个<font color="green">最小的元素</font>并与当前第一个元素交换。
+
 <svg id="selection"></svg>
 
 ```
 function selection(a) {
     for (let i = 0; i != a.length-1; ++i) {
-        let t = i; // min pos
-        // select minimum to front
+        let min = i;
         for (let j = i+1; j != a.length; ++j) {
-            if (a[j] < a[t]) {
-                t = j;
+            if (a[j] < a[min]) {
+                min = j;
             }
         }
-        swap(i, t);
+        swap(i, min);
     }
 }
 ```
 
+* 排序时间与初始顺序无关。
+* 数据移动是最少的，需要N次交换。
+
+
 ## 插入排序
+在所有<font color="red">未排序的元素</font>中，把<font color="green">第一个元素</font>**插入**到之前元素中的有序位置上。
+
 <svg id="insertion"></svg>
 
 ```
 function insertion(a) {
     for (let i = 1; i != a.length; ++i) {
-        let t = a[i];
-        // insert current a[i] to front proper pos
+        let insert = a[i];
         let j = i;
         for (; j > 0; --j) {
-            if (a[j-1] > t) {
+            if (a[j-1] > insert) {
                 a[j] = a[j-1];
             } else {
                 break;
             }
         }
-        a[j] = t;
+        a[j] = insert;
     }
 }
 ```
+
+* 排序时间取决于初始顺序，对部分有序数组很高效。
+
+
+## 希尔排序
+又称**分组插入**排序：把所有<font color="red">未排序的元素</font>分为相隔距离为d的d个组，对每个组分别应用插入排序。减小距离d重新分组并排序，直至d为1完成最后一轮插入排序。
+
+<svg id="shell"></svg>
+
+```
+function shell(a) {
+    let d = 1;
+    while (d < a.length/3) {
+        d = 3 * d + 1; // 1, 4, 13, 40, ...
+    }
+
+    while (d) {
+        for (let i = d; i != a.length; ++i) {
+            let insert = a[i];
+            let j = i;
+            for (; j >= d; j -= d) {
+                if (a[j-d] > insert) {
+                    a[j] = a[j-d];
+                } else {
+                    break;
+                }
+            }
+            a[j] = insert;
+        }
+
+        d = Math.floor(d/3);
+    }
+};
+```
+
+* 让数组部分有序使之有利于插入排序
+* 权衡了子数组的规模和有序性，适合大型数组和任意顺序数组。
+
 </xmp>
 <script src="js/strapdown.js"></script>
 <script src="http://cdnjs.cloudflare.com/ajax/libs/d3/3.4.2/d3.min.js"></script>

@@ -7,7 +7,8 @@ let N = 20;
 // http://clrs.cc/
 let COLOR = {
     UNSORTED: '#FF4136',
-    SORTED: '#2ECC40'
+    SORTED: '#2ECC40',
+    INACTIVE: '#DDDDDD',
 };
 
 function VisData() {
@@ -20,13 +21,18 @@ function VisData() {
         b.h = Math.random() * HEIGHT;
         b.x = i * (WIDTH / N);
         b.y = HEIGHT - b.h;
-        b.s = 'UNSORTED'; // state
+        b.s = 'UNSORTED';
+        b.a = true; // active
 
         this.bars.push(b);
         this.values.push(b);
     }
 }
 VisData.prototype.swap = function(i, j) {
+    if (i == j) {
+        return;
+    }
+
     // swap pos first
     let temp = this.values[i].x;
     this.values[i].x = this.values[j].x;
@@ -65,8 +71,21 @@ VisData.prototype.assignValue = function(i, v) {
         this.emptyX = undefined;
     } // else no empty pos, other value can not be assigned
 };
-VisData.prototype.setSorted = function(i) {
-    this.values[i].s = 'SORTED';
+VisData.prototype.setState = function(e) {
+    if (e.s == 'GROUP') {
+        this.values.forEach(function(value, i) {
+            value.a = e.a(i);
+        });
+    } else {
+        if (e.i != undefined) {
+            this.values[e.i].s = e.s;
+        } else { // set all
+            this.values.forEach(function(value, i) {
+                value.s = e.s;
+                value.a = e.a();
+            });
+        }
+    }
 };
 
 function VisWidget(sort) {
@@ -116,7 +135,7 @@ VisWidget.prototype.update = function() {
     }
 
     // update state
-    this.data.setSorted(ret.value);
+    this.data.setState(ret.value);
 
     // redraw
     this.svg.selectAll('rect')
@@ -127,7 +146,7 @@ VisWidget.prototype.update = function() {
         .attr('y', function(d, i) { return d.y; })
         .attr('width', function(d, i) { return d.w; })
         .attr('height', function(d, i) { return d.h; })
-        .attr('fill', function(d, i) { return COLOR[d.s]; })
+        .attr('fill', function(d, i) { return d.a ? COLOR[d.s] : COLOR.INACTIVE; })
 };
 VisWidget.prototype.onPlay = function() {
     if (!this.timerId) {
@@ -164,32 +183,73 @@ VisWidget.prototype.done = function() {
 
 function *selection(a) {
     for (let i = 0; i != a.length-1; ++i) {
-        let t = i;
+        let min = i;
         for (let j = i+1; j != a.length; ++j) {
-            if (a.less(j, t)) {
-                t = j;
+            if (a.less(j, min)) {
+                min = j;
             }
         }
-        a.swap(i, t);
-        yield i;
+        a.swap(i, min);
+        yield {i: i, s: 'SORTED'};
     }
 }
 new VisWidget(selection);
 
 function *insertion(a) {
-    yield 0; // the 1st one is always sorted, change state for it
+    yield {i: 0, s: 'SORTED'}; // the 1st one is always sorted, change state for it
     for (let i = 1; i != a.length; ++i) {
-        let t = a.get(i);
+        let insert = a.get(i);
         let j = i;
         for (; j > 0; --j) {
-            if (a.greaterValue(j-1, t)) {
+            if (a.greaterValue(j-1, insert)) {
                 a.assign(j, j-1);
             } else {
                 break;
             }
         }
-        a.assignValue(j, t);
-        yield j;
+        a.assignValue(j, insert);
+        yield {i: j, s: 'SORTED'};
     }
 }
 new VisWidget(insertion);
+
+function *shell(a) {
+    let d = 1;
+    while (d < a.length/3) {
+        d = 3 * d + 1; // 1, 4, 13, 40
+    }
+
+    while (d) {
+        yield {s: 'UNSORTED', a: function() {
+            return (d == 1) ? true : false;
+        }}; // reset state
+
+        for (let i = d; i != a.length; ++i) {
+            if (d != 1) {
+                yield {s: 'GROUP', a: function(index) {
+                    return (index - i % d) % d == 0;
+                }}; // focus current group
+            }
+            if (i - d < d) {
+                yield {i: i-d, s: 'SORTED'}; // make 1st of group sorted
+            }
+
+            let insert = a.get(i);
+            let j = i;
+            for (; j >= d; j -= d) {
+                if (a.greaterValue(j-d, insert)) {
+                    a.assign(j, j-d);
+                } else {
+                    break;
+                }
+            }
+
+            a.assignValue(j, insert);
+            yield {i: j, s: 'SORTED'};
+        }
+
+        d = Math.floor(d/3);
+    }
+};
+new VisWidget(shell);
+
