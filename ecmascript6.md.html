@@ -65,7 +65,13 @@ console.log(p.next(10).value); // 1024
 ```
 `throw(error)`可以在yield处抛出异常。
 
-
+Delegating yield `yield*`: 委派给另一个generator，直到其全部yield完成，自己再继续yield返回值，`yield*`本身并不是一次返回。
+可用来递归：
+```
+function *fibonacci(n) {
+    return (n == 0 || n == 1) ? n : (yield *fibonacci(n-1)) + (yield *fibonacci(n-2));
+};
+```
 
 ## Collections
 ### Map
@@ -162,6 +168,7 @@ class并不是一个新的结构，只是一个语法糖。类和对象的机制
 ## Reference
 [ES6 Features Implemented in V8](https://github.com/joyent/node/wiki/ES6-%28a.k.a.-Harmony%29-Features-Implemented-in-V8-and-Available-in-Node)
 [ECMAScript 6 support in Mozilla](https://developer.mozilla.org/en-US/docs/Web/JavaScript/ECMAScript_6_support_in_Mozilla)
+[ECMAScript Wiki - harmony proposals](http://wiki.ecmascript.org/doku.php?id=harmony:proposals)
 
 </xmp>
 <script src="js/strapdown.js"></script>
