@@ -86,6 +86,34 @@ function shell(a) {
 * 让数组部分有序使之有利于插入排序
 * 权衡了子数组的规模和有序性，适合大型数组和任意顺序数组。
 
+
+## 快速排序
+在<font color="red">未排序的元素</font>中选择一个基准（第一个元素为例），将<font color="lime">小于基准的所有元素</font>放到其左侧，将<font color="teal">大于基准的所有元素</font>放到其右侧，最后<font color="green">基准元素</font>在排好序的位置上。再分别对基准左侧和右侧的元素重新选择基准并划分，递归这个过程直至完成排序。
+
+<svg id="quick"></svg>
+
+```
+function quick(a, l, r) {
+    l = (l == undefined) ? 0 : l;
+    r = (r == undefined) ? a.length-1 : r;
+
+    if (l < r) {
+        var m = l;
+        for (var i = l+1; i <= r; ++i) {
+            if (a[i] < a[l]) {
+                ++m;
+                swap(i, m);
+            }
+        }
+        swap(l ,m);
+        quick(a, l, m-1);
+        quick(a, m+1, r);
+    }
+};
+```
+
+
+
 </xmp>
 <script src="js/strapdown.js"></script>
 <script src="http://cdnjs.cloudflare.com/ajax/libs/d3/3.4.2/d3.min.js"></script>

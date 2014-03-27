@@ -1,14 +1,17 @@
 'use strict';
 
-let WIDTH = 640;
-let HEIGHT = 360;
-let N = 20;
+const WIDTH = 640;
+const HEIGHT = 360;
+const N = 20;
+const SPEED = 1000;
 
 // http://clrs.cc/
-let COLOR = {
+const COLOR = {
     UNSORTED: '#FF4136',
     SORTED: '#2ECC40',
     INACTIVE: '#DDDDDD',
+    LEFT: '#01FF70',
+    RIGHT: '#3D9970'
 };
 
 function VisData() {
@@ -77,20 +80,20 @@ VisData.prototype.setState = function(e) {
             value.a = e.a(i);
         });
     } else {
-        if (e.i != undefined) {
+        if (e.i instanceof Array) { // set range
+            for (var i = e.i[0]; i <= e.i[1]; ++i) {
+                this.values[i].s = e.s;
+                this.values[i].a = e.a();
+            };
+        } else {
             this.values[e.i].s = e.s;
-        } else { // set all
-            this.values.forEach(function(value, i) {
-                value.s = e.s;
-                value.a = e.a();
-            });
         }
     }
 };
 
 function VisWidget(sort) {
     this.svg = d3.select('#'+sort.name).attr('width', WIDTH).attr('height', HEIGHT);
-    this.speed = 1000;
+    this.speed = SPEED;
     this.sort = sort;
 
     this.init();
@@ -141,7 +144,7 @@ VisWidget.prototype.update = function() {
     this.svg.selectAll('rect')
         .data(this.data.bars)
         .transition()
-        .duration(1000)
+        .duration(SPEED)
         .attr('x', function(d, i) { return d.x; })
         .attr('y', function(d, i) { return d.y; })
         .attr('width', function(d, i) { return d.w; })
@@ -220,7 +223,7 @@ function *shell(a) {
     }
 
     while (d) {
-        yield {s: 'UNSORTED', a: function() {
+        yield {i: [0, a.length-1], s: 'UNSORTED', a: function() {
             return (d == 1) ? true : false;
         }}; // reset state
 
@@ -253,3 +256,35 @@ function *shell(a) {
 };
 new VisWidget(shell);
 
+function *quick(a, l, r) {
+    l = (l == undefined) ? 0 : l;
+    r = (r == undefined) ? a.length-1 : r;
+
+    yield {i: [l, r], s: 'UNSORTED', a: function() { return true; }}; // reset state
+
+    var m = l;
+    for (var i = l+1; i <= r; ++i) {
+        if (a.less(i, l)) {
+            ++m;
+            a.swap(i, m);
+            yield {i: m, s: 'LEFT'};
+        } else {
+            yield {i: i, s: 'RIGHT'};
+        }
+    }
+    a.swap(l, m);
+    yield {i: m, s: 'SORTED'};
+
+    if (l < m-1) {
+        yield *quick(a, l, m-1);
+    } else {
+        yield {i: l, s: 'SORTED'};
+    }
+
+    if (m+1 < r) {
+        yield *quick(a, m+1, r);
+    } else {
+        yield {i: r, s: 'SORTED'};
+    }
+};
+new VisWidget(quick);
