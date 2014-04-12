@@ -3,7 +3,8 @@
 const WIDTH = 640;
 const HEIGHT = 360;
 const N = 20;
-const SPEED = 1000;
+const SPEED = 500;
+const OFFSET = 30;
 
 // http://clrs.cc/
 const COLOR = {
@@ -49,11 +50,30 @@ VisData.prototype.swap = function(i, j) {
 VisData.prototype.get = function(i) {
     return this.values[i];
 };
+VisData.prototype.up = function(i) {
+    this.values[i].preX = undefined;
+    this.values[i].y -= OFFSET;
+    return this.values[i];
+};
+VisData.prototype.down = function(i, v) {
+    if (this.values[i].preX !== undefined) {
+        v.preX = v.x; // backup
+        v.x = this.values[i].preX;
+    } else {
+        v.preX = v.x; // backup
+        v.x = this.values[i].x;
+    }
+    this.values[i] = v;
+    this.values[i].y += OFFSET;
+}
 VisData.prototype.less = function(i, j) {
     return this.values[i].h < this.values[j].h;
 };
 VisData.prototype.greaterValue = function(i, v) {
     return this.values[i].h > v.h;
+};
+VisData.lessEqual = function(x, y) {
+    return x.h <= y.h;
 };
 VisData.prototype.assign = function(i, j) {
     if (this.emptyX !== undefined) {
@@ -82,8 +102,8 @@ VisData.prototype.setState = function(e) {
     } else {
         if (e.i instanceof Array) { // set range
             for (var i = e.i[0]; i <= e.i[1]; ++i) {
-                this.values[i].s = e.s;
-                this.values[i].a = e.a();
+                this.values[i].s = e.s(i);
+                this.values[i].a = e.a ? e.a(i) : true;
             };
         } else {
             this.values[e.i].s = e.s;
@@ -223,7 +243,9 @@ function *shell(a) {
     }
 
     while (d) {
-        yield {i: [0, a.length-1], s: 'UNSORTED', a: function() {
+        yield {i: [0, a.length-1], s: function() {
+            return 'UNSORTED';
+        }, a: function() {
             return (d == 1) ? true : false;
         }}; // reset state
 
@@ -260,7 +282,7 @@ function *quick(a, l, r) {
     l = (l == undefined) ? 0 : l;
     r = (r == undefined) ? a.length-1 : r;
 
-    yield {i: [l, r], s: 'UNSORTED', a: function() { return true; }}; // reset state
+    yield {i: [l, r], s: function() { return 'UNSORTED'; }}; // reset state
 
     var m = l;
     for (var i = l+1; i <= r; ++i) {
@@ -288,3 +310,47 @@ function *quick(a, l, r) {
     }
 };
 new VisWidget(quick);
+
+
+function *merge(a, l, r) {
+    l = (l == undefined) ? 0 : l;
+    r = (r == undefined) ? a.length-1 : r;
+    if (l >= r) {
+        return;
+    }
+
+    let m = Math.floor((l+r)/2);
+    yield *merge(a, l, m);
+    yield *merge(a, m+1, r);
+
+    let aux = [];
+    for (let i = l; i <= r; ++i) {
+        aux[i] = a.up(i);
+    }
+    yield {i: [0, a.length-1], s: function(i) {
+        if (i > m && i <= r) {
+            return 'RIGHT';
+        } else if (i >= l && i <= m) {
+            return 'LEFT';
+        } else {
+            return 'UNSORTED';
+        }
+    }}; // reset state
+
+    let x = l;
+    let y = m + 1;
+    for (let i = l; i <= r; ++i) {
+        if (x > m) {
+            a.down(i, aux[y++]);
+        } else if (y > r) {
+            a.down(i, aux[x++]);
+        } else if (VisData.lessEqual(aux[x], aux[y])) {
+            a.down(i, aux[x++]);
+        } else {
+            a.down(i, aux[y++]);
+        }
+        yield {i: i, s: 'SORTED'};
+    }
+}
+new VisWidget(merge);
+

@@ -83,7 +83,7 @@ function shell(a) {
 };
 ```
 
-* 让数组部分有序使之有利于插入排序
+* 让数组部分有序使之有利于插入排序。
 * 权衡了子数组的规模和有序性，适合大型数组和任意顺序数组。
 
 
@@ -96,21 +96,78 @@ function shell(a) {
 function quick(a, l, r) {
     l = (l == undefined) ? 0 : l;
     r = (r == undefined) ? a.length-1 : r;
-
-    if (l < r) {
-        var m = l;
-        for (var i = l+1; i <= r; ++i) {
-            if (a[i] < a[l]) {
-                ++m;
-                swap(i, m);
-            }
-        }
-        swap(l ,m);
-        quick(a, l, m-1);
-        quick(a, m+1, r);
+    if (l >= r) {
+        return;
     }
+
+    let m = l;
+    for (let i = l+1; i <= r; ++i) {
+        if (a[i] < a[l]) {
+            ++m;
+            swap(i, m);
+        }
+    }
+    swap(l ,m);
+    quick(a, l, m-1);
+    quick(a, m+1, r);
 };
 ```
+
+* 内循环比大多数排序算法都要短小，一般情况下比其他算法快得多。
+* 使用三向切分的改进可以解决含有大量重复相等元素的问题。
+
+
+## 归并排序
+把所有<font color="red">未排序的元素</font>递归地分为两半，然后将<font color="lime">左半元素</font>和<font color="teal">右半元素</font>有序地**归并**起来（自顶向下）。
+
+<svg id="merge"></svg>
+
+```
+function merge(a, l, r) {
+    l = (l == undefined) ? 0 : l;
+    r = (r == undefined) ? a.length-1 : r;
+    if (l >= r) {
+        return;
+    }
+
+    let m = Math.floor((l+r)/2);
+    merge(a, l, m);
+    merge(a, m+1, r);
+
+    let aux = [];
+    for (let i = l; i <= r; ++i) {
+        aux[i] = a[i];
+    }
+
+    let x = l;
+    let y = m + 1;
+    for (let i = l; i <= r; ++i) {
+        if (x > m) {
+            a[i] = aux[y++];
+        } else if (y > r) {
+            a[i] = aux[x++];
+        } else if (aux[x] <= aux[y]) {
+            a[i] = aux[x++];
+        } else {
+            a[i] = aux[y++];
+        }
+    }
+}
+```
+
+* 不需要额外空间的原地归并实现复杂。
+* 渐进最优的基于比较的排序算法。
+
+
+## 排序算法比较
+算法|O(最好)|O(平均)|O(最坏)|O(辅助空间)|稳定|原地
+-|-|-|-|-|-
+selection|N²|N²|N²|1|×|√
+insertion|N|N²|N²|1|√|√
+shell|N|NlogN|Nlog²N|1|×|√
+quick|NlogN|NlogN|N²|logN (stack)|×|√
+merge|NlogN|NlogN|NlogN|N|√|×
+heap|NlogN|NlogN|NlogN|1|×|√
 
 
 
