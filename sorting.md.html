@@ -159,6 +159,44 @@ function merge(a, l, r) {
 * 渐进最优的基于比较的排序算法。
 
 
+## 堆排序
+先从后往前使用下沉法使子堆中<font color="red">未排序的元素</font><font color="skyblue">堆有序</font>（每个节点都大于等于其子节点）直至全部元素建成为最大堆。再不断交换<font color="green">根节点</font>和当前未排好序的最后一个节点，并下沉<font color="red">交换后的根节点</font>使剩下的元素重新<font color="skyblue">堆有序</font>。
+
+<svg id="heap"></svg>
+
+```
+function heap(a) {
+    let sink = function(l, r) {
+        let j = l;
+        while (2*j+1 <= r) {
+            let p = 2*j+1;
+            if (p+1 <= r && a[p+1] > a[p]) {
+                ++p;
+            }
+            if (a[j] >= a[p]) {
+                break;
+            }
+            a.swap(p, j);
+            j = p;
+        }
+    };
+
+    let n = a.length - 1;
+    for (let i = Math.floor((n-1)/2); i >= 0; --i) {
+        sink(i, n);
+    }
+
+    while (n > 0) {
+        a.swap(0, n--);
+        sink(0, n);
+    }
+};
+```
+
+* 唯一能够同时最优地利用空间和时间的方法。
+* 数组元素很少和相邻元素比较，缓存命中率低。
+
+
 ## 排序算法比较
 算法|O(最好)|O(平均)|O(最坏)|O(辅助空间)|稳定|原地
 -|-|-|-|-|-
