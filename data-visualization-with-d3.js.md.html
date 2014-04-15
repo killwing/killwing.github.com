@@ -34,10 +34,22 @@ Group Element: `<g transform="translate(...)">..</g>`
 可以对组应用变换：
 
 * matrix(a, b, c, d, e, f): 变换矩阵
-* translate(x, y=0): 改变座标原点位置
+* translate(x, y=0): 改变座标原点位置，默认左上角为原点
 * scale(x, y=x)
 * skewX(a)
 * skewY(b)
+
+元素式样属性：
+
+* fill
+* stroke
+* stroke-width
+* opacity 也可用fill/stroke设置rgba透明度
+* font-family
+* font-size
+
+也可以用CSS指定SVG元素的式样。
+SVG没有深度的概念，后面的元素会覆盖前面的元素。
 
 
 ## Binding Data
