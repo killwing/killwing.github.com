@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<title>Git</title>
+<xmp theme="readable" style="display:none;">
+## 环境与配置
+版本库目录`.git`在工作区根目录下，在子目录下操作时Git会递归向上查找`.git`目录。
+`git init`在当前目录下创建并初始化新的版本库。
+  
+### 配置文件`.gitconfig`
+配置文件有三个级别，优先级从高到低依次为版本库`.git/config`，全局`~/.gitconfig`，系统`/etc/gitconfig`。
+配置文件格式为INI格式，使用`git config`操作，也可以操作其它任何INI格式的文件。
+配置文件例子：
+```
+[user]
+    name = kelvin # 提交中作者和提交者的ID
+    email = kelvin@company.com # 提交中作者和提交者的电邮
+[merge]
+    tool = extMerge # 外部合并工具
+[mergetool "extMerge"]
+    cmd = extMerge "$BASE" "$LOCAL" "$REMOTE" "$MERGED"
+    trustExitCode = false
+[diff]
+    external = extDiff # 外部比较工具
+[color]
+    ui = true # 在终端显示颜色
+[alias] # 别名
+    lg = log --graph --oneline --all --decorate
+	st = status
+	co = checkout
+	ci = commit
+	br = branch
+    sm = submodule
+[core]
+	autocrlf = false # 不修改换行符
+    safecrlf = true # 如果文件中有不同换行符则拒绝提交
+	whitespace = blank-at-eol,tab-in-indent,tabwidth=4 # 检测空白的规则：行尾有空白，缩进有tab，并设tab为4个字符
+```
+
+### 忽略配置文件`.gitignore`
+作用范围是所在目录及其子目录，只对未跟踪的文件有效，对已经加入版本库的文件无效。
+所有空行或者以注释符号#开头的行都会被忽略。
+可以使用标准的[glob](http://man7.org/linux/man-pages/man7/glob.7.html)模式匹配。
+匹配模式最后跟反斜杠`/`，说明要忽略的是目录。
+如果名称前面是个`/`，说明要忽略的文件在此目录下，而非子目录的文件。
+要忽略指定模式以外的文件或目录，可以在模式前加上`!`取反。
+独享式忽略可以使用`.git/info/exclude`文件设置，或者配置变量`core.excludesfile`。
+
+### 属性配置文件`.gitattributes`
+`*.pbxproj binary` 指定为二进制文件
+`*.doc diff=word` 把Word文档转换成可读的文本文件，之后再进行比较`git config diff.word.textconv strings`
+`*.txt ident` 签出分支的时候，会用blob的SHA-1值替换$id$字段
+`*.c filter=indent` 设置过滤器`git config filter.indent...`
+`test/ export-ignore` 当运行`git archive`来创建项目的压缩包时，test目录不会在归档中出现。
+`database.xml merge=ours` 始终使用本分支的版本作为合并结果
+
+### 代理
+对于ssh/http协议代理，只要设置`http_proxy`环境变量即可。
+对于git协议代理，[设置core.gitproxy配置命令调用socat或corkscrew](http://www.emilsit.net/blog/archives/how-to-use-the-git-protocol-through-a-http-connect-proxy/)。
+
+## 暂存区
+暂存区（stage, 又称索引index）：一个包含文件索引的目录树`.git/index`，作为下次提交的内容，提交之后stage内容就和HAED一致。
+`git ls-files -s`查看stage的目录树，用`git write-tree`把当前stage内容生成一个树对象，然后可以用`git ls-tree`查看树对象。
+
+`git status`查看当前状态。
+状态转换：
+[workspace] -- `add` --> [index] -- `commit` --> [repo]
+[workspace] <-- `checkout --` -- [index] <-- `reset --` -- [repo]
+
+`git diff`比较([unified格式](http://stackoverflow.com/questions/2529441/how-to-work-with-diff-representation-in-git))。`--check`会把可能的多余白字符修正列出来。`--word-diff`逐词比较。
+比较各种状态：
+[workspace] <-- `diff` --> [index] <-- `diff --cached` --> [HEAD]
+[workspace] <-- `diff <commit>` --> [commit]
+[index] <-- `diff --cached <commit>` --> [commit]
+包含路径`git diff <commit1> <commit2> -- path`比较文件版本差异。
+可在版本库之外使用`git diff <path1> <path2>`来比较其它文件。
+
+## 增删改
+`git add` 将文件加入版本库。`-u`选项可以将被版本库追踪的本地文件的修改和删除全部记录到stage中。`-A`记录所有工作区的改动。
+`git rm` 从版本库中删除文件，相当于本地删除后`add -u`。`--cached`也从stage移除文件(unstage & untrack)。
+`git mv` 重命名，相当于本地改名后`add -A`（先删除，再加入），会自动比较文件相似度以判断是不是重命名。
+`git commit` 把stage中的改动提交到版本库。`-a`可以自动把修改和删除的文件加入索引并提交，新加的文件不受影响。`--amend`修改最后一次提交，即撤销后重新提交。
+`git ls-files` 查看加入到版本库中的所有文件，默认HEAD。
+
+## 对象
+四种对象，位置在`.git/objects/`，ID前2位作为目录名，后38位作为文件名。
+
+* 提交对象(commit): 包括一个树对象，一个或多个父提交对象，作者和提交者，以及注释。
+* 树对象(tree): 包括文件（类型：blob），目录（类型：tree），它们的ID，以及读写权限。
+* 二进制对象(blob): 具体文件内容。
+* 标签对象(tag): 轻量级标签就是一个提交对象。
+
+`git cat-file` 查看对象的类型和内容。
+`git hash-object` 直接从文件内容创建对象。
+`git show-ref` 查看所包含的引用。
+
+对象ID: 40位SHA1 hash值。不必写全，至少4个字符，没有冲突即可。
+ID的计算：`sha1(对象类型<space>对象长度<null>对象内容)`，例如用命令生成：`(printf "commit 123\0"; git cat-file commit HEAD)|sha1sum`
+
+HAED: 位置在`.git/HEAD`，默认指向`.git/refs/heads/master`(当前分支，这里是master)，类似链表的头指针。当执行提交时，HEAD指向的提交将作为新提交的父提交。
+分支: 位置在`.git/refs/heads/`目录下的引用(ref)，内容是分支的最新提交。用`git rev-parse`查看引用对应的提交ID，也可查看对象的ID。
+引用日志(reflog): 位置在`.git/logs/refs/heads/`，记录了分支的所有提交变更。默认非裸(bare)版本库都提供。
+
+### 对象指代（以HAED为例）
+
+* `HAED^`: 父提交，`HEAD^^^`或`HEAD~3`都指第前3次父提交。也可用类似reflog表示法：`HEAD@{3}`。
+* `HAED^{tree}`: 提交对应的树对象。
+* `HEAD:path/to/file`: 提交对应的文件对象。
+* `:path/to/file`: index中的文件对象。
+* `:/"commit xxx"`: 日志中查找字符串对应的提交。
+* 如果A是含附注的tag，则`A^{}`, `A^0`, `A^{commit}`指它对应的提交。轻量级标签直接指向它的提交。其他类似：`A^{tree}`, `A:path/to/file`。
+
+### 提交范围
+
+* `A`: 单独表示该版本开始的所有能追溯到的历史提交
+* `A^@`: 自身除外
+* `A^!`: 表示自身
+* `A B`: 相当于单独使用时的并集
+* `A..B`: 从A到B的范围，指从B可以追溯到而不能从A追溯到，不包括A本身(A, B]，B可省默认为HEAD。相当于`^A B`或`B ^A`或`B --not A`，`^`表示从其中排除。
+* `A...B`: 排除A和B能共同追溯到的版本，顺序无关
+
+`git rev-parse`查看具体提交的ID，`git rev-list`查看提交范围，`git log`接提交范围（默认HAED）以显示提交历史。
+
+### 对象管理
+`git fsck` 查看版本库中包含的没有被任何引用关联的对象。还被reflog引用到的不会显示，可以用`git reflog expire=<date> --all`强制让reflog在date之前的记录全部过期。
+`git prune` 清除没有被任何引用关联的对象。
+`git pack-refs` 对引用文件进行打包到`.git/packed-refs`文件中。
+`git repack` 打包所有有引用关联的对象到`.git/objects/pack/pack-*.pack`中，index文件为`.git/objects/pack/pack-*.idx`。
+`git gc` 优化存储包括打包引用和对象，丢弃90天前的reflog记录，清除2周前未被关联的对象，以及过期合并冲突历史记录等其它清理。有些情况下如接收推送后会自动执行`git gc --auto`进行清理。
+
+## 重置与检出
+`git reset`重置当前分支引用（最新提交，HAED也随之改变）。
+两种用法：
+
+* 包含路径`<commit> -- <path>` 不会重置引用，而是用此commit（省略则默认为HEAD）下的文件path替换掉index中的文件。
+* 不包含路径：
+
+    * `--hard <commit>` 重置引用，并替换index和workspace与此commit一致
+    * `--soft <commit>` 重置引用，不改变index和workspace
+    * `--mixed <commit>` 默认模式，重置引用，并替换index与此commit一致，但不改变workspace
+
+如果发生了引用重置，提交历史也会被重置，可用`git reflog`查找以前的提交ID恢复，用`<refname>@{<n>}`表示refname之前n次改变时的ID。
+
+`git checkout`重置HEAD的引用（当前分支改变，但HEAD总是指向当前分支的头）。
+两种用法：
+
+* 包含路径`<commit> -- <path>` 不会改变HEAD头指针，而是用此commit下的文件path替换掉index和workspace中的文件，commit若省略则相当于从index中替换掉workspace中的文件。
+* 不包含路径：
+
+    * `<commit>` 重置HEAD为具体的commit（也可以是引用比如某个tag），不再指向当前分支引用(detached HEAD)。
+    * `<branch>` 切换到某个分支（加`-b`选项可以新建并切换分支），对提交进行跟踪（不处于detached HEAD状态），并用此branch的树更新index和workspace中的文件。
+    * 接无参数或HEAD可以汇总显示workspace, index和HEAD的差异。
+
+detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有此提交的日志过期后（默认90天），此提交随时都会被从版本库中删除。可以通过合并`git merge`来保存这些提交到具体的分支上。
+
+重置一般用来覆盖暂存区，而检出一般用来覆盖工作区。
+
+## 存档
+`git stash` 保存当前工作状态为一个存档，分别对workspace和stage进行保存，然后把当前状态恢复为修改前的样子（使用了`git reset --hard HEAD`）。`apply/pop --index`应用存档被暂存的更改。`branch`创建一个新的分支来重新应用存档的更改。
+还没有加入版本控制的文件不能被保存。
+每个存档的标识为`stash@{<n>}`格式，stash是用引用`.git/refs/stash`和引用变更日志`.git/logs/refs/stash`实现的，可以用`git reflog`查看。
+
+## Debugging
+`git blame` 查看文件每一行最后修改的版本和作者，`^`开头的那些行指初次提交的内容且没被修改过。`-C`分析标注的文件然后尝试找出其中代码片段的原始出处/提交。
+
+`git bisect` 自动对提交二分查找，通过不断测试不同提交的代码找到引入bug的提交。
+步骤：
+
+1. `bisect start` 开始查找
+1. `bisect good` 标记好提交
+1. `bisect bad` 标记坏提交
+1. 不断重复good/bad进行二分查找，最终定位到引入bug的坏提交
+1. `checkout bisect/bad` 切换到最终定位的坏提交，由引用`.git/refs/bisect/bad`标识
+1. 定位和修复bug
+1. `bisect reset` 撤销查找时的临时文件和引用，切换回原来分支
+
+`bisect run`用脚本自动执行来代替步骤2-4来标记提交：
+
+* 退出码0：good
+* 退出码1~127(125除外)：bad
+* 退出码125：skip
+
+
+## 历史变更
+`git rebase` 将指定范围的提交重新一个个应用到另外一个提交之上。
+用法：`git rebase --onto <newbase> <since> <till>` `<till>`默认为HEAD
+相当于过程：
+
+1. `git checkout <till>`
+1. `git reset --HARD <newbase>`
+1. 从`<since>..<till>`的提交列表中按顺序逐一重新应用到重置后的分支上，如果提交已在分支上包含则跳过此提交。
+1. 如果遇到冲突则暂停，用户将冲突解决后可以`rebase --continue`继续，`rebase --skip`跳过，`rebase --abort`终止并切换到rebase前的分支上。 
+
+用`-i`选项使用交互式rebase（根据文件中的动作顺序执行），可以编辑文件改变提交顺序以及删除行以跳过提交，动作：
+
+* pick: 应用此提交
+* reword: 应用提交并修改提交说明
+* edit: 应用提交后暂停，以便使用`git commit --amend`对提交进行修补
+* squash: 该提交会与前面的提交压缩为一个
+* fixup: 同squash，但此提交的说明被丢弃
+* x cmd: 执行一个shell命令，出错的话会暂停
+
+`git cherry-pick` 将一个提交到处为补丁文件，然后在当前HAED上重放。
+`git revert` 用一个新提交来撤销一个提交的变化。
+
+
+## 合并与冲突
+
+## 标签
+又称里程碑，位置在`.git/refs/tags/`，记录了所有标签。
+`git tag`打标签，`-a`含附注的标签，否则为轻量级的标签。
+
+
+## 远程
+`git clone` 复制一个版本库。`--bare`复制为一个没有工作区的裸版本库（一般目录以.git为后缀）。`--mirror`复制一个裸版本库并对上游版本库进行了注册。
+默认不能向一个非裸版本库推送更新。
+快进式(fast-forward)推送：远程版本库相应分支的最新提交是本地版本库最新提交的祖先提交。
+
+
+## 其它
+命令参数中为了避免commit或引用和path冲突，中间要用`--`分隔。
+
+`git describe` 将最新提交显示为一个易记的名称，格式为：`基础版本号(最近的tag)-距离(距此tag的提交次数)-g提交ID`，可以作为软件的版本号。`--tags`对轻量级tag也有效。
+`git show` 相当于`git cat-file -p`。
+`git clean` `-fd`清除未加入版本库的文件和目录。`-nd`测试运行。
+`git archive` 将版本库所有文件打包归档，如果要忽略某些文件可以设置export-ignore属性。`--prefix=`增加目录前缀。
+`git commit-tree` 从目录树创建根提交（没有父提交）。
+
+
+## GUI
+gitk: 自带，基于Tcl/Tk
+gitg: 基于GTK+
+qgit: 基于Qt
+
+## Reference
+[Git权威指南](http://book.douban.com/subject/6526452/)
+[Git SCM](http://git-scm.com/)
+
+* [Reference Manual](http://git-scm.com/docs)
+* [Pro Git](http://git-scm.com/book/zh)
+
+[Git Manual Page](http://git-htmldocs.googlecode.com/git/git.html)
+[Git User's Manual](https://www.kernel.org/pub/software/scm/git/docs/user-manual.html)
+[Git Community Book](http://gitbook.liuhui998.com/)
+[Git Magic](http://www-cs-students.stanford.edu/~blynn/gitmagic/intl/zh_cn/)
+[Git Internals](http://peepcode.com/products/git-internals-pdf)
+[Git In The Threnches](http://cbx33.github.io/gitt/intro.html)
+[Git Pocket Guide](http://chimera.labs.oreilly.com/books/1230000000561)
+
+Cheat Sheet
+
+* [Heroku Cheat Sheet](https://na1.salesforce.com/help/doc/en/salesforce_git_developer_cheatsheet.pdf)
+* [Visual Git Cheat Sheet](http://ndpsoftware.com/git-cheatsheet.html)
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
