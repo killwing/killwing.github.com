@@ -53,9 +53,11 @@
 `test/ export-ignore` 当运行`git archive`来创建项目的压缩包时，test目录不会在归档中出现。
 `database.xml merge=ours` 始终使用本分支的版本作为合并结果
 
-### 代理
-对于ssh/http协议代理，只要设置`http_proxy`环境变量即可。
-对于git协议代理，[设置core.gitproxy配置命令调用socat或corkscrew](http://www.emilsit.net/blog/archives/how-to-use-the-git-protocol-through-a-http-connect-proxy/)。
+### 协议与代理
+git传输可以用`ssh`, `http(s)`, `git`（只读）, `file:///`, `/path`智能协议（`http`需配置），以及`ftp`, `rsync`哑协议。哑协议的缺点是传输速度慢效率低。
+
+对于`ssh`/`http`协议代理，只要设置`http_proxy`环境变量即可。
+对于`git`协议代理，[设置core.gitproxy配置命令调用socat或corkscrew](http://www.emilsit.net/blog/archives/how-to-use-the-git-protocol-through-a-http-connect-proxy/)。
 
 ## 暂存区
 暂存区（stage, 又称索引index）：一个包含文件索引的目录树`.git/index`，作为下次提交的内容，提交之后stage内容就和HAED一致。
@@ -63,14 +65,14 @@
 
 `git status`查看当前状态。
 状态转换：
-[workspace] -- `add` --> [index] -- `commit` --> [repo]
-[workspace] <-- `checkout --` -- [index] <-- `reset --` -- [repo]
+[workspace] -- `add` --> [stage] -- `commit` --> [repo]
+[workspace] <-- `checkout --` -- [stage] <-- `reset --` -- [repo]
 
 `git diff`比较([unified格式](http://stackoverflow.com/questions/2529441/how-to-work-with-diff-representation-in-git))。`--check`会把可能的多余白字符修正列出来。`--word-diff`逐词比较。
 比较各种状态：
-[workspace] <-- `diff` --> [index] <-- `diff --cached` --> [HEAD]
+[workspace] <-- `diff` --> [stage] <-- `diff --cached` --> [HEAD]
 [workspace] <-- `diff <commit>` --> [commit]
-[index] <-- `diff --cached <commit>` --> [commit]
+[stage] <-- `diff --cached <commit>` --> [commit]
 包含路径`git diff <commit1> <commit2> -- path`比较文件版本差异。
 可在版本库之外使用`git diff <path1> <path2>`来比较其它文件。
 
@@ -78,7 +80,7 @@
 `git add` 将文件加入版本库。`-u`选项可以将被版本库追踪的本地文件的修改和删除全部记录到stage中。`-A`记录所有工作区的改动。
 `git rm` 从版本库中删除文件，相当于本地删除后`add -u`。`--cached`也从stage移除文件(unstage & untrack)。
 `git mv` 重命名，相当于本地改名后`add -A`（先删除，再加入），会自动比较文件相似度以判断是不是重命名。
-`git commit` 把stage中的改动提交到版本库。`-a`可以自动把修改和删除的文件加入索引并提交，新加的文件不受影响。`--amend`修改最后一次提交，即撤销后重新提交。
+`git commit` 把stage中的改动提交到版本库。`-a`可以自动把修改和删除的文件加入索引并提交，新加的文件不受影响。`--amend`修改最后一次提交，即撤销后重新提交。`-C`重用某个提交的作者和注释。
 `git ls-files` 查看加入到版本库中的所有文件，默认HEAD。
 
 ## 对象
@@ -96,18 +98,15 @@
 对象ID: 40位SHA1 hash值。不必写全，至少4个字符，没有冲突即可。
 ID的计算：`sha1(对象类型<space>对象长度<null>对象内容)`，例如用命令生成：`(printf "commit 123\0"; git cat-file commit HEAD)|sha1sum`
 
-HAED: 位置在`.git/HEAD`，默认指向`.git/refs/heads/master`(当前分支，这里是master)，类似链表的头指针。当执行提交时，HEAD指向的提交将作为新提交的父提交。
-分支: 位置在`.git/refs/heads/`目录下的引用(ref)，内容是分支的最新提交。用`git rev-parse`查看引用对应的提交ID，也可查看对象的ID。
-引用日志(reflog): 位置在`.git/logs/refs/heads/`，记录了分支的所有提交变更。默认非裸(bare)版本库都提供。
-
 ### 对象指代（以HAED为例）
 
+* `HAED`: 位置在`.git/HEAD`，默认指向`.git/refs/heads/master`(当前分支，这里是master)，类似链表的头指针。当执行提交时，HEAD指向的提交将作为新提交的父提交。
 * `HAED^`: 父提交，`HEAD^^^`或`HEAD~3`都指第前3次父提交。也可用类似reflog表示法：`HEAD@{3}`。
 * `HAED^{tree}`: 提交对应的树对象。
 * `HEAD:path/to/file`: 提交对应的文件对象。
-* `:path/to/file`: index中的文件对象。
+* `:path/to/file`: stage中的文件对象。
 * `:/"commit xxx"`: 日志中查找字符串对应的提交。
-* 如果A是含附注的tag，则`A^{}`, `A^0`, `A^{commit}`指它对应的提交。轻量级标签直接指向它的提交。其他类似：`A^{tree}`, `A:path/to/file`。
+* 如果A是含附注说明的tag，则`A^{}`, `A^{commit}`, `A^0`, `A~0`指它对应的提交。其他类似：`A^{tree}`, `A:path/to/file`。
 
 ### 提交范围
 
@@ -118,7 +117,7 @@ HAED: 位置在`.git/HEAD`，默认指向`.git/refs/heads/master`(当前分支�
 * `A..B`: 从A到B的范围，指从B可以追溯到而不能从A追溯到，不包括A本身(A, B]，B可省默认为HEAD。相当于`^A B`或`B ^A`或`B --not A`，`^`表示从其中排除。
 * `A...B`: 排除A和B能共同追溯到的版本，顺序无关
 
-`git rev-parse`查看具体提交的ID，`git rev-list`查看提交范围，`git log`接提交范围（默认HAED）以显示提交历史。
+`git rev-parse`查看具体提交的ID（也可查看引用和对象的ID），`git rev-list`查看提交范围，`git log`接提交范围（默认HAED）以显示提交历史。
 
 ### 对象管理
 `git fsck` 查看版本库中包含的没有被任何引用关联的对象。还被reflog引用到的不会显示，可以用`git reflog expire=<date> --all`强制让reflog在date之前的记录全部过期。
@@ -131,24 +130,24 @@ HAED: 位置在`.git/HEAD`，默认指向`.git/refs/heads/master`(当前分支�
 `git reset`重置当前分支引用（最新提交，HAED也随之改变）。
 两种用法：
 
-* 包含路径`<commit> -- <path>` 不会重置引用，而是用此commit（省略则默认为HEAD）下的文件path替换掉index中的文件。
+* 包含路径`<commit> -- <path>` 不会重置引用，而是用此commit（省略则默认为HEAD）下的文件path替换掉stage中的文件。
 * 不包含路径：
 
-    * `--hard <commit>` 重置引用，并替换index和workspace与此commit一致
-    * `--soft <commit>` 重置引用，不改变index和workspace
-    * `--mixed <commit>` 默认模式，重置引用，并替换index与此commit一致，但不改变workspace
+    * `--hard <commit>` 重置引用，并替换stage和workspace与此commit一致
+    * `--soft <commit>` 重置引用，不改变stage和workspace
+    * `--mixed <commit>` 默认模式，重置引用，并替换stage与此commit一致，但不改变workspace
 
 如果发生了引用重置，提交历史也会被重置，可用`git reflog`查找以前的提交ID恢复，用`<refname>@{<n>}`表示refname之前n次改变时的ID。
 
 `git checkout`重置HEAD的引用（当前分支改变，但HEAD总是指向当前分支的头）。
 两种用法：
 
-* 包含路径`<commit> -- <path>` 不会改变HEAD头指针，而是用此commit下的文件path替换掉index和workspace中的文件，commit若省略则相当于从index中替换掉workspace中的文件。
+* 包含路径`<commit> -- <path>` 不会改变HEAD头指针，而是用此commit下的文件path替换掉stage和workspace中的文件，commit若省略则相当于从stage中替换掉workspace中的文件。
 * 不包含路径：
 
     * `<commit>` 重置HEAD为具体的commit（也可以是引用比如某个tag），不再指向当前分支引用(detached HEAD)。
-    * `<branch>` 切换到某个分支（加`-b`选项可以新建并切换分支），对提交进行跟踪（不处于detached HEAD状态），并用此branch的树更新index和workspace中的文件。
-    * 接无参数或HEAD可以汇总显示workspace, index和HEAD的差异。
+    * `<branch>` 切换到某个分支（加`-b`选项可以新建并切换分支），对提交进行跟踪（不处于detached HEAD状态），并用此branch的树更新stage和workspace中的文件。
+    * 接无参数或HEAD可以汇总显示workspace, stage和HEAD的差异。
 
 detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有此提交的日志过期后（默认90天），此提交随时都会被从版本库中删除。可以通过合并`git merge`来保存这些提交到具体的分支上。
 
@@ -180,14 +179,39 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 * 退出码125：skip
 
 
-## 历史变更
+## 标签
+又称里程碑，位置在`.git/refs/tags/`，记录了所有标签。
+`git tag` 显示标签，创建标签，删除标签（`-d`）。
+三种类型：
+
+* 轻量级标签（不带选项创建）：就是一个提交（对象）。
+* 带附注说明的标签（`-a/-m`）：标签对象，含有名字，对应的提交，创建用户(tagger)，时间，以及说明。
+* 带签名的标签（`-s/-u`）：带附注说明的标签并包含GnuPG签名。`-v`验证签名的有效性。
+
+标签共享：
+
+* 推送：必须显式指定或用`--tags`选项。
+* 获取或拉回：自动同步远程标签（仅获取分支），如果已有同名的则不会同步。
+
+`git describe` 将提交显示为一个易记的名称，如果恰好有tag则为tag的名字，否则格式为：`基础版本号(最近的tag)-距离(距此tag的提交次数)-g提交ID`，可以作为软件的版本号。`--tags`对轻量级标签也有效，默认不会使用。
+`git name-rev` 显示提交ID及其对应的一个引用，默认优先使用分支名。`--tags`优先使用标签。
+
+
+## 分支
+分支: 位置在`.git/refs/heads/`目录下的引用(ref)，内容是分支的最新提交。
+引用日志(reflog): 位置在`.git/logs/refs/heads/`，记录了分支的所有提交变更，默认非裸(bare)版本库都提供。
+
+`git branch` 显示分支（`*`表示当前分支），创建分支，删除分支（`-d/-D`），改名分支（`-m/-M`）。`-b`创建并切换分支。`-v`查看各个分支最后一次提交信息。`--merged`查看哪些分支已被并入当前分支。`--no-merged`查看哪些分支还没被并入当前分支。
+
+## 衍合
 `git rebase` 将指定范围的提交重新一个个应用到另外一个提交之上。
-用法：`git rebase --onto <newbase> <since> <till>` `<till>`默认为HEAD
+用法：`git rebase [--onto <newbase>] <upstream> [<branch>]`
 相当于过程：
 
-1. `git checkout <till>`
-1. `git reset --HARD <newbase>`
-1. 从`<since>..<till>`的提交列表中按顺序逐一重新应用到重置后的分支上，如果提交已在分支上包含则跳过此提交。
+1. `git checkout <branch>`，branch默认为HEAD，不提供则留在当前分支上。
+1. 把`<upstream>..<branch>`的变化保存到一个临时区域。
+1. `git reset --HARD <newbase>`，如果没有`--onto`指明newbase，则用upstream。
+1. 将临时区域的提交列表按顺序逐一重新应用到重置后的分支上，如果提交已在分支上包含则跳过此提交。
 1. 如果遇到冲突则暂停，用户将冲突解决后可以`rebase --continue`继续，`rebase --skip`跳过，`rebase --abort`终止并切换到rebase前的分支上。 
 
 用`-i`选项使用交互式rebase（根据文件中的动作顺序执行），可以编辑文件改变提交顺序以及删除行以跳过提交，动作：
@@ -199,37 +223,136 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 * fixup: 同squash，但此提交的说明被丢弃
 * x cmd: 执行一个shell命令，出错的话会暂停
 
-`git cherry-pick` 将一个提交到处为补丁文件，然后在当前HAED上重放。
+
+## 合并
+`git merge <commit>` 将commit对应目录树和当前分支的目录树的内容进行合并，合并后新的提交以当前分支的提交为第一个父提交，被合并的为第二个父提交。
+
+快进式(fast-forward)合并：当前分支的最新提交是要被合并分支最新提交的祖先提交。这时不会产生新的合并提交，而是直接将HEAD指向被合并分支的最新提交。可用`--no-ff`选项禁止。
+
+合并策略：
+
+* resolve：只用于合并两个头，使用三向合并策略。最快最安全。
+* recursive：只用于合并两个头（默认），使用三向合并策略。冲突最小化，可以发现由于重命名导致的冲突。
+    * ours：冲突时选择当前版本。
+    * theirs：冲突时选择被合并的版本。
+    * subtree[=path]：使用子树合并策略。
+* octopus：合并两个以上的头（默认），拒绝需要手动解决的复制合并。
+* ours：合并两个以上的头，总是取当前分支的内容。
+* subtree：调整过的recursive策略。
+
+### 冲突
+冲突信息：
+
+* `.git/MERGE_HEAD` 合并的提交ID
+* `.git/MERGE_MSG` 合并失败的信息
+* `.git/MERGE_MODE` 合并状态
+
+`git status`查看发生了哪些冲突。
+`git ls-files -s`的第四个字段是stage编号，当发生冲突时会有0以上的编号，在冲突解决后消失：
+
+1. `:1:<filename>` 冲突文件修改之前的版本，冲突双方的共同祖先版本(base)
+1. `:2:<filename>` 冲突文件在当前分支中的修改版本(local)
+1. `:3:<filename>` 冲突文件在被合并分支中的修改版本(remote)
+
+工作区的版本冲突的地方用特殊标记标识，需要用手工编辑选取版本并加到stage以解决：
+```
+<<<<<<< HEAD
+当前分支更改
+=======
+被合并分支更改
+>>>>>>> ID
+```
+
+`git mergetool` 用图形工具解决冲突。也可以用来交互式解决树冲突。
+
+`git cherry-pick` 将一个提交导出为补丁文件，然后在当前HAED上重放。
 `git revert` 用一个新提交来撤销一个提交的变化。
 
 
-## 合并与冲突
-
-## 标签
-又称里程碑，位置在`.git/refs/tags/`，记录了所有标签。
-`git tag`打标签，`-a`含附注的标签，否则为轻量级的标签。
-
-
 ## 远程
-`git clone` 复制一个版本库。`--bare`复制为一个没有工作区的裸版本库（一般目录以.git为后缀）。`--mirror`复制一个裸版本库并对上游版本库进行了注册。
+`git clone` 复制一个版本库，注册上游版本库为`origin`，并对master分支建立跟踪。`--bare`复制为一个没有工作区的裸版本库（一般目录以.git为后缀），不会建立远程分支的跟踪而只是复制到本地。`--mirror`复制一个裸版本库并对上游版本库进行了注册。
+
+`git remote` 远程版本库管理。`add`新注册远程版本库，`rm`删除远程版本库，`rename`重命名远程版本库，`-v`显示所有已注册的版本库，`show <remote>`查看remote的详细信息。
+`git ls-remote` 查看远程版本库的引用。
+
+### 远程分支
+位置`.git/refs/remotes/origin/`，查看`git branch -r`。
+对应`.git/config`中的配置：
+```
+[remote "origin"]
+    fetch = +refs/heads/*:refs/remotes/origin/*
+    url = http://path/to/repos/project.git
+```
+远程分支不是真正的分支，只是类似标签的引用，如果需要修改得创建新的本地分支：
+`git checkout remote-branch-name`相当于`git checkout -b remote-branch-name origin/remote-branch-name`，创建了同名的本地分支并切换到上面，同时建立了本地分支和远程分支的跟踪。基于本地分支创建则不会自动建立跟踪，可以使用`--track`选项在创建分支时建立跟踪。
+对应`.git/config`中的配置：
+```
+[branch "remote-branch-name"]
+    remote = origin
+    merge = refs/heads/remote-branch-name
+```
+
+跟踪特性：
+
+* `git status`会显示本地分支和远程分支提交之间的关系。
+* `git pull`会和被跟踪的远程分支进行合并或衍合。
+* `git push`会推送到远程版本库的同名分支中。
+
+### 推送与拉回
+`git push <remote>` 推送当前分支更新。只有当前分支建立了远程跟踪才会被推送，否则需要用`git push <remote> <new-branch>`显式在远程创建同名分支，加上`-u`自动建立跟踪。
+推送目的位置：
+
+* 远程版本库：配置里的`branch.<branchname>.remote`版本库，没有则用`origin`。
+* 远程地址：配置里的`remote.<remote>.pushurl`地址，没有则用`remote.<remote>.url`。
+* 远程分支：配置里的`remote.<remote>.push`引用表达式，没有则用`:`表示同名分支推送，没有同名分支则不推送。
+
 默认不能向一个非裸版本库推送更新。
-快进式(fast-forward)推送：远程版本库相应分支的最新提交是本地版本库最新提交的祖先提交。
+快进式推送：远程版本库相应分支的最新提交是本地版本库最新提交的祖先提交，合并时采用快进式合并。
+如果远程版本库在配置里禁止了非快进式推送`receive.denyNonFastForwards`，这时就需要先拉回远程的更新合并后再推送。
+使用引用表达式`:refname`可以在推送时删除远程分支或标签。
+
+`git pull` 获取更新，并合并当前分支更新。(`git fetch` + `git merge/rebase`)
+拉回位置：
+
+* 远程版本库：配置里的`branch.<branchname>.remote`版本库，没有则用`origin`。
+* 远程地址：配置里的`remote.<remote>.url`地址。
+* 获取内容：配置里的`remote.<remote>.fetch`引用表达式。
+* 需合并的本地分支：配置里的`branch.<branchname>.merge`。如果`branch.<branchname>.rebase`为true，则使用rebase代替合并，将本地分支的改动rebase到跟踪分支上。
+
+`git fetch` 从远程版本库获取更新，默认从`origin`获取。`--no-tages`只获取分支和提交，不获取标签。`git remote upate`获取所有远程版本库的更新。
+例如根据上面的配置`git fetch`就相当于`git fetch origin +refs/heads/*:refs/remotes/origin/*`，将远程版本库的所有分支复制为本地的远程分支，`+`表示强制引用替换即使是非快进式的。
+
+
+## 补丁
+`git format-patch` 从提交范围创建对应的补丁。`-s`加上用户签名(signed-off)。
+`git send-mail` 发送补丁。
+`git am` 应用补丁。可以是mbox邮件补丁格式。
+`git apply` 应用一般格式的补丁，但需手动提交，也不能保留补丁中的作者信息。类似Gnu patch。
+
+补丁管理工具: [StGit](http://www.procode.org/stgit/), [Quilt](http://savannah.nongnu.org/projects/quilt/)
+
+
+## 协同合作
+永远不要衍合那些已经推送到公共仓库的更新。衍合是用新提交代替旧提交，如果已经有人基于旧提交工作，则必须再重新合并同样内容的新提交。
 
 
 ## 其它
 命令参数中为了避免commit或引用和path冲突，中间要用`--`分隔。
 
-`git describe` 将最新提交显示为一个易记的名称，格式为：`基础版本号(最近的tag)-距离(距此tag的提交次数)-g提交ID`，可以作为软件的版本号。`--tags`对轻量级tag也有效。
 `git show` 相当于`git cat-file -p`。
 `git clean` `-fd`清除未加入版本库的文件和目录。`-nd`测试运行。
 `git archive` 将版本库所有文件打包归档，如果要忽略某些文件可以设置export-ignore属性。`--prefix=`增加目录前缀。
 `git commit-tree` 从目录树创建根提交（没有父提交）。
+`git check-ref-format` 检查引用的命名规范。
+`git cherry` 查看哪些提交未被推送到上游跟踪分支中。
+`git instaweb` 临时启动一个web访问实例。
+`git help` 显示帮助。
 
 
 ## GUI
-gitk: 自带，基于Tcl/Tk
-gitg: 基于GTK+
-qgit: 基于Qt
+[gitk](http://git-scm.com/docs/gitk): 自带，基于Tcl/Tk
+[gitg](https://wiki.gnome.org/Apps/Gitg): 基于GTK+
+[QGit](http://digilander.libero.it/mcostalba/): 基于Qt
 
 ## Reference
 [Git权威指南](http://book.douban.com/subject/6526452/)
@@ -245,6 +368,7 @@ qgit: 基于Qt
 [Git Internals](http://peepcode.com/products/git-internals-pdf)
 [Git In The Threnches](http://cbx33.github.io/gitt/intro.html)
 [Git Pocket Guide](http://chimera.labs.oreilly.com/books/1230000000561)
+[Git Immersion](http://igit.linuxtoy.org/index.html)
 
 Cheat Sheet
 
