@@ -329,8 +329,44 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 `git am` 应用补丁。可以是mbox邮件补丁格式。
 `git apply` 应用一般格式的补丁，但需手动提交，也不能保留补丁中的作者信息。类似Gnu patch。
 
-补丁管理工具: [StGit](http://www.procode.org/stgit/), [Quilt](http://savannah.nongnu.org/projects/quilt/)
 
+## 子模块
+`git submodule` 将一个版本库作为另一个版本库的子目录，并保持各自提交相对独立不互相影响。`add`加入一个子模块（只是加了个链接）。`init`是将`.gitmodules`里的name和url信息注册到`.git/config`，如果已有则不会修改，一般clone一个带子模块的版本库后需要这样做。`update`根据`.git/config`clone新增的子模块或使现有子模块固定于某个提交(detached HAED)。`status`查看状态，前面有`-`说明还没有clone，`+`表示有新的提交。
+
+`.gitmodules`配置文件，保存了子模块项目的URL和本地保存目录。
+```
+[submodule "moduleA"]
+    path = module/A
+    url = /path/to/repos/moduleA.git
+```
+关于子模块的重要一点（子模块的状态）：记录他们当前确切所处的提交（固定于某个提交，不随外部自动更新），并将这个提交记录为一个目录项而不是子目录或者文件(gitlink)。
+
+更新子模块：要使所有子模块同步到远程最新，用`git submodule foreach git pull`。
+删除子模块：
+
+* 删除`.gitmodules`里的相关项
+* 删除`.git/config`里的相关项
+* `git rm --cached path/to/submodule` (没有最后的slash)
+* 提交然后删除未加入版本库的子模块文件
+
+
+## 子树
+`git read-tree` 将一个分支内容读到当前分支的一个子目录下（只更新在stage中）。
+`git write-tree` 将stage中的树保存为对象。
+`git commit-tree` 将树对象提交。`-p`指定父提交。
+`git ls-tree` 查看树对象。
+
+子树合并：外部版本库作为一个目录被整个复制到本版本库中，并复制到本版本库中的子目录下的数据可以和原版本库建立跟踪关联。
+步骤：
+
+1. 创建本地分支和外部版本库跟踪。
+1. `git read-tree`将此分支的树内容更新到当前分支上。
+1. `git write-tree`将更新过后的当前分支目录树保存为树对象。
+1. `git commit-tree`将保存的数对象提交并以这个本地分支和当前分支的最新提交作为父提交。
+1. 重置当前分支到这个合并树提交。
+
+合并后更新外部版本库上游改动：先更新对应的本地分支，再利用子树合并策略合并到当前分支上`git merge -Xsubtree=path branch`。
+利用[git-subtree](https://github.com/apenwarr/git-subtree)插件方便地完成子树合并，拆分等操作。
 
 ## 协同合作
 永远不要衍合那些已经推送到公共仓库的更新。衍合是用新提交代替旧提交，如果已经有人基于旧提交工作，则必须再重新合并同样内容的新提交。
@@ -346,13 +382,49 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 `git check-ref-format` 检查引用的命名规范。
 `git cherry` 查看哪些提交未被推送到上游跟踪分支中。
 `git instaweb` 临时启动一个web访问实例。
+`git request-pull` 生成等待更新(pull)的概要。
+`git fast-import` 版本库导入。
 `git help` 显示帮助。
 
 
-## GUI
-[gitk](http://git-scm.com/docs/gitk): 自带，基于Tcl/Tk
-[gitg](https://wiki.gnome.org/Apps/Gitg): 基于GTK+
-[QGit](http://digilander.libero.it/mcostalba/): 基于Qt
+## 工具
+图形化
+
+* [gitk](http://git-scm.com/docs/gitk): 自带，基于Tcl/Tk
+* [gitg](https://wiki.gnome.org/Apps/Gitg): 基于GTK+
+* [QGit](http://digilander.libero.it/mcostalba/): 基于Qt
+* [git-draw](https://github.com/sensorflo/git-draw)
+* [git-workflow](https://github.com/jvns/git-workflow)
+
+版本库管理
+
+* [repo](https://code.google.com/p/git-repo/)
+
+补丁管理
+
+* [StGit](http://www.procode.org/stgit/)
+* [Quilt](http://savannah.nongnu.org/projects/quilt/)
+
+辅助开发
+
+* [TopGit](http://repo.or.cz/w/topgit.git)
+
+代码审查
+
+* [Gerrit](https://code.google.com/p/gerrit/)
+
+协作
+
+* [GitHub](https://github.com/)
+* [GitLab](https://www.gitlab.com/)
+* [Gitorious](https://gitorious.org/)
+* [GitCafe](https://gitcafe.com/)
+
+服务器
+
+* [GitWeb](https://git.wiki.kernel.org/index.php/Gitweb)
+* [gitolite](http://gitolite.com/gitolite/index.html)
+* [gitosis](https://github.com/tv42/gitosis)
 
 ## Reference
 [Git权威指南](http://book.douban.com/subject/6526452/)
@@ -363,12 +435,25 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 
 [Git Manual Page](http://git-htmldocs.googlecode.com/git/git.html)
 [Git User's Manual](https://www.kernel.org/pub/software/scm/git/docs/user-manual.html)
+[Git Reference](http://gitref.org/)
 [Git Community Book](http://gitbook.liuhui998.com/)
 [Git Magic](http://www-cs-students.stanford.edu/~blynn/gitmagic/intl/zh_cn/)
 [Git Internals](http://peepcode.com/products/git-internals-pdf)
 [Git In The Threnches](http://cbx33.github.io/gitt/intro.html)
 [Git Pocket Guide](http://chimera.labs.oreilly.com/books/1230000000561)
 [Git Immersion](http://igit.linuxtoy.org/index.html)
+[Ry’s Git Tutorial](http://rypress.com/tutorials/git/index.html)
+[Git Tutorials](https://www.atlassian.com/git)
+[Git Workflows](http://documentup.com/skwp/git-workflows-book)
+[Git for Computer Scientists](http://eagain.net/articles/git-for-computer-scientists/)
+[Git for Designers](http://hoth.entp.com/output/git_for_designers.html)
+
+Workflow
+
+* [A successful Git branching model](http://nvie.com/posts/a-successful-git-branching-model/)
+* [GitHub Flow](http://scottchacon.com/2011/08/31/github-flow.html)
+* [Understanding the Git Workflow](http://heikezhi.com/yuanyi/understanding-the-git-workflow)
+* [gitworkflows Manual Page](https://www.kernel.org/pub/software/scm/git/docs/gitworkflows.html)
 
 Cheat Sheet
 
