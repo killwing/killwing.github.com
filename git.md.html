@@ -5,7 +5,7 @@
 ## 环境与配置
 版本库目录`.git`在工作区根目录下，在子目录下操作时Git会递归向上查找`.git`目录。
 `git init`在当前目录下创建并初始化新的版本库。
-  
+
 ### 配置文件`.gitconfig`
 配置文件有三个级别，优先级从高到低依次为版本库`.git/config`，全局`~/.gitconfig`，系统`/etc/gitconfig`。
 配置文件格式为INI格式，使用`git config`操作，也可以操作其它任何INI格式的文件。
@@ -36,22 +36,40 @@
 	whitespace = blank-at-eol,tab-in-indent,tabwidth=4 # 检测空白的规则：行尾有空白，缩进有tab，并设tab为4个字符
 ```
 
-### 忽略配置文件`.gitignore`
+### 忽略文件`.gitignore`
 作用范围是所在目录及其子目录，只对未跟踪的文件有效，对已经加入版本库的文件无效。
-所有空行或者以注释符号#开头的行都会被忽略。
+所有空行或者以注释符号`#`开头的行都会被忽略。
 可以使用标准的[glob](http://man7.org/linux/man-pages/man7/glob.7.html)模式匹配。
 匹配模式最后跟反斜杠`/`，说明要忽略的是目录。
 如果名称前面是个`/`，说明要忽略的文件在此目录下，而非子目录的文件。
 要忽略指定模式以外的文件或目录，可以在模式前加上`!`取反。
 独享式忽略可以使用`.git/info/exclude`文件设置，或者配置变量`core.excludesfile`。
 
-### 属性配置文件`.gitattributes`
-`*.pbxproj binary` 指定为二进制文件
-`*.doc diff=word` 把Word文档转换成可读的文本文件，之后再进行比较`git config diff.word.textconv strings`
-`*.txt ident` 签出分支的时候，会用blob的SHA-1值替换$id$字段
-`*.c filter=indent` 设置过滤器`git config filter.indent...`
-`test/ export-ignore` 当运行`git archive`来创建项目的压缩包时，test目录不会在归档中出现。
-`database.xml merge=ours` 始终使用本分支的版本作为合并结果
+### 属性文件`.gitattributes`
+为版本库中的文件或目录添加属性，格式：`<pattern> <attr1> <attr2>`
+
+* `pattern`类似忽略文件。
+* 一般`attr`表示设置属性为true，`-attr`设为false取反，`!attr`不设置，而是根据git配置里的值，`attr=`设置具体枚举值。
+* 设置宏，如`[attr]binary -text -diff`。（仅在工作区根目录的属性文件）
+
+属性文件的级别，优先级从高到低依次为版本库`.git/info/attributes`，工作区同一目录下`.gitattributes`的并递归向上查找至工作区根目录，全局由`core.attributesfile`配置指定（如`~/.gitattributes`），系统`/etc/gitattributes`。
+
+`git check-attr` 查看属性设置
+常用属性：
+
+* `text` 显式指定文件的类型，`text`文本文件，`-text`二进制，`text=auto`智能判别。
+* `eol` 设定文本文件的换行符格式`crlf`或`lf`，如果没有`text`属性时会设置`text`属性。
+* `ident` 开启文本文件中的关键字扩展，即用blob的SHA-1值替换文本中的`$id$`字段。
+* `filter` 自定义转换过滤器，以便文件在检入到版本库以及检出到工作区时进行相应的转换，通过git配置文件来完成。
+* `diff` 定义比较方式，`diff`文本方式，`-diff`二进制方式，`!diff`智能判别，`diff=<driver>`设定一个外部驱动如`word`根据git配置来比较。
+* `merge` 指定合并策略，`merge`使用内置的三向合并策略，`-merge`二进制文件合并策略，`!merge`和`merge`类似但git配置了`merge.default`就用配置的策略，`merge=<driver>`使用指定的合并驱动执行三向合并。
+* `whitespace` 对文本中的空白符进行检查。`whitespace`开启所有的空白符检查，`-whitespace`不检查，`!whitespace`使用`core.whitespace`配置检查，`whitespace=`设置检查项。
+* `export-igonre` 在执行`git archive`时不导出。
+* `export-subst` 在执行`git archive`时展开相应文件内容的占位符`$Format:Placeholders$`。
+* `delta` `-delta`则不对该路径指向的blob文件执行delta压缩。
+* `encoding` 设置文件所用的字符集。
+* `binary` 宏，相当于`-text`和`-diff`。
+
 
 ### 协议与代理
 git传输可以用`ssh`, `http(s)`, `git`（只读）, `file:///`, `/path`智能协议（`http`需配置），以及`ftp`, `rsync`哑协议。哑协议的缺点是传输速度慢效率低。
@@ -68,7 +86,7 @@ git传输可以用`ssh`, `http(s)`, `git`（只读）, `file:///`, `/path`智能
 [workspace] -- `add` --> [stage] -- `commit` --> [repo]
 [workspace] <-- `checkout --` -- [stage] <-- `reset --` -- [repo]
 
-`git diff`比较([unified格式](http://stackoverflow.com/questions/2529441/how-to-work-with-diff-representation-in-git))。`--check`会把可能的多余白字符修正列出来。`--word-diff`逐词比较。
+`git diff`比较([unified格式](http://stackoverflow.com/questions/2529441/how-to-work-with-diff-representation-in-git))。`--check`会把可能的多余白字符修正列出来。`--word-diff`逐词比较。`--binary`二进制文件比较。
 比较各种状态：
 [workspace] <-- `diff` --> [stage] <-- `diff --cached` --> [HEAD]
 [workspace] <-- `diff <commit>` --> [commit]
@@ -203,6 +221,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 
 `git branch` 显示分支（`*`表示当前分支），创建分支，删除分支（`-d/-D`），改名分支（`-m/-M`）。`-b`创建并切换分支。`-v`查看各个分支最后一次提交信息。`--merged`查看哪些分支已被并入当前分支。`--no-merged`查看哪些分支还没被并入当前分支。
 
+
 ## 衍合
 `git rebase` 将指定范围的提交重新一个个应用到另外一个提交之上。
 用法：`git rebase [--onto <newbase>] <upstream> [<branch>]`
@@ -212,7 +231,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 1. 把`<upstream>..<branch>`的变化保存到一个临时区域。
 1. `git reset --HARD <newbase>`，如果没有`--onto`指明newbase，则用upstream。
 1. 将临时区域的提交列表按顺序逐一重新应用到重置后的分支上，如果提交已在分支上包含则跳过此提交。
-1. 如果遇到冲突则暂停，用户将冲突解决后可以`rebase --continue`继续，`rebase --skip`跳过，`rebase --abort`终止并切换到rebase前的分支上。 
+1. 如果遇到冲突则暂停，用户将冲突解决后可以`rebase --continue`继续，`rebase --skip`跳过，`rebase --abort`终止并切换到rebase前的分支上。
 
 用`-i`选项使用交互式rebase（根据文件中的动作顺序执行），可以编辑文件改变提交顺序以及删除行以跳过提交，动作：
 
@@ -222,6 +241,8 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 * squash: 该提交会与前面的提交压缩为一个
 * fixup: 同squash，但此提交的说明被丢弃
 * x cmd: 执行一个shell命令，出错的话会暂停
+
+永远不要衍合那些已经推送到公共仓库的更新。衍合是用新提交代替旧提交，如果已经有人基于旧提交工作，则必须再重新合并同样内容的新提交。
 
 
 ## 合并
@@ -324,10 +345,10 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 
 
 ## 补丁
-`git format-patch` 从提交范围创建对应的补丁。`-s`加上用户签名(signed-off)。
+`git format-patch` 从提交范围创建对应的补丁，支持二进制文件。`-s`加上用户签名(signed-off)。
 `git send-mail` 发送补丁。
 `git am` 应用补丁。可以是mbox邮件补丁格式。
-`git apply` 应用一般格式的补丁，但需手动提交，也不能保留补丁中的作者信息。类似Gnu patch。
+`git apply` 应用一般格式的补丁，但需手动提交，也不能保留补丁中的作者信息。类似Gnu patch。`-R`反向应用补丁。
 
 
 ## 子模块
@@ -353,7 +374,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 ## 子树
 `git read-tree` 将一个分支内容读到当前分支的一个子目录下（只更新在stage中）。
 `git write-tree` 将stage中的树保存为对象。
-`git commit-tree` 将树对象提交。`-p`指定父提交。
+`git commit-tree` 从目录树树对象创建提交，可以用来创建根提交。`-p`指定父提交。
 `git ls-tree` 查看树对象。
 
 子树合并：外部版本库作为一个目录被整个复制到本版本库中，并复制到本版本库中的子目录下的数据可以和原版本库建立跟踪关联。
@@ -368,21 +389,98 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 合并后更新外部版本库上游改动：先更新对应的本地分支，再利用子树合并策略合并到当前分支上`git merge -Xsubtree=path branch`。
 利用[git-subtree](https://github.com/apenwarr/git-subtree)插件方便地完成子树合并，拆分等操作。
 
-## 协同合作
-永远不要衍合那些已经推送到公共仓库的更新。衍合是用新提交代替旧提交，如果已经有人基于旧提交工作，则必须再重新合并同样内容的新提交。
-
 
 ## 其它
+### 钩子
+位置`.git/hooks/`，当执行特定的操作时会调用特定的钩子脚本，这些脚本在clone时不会被复制。
+
+`git commit`调用
+
+* `pre-commit` 在键入提交信息前运行，被用来检查即将提交的快照，当从该钩子返回非零值时，会放弃此次提交。
+* `prepare-commit-msg` 在提交信息编辑器显示之前，默认信息被创建之后运行。
+* `commit-msg` 接收一个参数，此参数是包含最近提交信息的临时文件的路径。如果该钩子脚本以非零退出，会放弃提交。
+* `post-commit` 在整个提交过程完成后运行。
+
+`git am`调用
+
+* `applypatch-msg`
+* `pre-applypatch`
+* `post-applypatch`
+
+`git rebase`调用
+
+* `pre-rebase`
+
+`git checkout`调用
+
+* `post-checkout`
+
+`git merge`调用
+
+* `post-merge`
+
+`git receive-pack`调用
+
+* `pre-receive`
+* `post-receive`
+* `update`
+* `post-update`
+
+`git gc --auto`调用
+
+* `pre-auto-gc`
+
+`git commit --amend` / `git rebase` 重写提交的命令调用
+
+* `post-rewrite`
+
+### 模板
+在`git init`或`git clone`创建版本库时，会从模板目录复制钩子脚本`.git/hooks/*`，忽略文件`.git/info/exclude`及其他文件。
+模板目录可以由选项`--template=<DIR>`，环境变量`$GIT_TEMPLATE_DIR`，配置变量`init.templatedir`指定，否则使用默认的安装目录下的模板目录。
+
+### 稀疏检出
+默认在`git init`或`git clone`创建版本库时，如果不是一个裸库`--bare`且没有`-n`选项，会从版本库`.git/`检出所有文件到工作区。
+如果只要检出部分文件，要设置`core.sparseCheckout`配置变量，并配置`.git/info/sparse-checkout`文件（类似忽略文件），然后执行`git checkout`。
+`git ls-files -s -v`查看状态，`H`表示文件已被暂存，`S`表示被忽略检出的文件。
+
+### 浅克隆
+`git clone/fetch --depth <depth>` 只获取版本库的一部分即最近的depth+1个历史提交。源版本库如果是本地需使用`file:///`协议。
+
+限制（它指浅克隆版本库）：
+
+* 不能从它再克隆。
+* 不能从它获取提交。
+* 不能推送提交给它。
+* 不要从它推送给其它版本库。
+* 合并如无历史会有大量冲突。
+
+`.git/shallow`列出了应该被视为根节点的提交ID。
+
+### 提交嫁接与替换
+通过文件`.git/info/grafts`把完全不同的提交分支嫁接到一起。
+格式：`<commit> <parent> [<parent>]*`
+
+通过`.git/refs/replace/`下面的引用实现提交的替换。
+`git replace` 管理提交替换。
+
+### 评注
+位置`.git/ref/notes/`，评注记录在一个blob对象中，并以所评注的对象ID作为文件名保存在一个目录树中。包含所有评注及目录树的更改被提交到一个特殊的引用`.git/ref/notes/commits`之中。
+
+`git notes` 评注操作。`list`列出。`show`显示。`add`添加。`append`追加。`copy`复制。`edit`编辑。`remove`删除。`merge`合并。
+
+配置`notes.rewriteRef`, `notes.rewrite.amend`, `notes.rewrite.rebase`使提交评注随提交的修改而复制到新的提交之上。
+
+### 其它命令
 命令参数中为了避免commit或引用和path冲突，中间要用`--`分隔。
 
 `git show` 相当于`git cat-file -p`。
 `git clean` `-fd`清除未加入版本库的文件和目录。`-nd`测试运行。
 `git archive` 将版本库所有文件打包归档，如果要忽略某些文件可以设置export-ignore属性。`--prefix=`增加目录前缀。
-`git commit-tree` 从目录树创建根提交（没有父提交）。
 `git check-ref-format` 检查引用的命名规范。
 `git cherry` 查看哪些提交未被推送到上游跟踪分支中。
 `git instaweb` 临时启动一个web访问实例。
 `git request-pull` 生成等待更新(pull)的概要。
+`git filter-branch` 针对不同的过滤器提供脚本命令从不同角度对版本库进行重构。
 `git fast-import` 版本库导入。
 `git help` 显示帮助。
 
@@ -426,7 +524,8 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 * [gitolite](http://gitolite.com/gitolite/index.html)
 * [gitosis](https://github.com/tv42/gitosis)
 
-## Reference
+
+## References & Resources
 [Git权威指南](http://book.douban.com/subject/6526452/)
 [Git SCM](http://git-scm.com/)
 
@@ -442,11 +541,12 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 [Git In The Threnches](http://cbx33.github.io/gitt/intro.html)
 [Git Pocket Guide](http://chimera.labs.oreilly.com/books/1230000000561)
 [Git Immersion](http://igit.linuxtoy.org/index.html)
-[Ry’s Git Tutorial](http://rypress.com/tutorials/git/index.html)
+[Ry's Git Tutorial](http://rypress.com/tutorials/git/index.html)
 [Git Tutorials](https://www.atlassian.com/git)
 [Git Workflows](http://documentup.com/skwp/git-workflows-book)
 [Git for Computer Scientists](http://eagain.net/articles/git-for-computer-scientists/)
 [Git for Designers](http://hoth.entp.com/output/git_for_designers.html)
+[Learn Version Control with Git](http://www.git-tower.com/learn/)
 
 Workflow
 
@@ -459,6 +559,12 @@ Cheat Sheet
 
 * [Heroku Cheat Sheet](https://na1.salesforce.com/help/doc/en/salesforce_git_developer_cheatsheet.pdf)
 * [Visual Git Cheat Sheet](http://ndpsoftware.com/git-cheatsheet.html)
+* [GitHub Cheat Sheet](https://github.com/tiimgreen/github-cheat-sheet)
+
+Interactive
+
+* [try Git](http://try.github.com/)
+* [Learn Git Branching](http://pcottle.github.io/learnGitBranching/)
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
