@@ -2,6 +2,8 @@
 <html>
 <title>Git</title>
 <xmp theme="readable" style="display:none;">
+v1.9.0
+
 ## 环境与配置
 版本库目录`.git`在工作区根目录下，在子目录下操作时Git会递归向上查找`.git`目录。
 `git init`在当前目录下创建并初始化新的版本库。
@@ -42,8 +44,12 @@
 可以使用标准的[glob](http://man7.org/linux/man-pages/man7/glob.7.html)模式匹配。
 匹配模式最后跟反斜杠`/`，说明要忽略的是目录。
 如果名称前面是个`/`，说明要忽略的文件在此目录下，而非子目录的文件。
+`**/`表示0到多层任意目录。
+`:(icase)filename`忽略大小写。
 要忽略指定模式以外的文件或目录，可以在模式前加上`!`取反。
 独享式忽略可以使用`.git/info/exclude`文件设置，或者配置变量`core.excludesfile`。
+
+`git check-ignore` 检查忽略文件的设置。
 
 ### 属性文件`.gitattributes`
 为版本库中的文件或目录添加属性，格式：`<pattern> <attr1> <attr2>`
@@ -70,6 +76,17 @@
 * `encoding` 设置文件所用的字符集。
 * `binary` 宏，相当于`-text`和`-diff`。
 
+`filter`例子：
+```
+# .gitattributes
+* filter=trimWhitespace
+
+# .gitconfig
+[filter "trimWhitespace"]
+    clean = sed 's/\\s\\+$//'
+    smudge = cat
+```
+clean在文件加入到stage时执行（必须重新检出文件才能看到效果），smudge在文件从stage检出到工作区时执行。过滤的执行是从标准输入读入内容，输出到标准输出。
 
 ### 协议与代理
 git传输可以用`ssh`, `http(s)`, `git`（只读）, `file:///`, `/path`智能协议（`http`需配置），以及`ftp`, `rsync`哑协议。哑协议的缺点是传输速度慢效率低。
@@ -78,7 +95,7 @@ git传输可以用`ssh`, `http(s)`, `git`（只读）, `file:///`, `/path`智能
 对于`git`协议代理，[设置core.gitproxy配置命令调用socat或corkscrew](http://www.emilsit.net/blog/archives/how-to-use-the-git-protocol-through-a-http-connect-proxy/)。
 
 ## 暂存区
-暂存区（stage, 又称索引index）：一个包含文件索引的目录树`.git/index`，作为下次提交的内容，提交之后stage内容就和HAED一致。
+暂存区（stage, 又称索引index或缓存cache）：一个包含文件索引的目录树`.git/index`，作为下次提交的内容，提交之后stage内容就和HAED一致。
 `git ls-files -s`查看stage的目录树，用`git write-tree`把当前stage内容生成一个树对象，然后可以用`git ls-tree`查看树对象。
 
 `git status`查看当前状态。
@@ -118,12 +135,12 @@ ID的计算：`sha1(对象类型<space>对象长度<null>对象内容)`，例如
 
 ### 对象指代（以HAED为例）
 
-* `HAED`: 位置在`.git/HEAD`，默认指向`.git/refs/heads/master`(当前分支，这里是master)，类似链表的头指针。当执行提交时，HEAD指向的提交将作为新提交的父提交。
+* `HAED`或者`@`: 位置在`.git/HEAD`，默认指向`.git/refs/heads/master`(当前分支，这里是master)，类似链表的头指针。当执行提交时，HEAD指向的提交将作为新提交的父提交。
 * `HAED^`: 父提交，`HEAD^^^`或`HEAD~3`都指第前3次父提交。也可用类似reflog表示法：`HEAD@{3}`。
 * `HAED^{tree}`: 提交对应的树对象。
 * `HEAD:path/to/file`: 提交对应的文件对象。
 * `:path/to/file`: stage中的文件对象。
-* `:/"commit xxx"`: 日志中查找字符串对应的提交。
+* `:/"commit xxx"`: 日志里含有字符串的提交。
 * 如果A是含附注说明的tag，则`A^{}`, `A^{commit}`, `A^0`, `A~0`指它对应的提交。其他类似：`A^{tree}`, `A:path/to/file`。
 
 ### 提交范围
@@ -135,14 +152,15 @@ ID的计算：`sha1(对象类型<space>对象长度<null>对象内容)`，例如
 * `A..B`: 从A到B的范围，指从B可以追溯到而不能从A追溯到，不包括A本身(A, B]，B可省默认为HEAD。相当于`^A B`或`B ^A`或`B --not A`，`^`表示从其中排除。
 * `A...B`: 排除A和B能共同追溯到的版本，顺序无关
 
-`git rev-parse`查看具体提交的ID（也可查看引用和对象的ID），`git rev-list`查看提交范围，`git log`接提交范围（默认HAED）以显示提交历史。
+`git rev-parse`查看具体提交的ID（也可查看引用和对象的ID），`git rev-list`查看提交范围，`git log`接提交范围（默认HAED）以显示提交历史，`-S`可以查找指定文件中的字符串在哪个提交里被加入和删除的。
 
 ### 对象管理
-`git fsck` 查看版本库中包含的没有被任何引用关联的对象。还被reflog引用到的不会显示，可以用`git reflog expire=<date> --all`强制让reflog在date之前的记录全部过期。
+`git fsck` 查看版本库中包含的没有被任何引用关联的对象(dangling objects)。还被reflog引用到的不会显示，可以用`git reflog expire=<date> --all`强制让reflog在date之前的记录全部过期。
 `git prune` 清除没有被任何引用关联的对象。
 `git pack-refs` 对引用文件进行打包到`.git/packed-refs`文件中。
 `git repack` 打包所有有引用关联的对象到`.git/objects/pack/pack-*.pack`中，index文件为`.git/objects/pack/pack-*.idx`。
 `git gc` 优化存储包括打包引用和对象，丢弃90天前的reflog记录，清除2周前未被关联的对象，以及过期合并冲突历史记录等其它清理。有些情况下如接收推送后会自动执行`git gc --auto`进行清理。
+`git count-objects` 显示对象的数量和总共占用大小。
 
 ## 重置与检出
 `git reset`重置当前分支引用（最新提交，HAED也随之改变）。
@@ -352,7 +370,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 
 
 ## 子模块
-`git submodule` 将一个版本库作为另一个版本库的子目录，并保持各自提交相对独立不互相影响。`add`加入一个子模块（只是加了个链接）。`init`是将`.gitmodules`里的name和url信息注册到`.git/config`，如果已有则不会修改，一般clone一个带子模块的版本库后需要这样做。`update`根据`.git/config`clone新增的子模块或使现有子模块固定于某个提交(detached HAED)。`status`查看状态，前面有`-`说明还没有clone，`+`表示有新的提交。
+`git submodule` 将一个版本库作为另一个版本库的子目录，并保持各自提交相对独立不互相影响。`add`加入一个子模块（只是加了个链接）。`init`是将`.gitmodules`里的name和url信息注册到`.git/config`，如果已有则不会修改，一般clone一个带子模块的版本库后需要这样做。`deinit`把子模块注册信息从`.git/config`里删除，也删除子模块目录内容。`update`根据`.git/config`clone新增的子模块或使现有子模块固定于某个提交(detached HAED)。`mv`移动重命名。`status`查看状态，前面有`-`说明还没有clone，`+`表示有新的提交。
 
 `.gitmodules`配置文件，保存了子模块项目的URL和本地保存目录。
 ```
@@ -366,7 +384,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 删除子模块：
 
 * 删除`.gitmodules`里的相关项
-* 删除`.git/config`里的相关项
+* `git submodule deinit`删除`.git/config`里的相关项
 * `git rm --cached path/to/submodule` (没有最后的slash)
 * 提交然后删除未加入版本库的子模块文件
 
@@ -480,7 +498,9 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 `git cherry` 查看哪些提交未被推送到上游跟踪分支中。
 `git instaweb` 临时启动一个web访问实例。
 `git request-pull` 生成等待更新(pull)的概要。
+`git update-index` 更改stage中文件状态。
 `git filter-branch` 针对不同的过滤器提供脚本命令从不同角度对版本库进行重构。
+`git stripspace` 删除多余空格，一般用于非代码文本。
 `git fast-import` 版本库导入。
 `git help` 显示帮助。
 
@@ -510,6 +530,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 代码审查
 
 * [Gerrit](https://code.google.com/p/gerrit/)
+* [Barkeep](http://getbarkeep.org/)
 
 协作
 
@@ -530,36 +551,49 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 [Git SCM](http://git-scm.com/)
 
 * [Reference Manual](http://git-scm.com/docs)
-* [Pro Git](http://git-scm.com/book/zh)
+* [Pro Git (zh)](http://git-scm.com/book/zh)
 
 [Git Manual Page](http://git-htmldocs.googlecode.com/git/git.html)
 [Git User's Manual](https://www.kernel.org/pub/software/scm/git/docs/user-manual.html)
 [Git Reference](http://gitref.org/)
 [Git Community Book](http://gitbook.liuhui998.com/)
-[Git Magic](http://www-cs-students.stanford.edu/~blynn/gitmagic/intl/zh_cn/)
+[Git FAQ](https://git.wiki.kernel.org/index.php/GitFaq)
+[Git Magic (zh)](http://www-cs-students.stanford.edu/~blynn/gitmagic/intl/zh_cn/)
 [Git Internals](http://peepcode.com/products/git-internals-pdf)
 [Git In The Threnches](http://cbx33.github.io/gitt/intro.html)
 [Git Pocket Guide](http://chimera.labs.oreilly.com/books/1230000000561)
-[Git Immersion](http://igit.linuxtoy.org/index.html)
+[Git Immersion](http://gitimmersion.com/) [沉浸式学Git](http://igit.linuxtoy.org/index.html)
 [Ry's Git Tutorial](http://rypress.com/tutorials/git/index.html)
 [Git Tutorials](https://www.atlassian.com/git)
 [Git Workflows](http://documentup.com/skwp/git-workflows-book)
-[Git for Computer Scientists](http://eagain.net/articles/git-for-computer-scientists/)
+[Git for Computer Scientists](http://eagain.net/articles/git-for-computer-scientists/) [给那些不怕类似“有向无环图”字眼的人简单介绍git](http://blog.jobbole.com/51736/)
 [Git for Designers](http://hoth.entp.com/output/git_for_designers.html)
 [Learn Version Control with Git](http://www.git-tower.com/learn/)
+[Think Like a Git](http://think-like-a-git.net/)
+[git ready](http://gitready.com/)
+[A Visual Git Reference (zh)](http://marklodato.github.io/visual-git-guide/index-zh-cn.html)
+[git - the simple guide (zh)](http://rogerdudler.github.io/git-guide/index.zh.html)
+[Practical Git and GitHub](https://leanpub.com/Practical_Git/read)
+[7 Useful Git Tips for Beginners](http://sixrevisions.com/web-development/git-tips/) [写给Git初学者的7个建议](http://blog.jobbole.com/50603/)
 
 Workflow
 
 * [A successful Git branching model](http://nvie.com/posts/a-successful-git-branching-model/)
 * [GitHub Flow](http://scottchacon.com/2011/08/31/github-flow.html)
-* [Understanding the Git Workflow](http://heikezhi.com/yuanyi/understanding-the-git-workflow)
+* [Understanding the Git Workflow](https://sandofsky.com/blog/git-workflow.html) [理解Git工作流](http://heikezhi.com/yuanyi/understanding-the-git-workflow) [理解Git的工作流程](http://blog.jobbole.com/24379/)
 * [gitworkflows Manual Page](https://www.kernel.org/pub/software/scm/git/docs/gitworkflows.html)
+* [Git team workflows: merge or rebase?](http://blogs.atlassian.com/2013/10/git-team-workflows-merge-or-rebase/)
+* [Visualized Git practices for team: branch, merge, rebase](http://kentnguyen.com/development/visualized-git-practices-for-team/)
 
 Cheat Sheet
 
 * [Heroku Cheat Sheet](https://na1.salesforce.com/help/doc/en/salesforce_git_developer_cheatsheet.pdf)
 * [Visual Git Cheat Sheet](http://ndpsoftware.com/git-cheatsheet.html)
+* [escape a git mess, step-by-step](http://justinhileman.info/article/git-pretty/git-pretty.png)
 * [GitHub Cheat Sheet](https://github.com/tiimgreen/github-cheat-sheet)
+* [git cheat sheet](http://rogerdudler.github.io/git-guide/files/git_cheat_sheet.pdf)
+* [git cheat sheet (git-tower)](http://www.git-tower.com/blog/git-cheat-sheet/)
+* [msysGit Mindmap](http://pic002.cnblogs.com/img/1-2-3/201007/2010072023345292.png)
 
 Interactive
 
