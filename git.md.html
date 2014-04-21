@@ -338,12 +338,20 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 * `git push`会推送到远程版本库的同名分支中。
 
 ### 推送与拉回
-`git push <remote>` 推送当前分支更新。只有当前分支建立了远程跟踪才会被推送，否则需要用`git push <remote> <new-branch>`显式在远程创建同名分支，加上`-u`自动建立跟踪。
+`git push` 推送分支更新。只有当前分支建立了远程跟踪才会被推送，否则需要用`git push <remote> <new-branch>`显式在远程创建同名分支，加上`-u`自动建立跟踪。
 推送目的位置：
 
 * 远程版本库：配置里的`branch.<branchname>.remote`版本库，没有则用`origin`。
 * 远程地址：配置里的`remote.<remote>.pushurl`地址，没有则用`remote.<remote>.url`。
-* 远程分支：配置里的`remote.<remote>.push`引用表达式，没有则用`:`表示同名分支推送，没有同名分支则不推送。
+* 远程分支：配置里的`remote.<remote>.push`引用表达式(refspec)，没有则用`push.default`的设置。
+
+`push.default`选项:
+
+* `nothing` 不推送。
+* `current` 推送当前同名分支。
+* `upstream` 推送当前分支到上游分支。
+* `simple` v2.0默认，推送当前分支到上游同名分支。
+* `matching` v1.x默认，推送所有同名分支。
 
 默认不能向一个非裸版本库推送更新。
 快进式推送：远程版本库相应分支的最新提交是本地版本库最新提交的祖先提交，合并时采用快进式合并。
@@ -571,6 +579,8 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 [Learn Version Control with Git](http://www.git-tower.com/learn/)
 [Think Like a Git](http://think-like-a-git.net/)
 [git ready](http://gitready.com/)
+[Git From the Bottom Up](http://ftp.newartisans.com/pub/git.from.bottom.up.pdf)
+[Git the basics](http://www.jukie.net/~bart/slides/intro-to-git/intro-to-git.pdf)
 [A Visual Git Reference (zh)](http://marklodato.github.io/visual-git-guide/index-zh-cn.html)
 [git - the simple guide (zh)](http://rogerdudler.github.io/git-guide/index.zh.html)
 [Practical Git and GitHub](https://leanpub.com/Practical_Git/read)
