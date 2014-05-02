@@ -17,7 +17,6 @@ const COLOR = {
 };
 
 function BarData() {
-    this.bars = [];
     this.values = [];
     this.length = N;
     for (let i = 0; i < N; ++i) {
@@ -29,7 +28,6 @@ function BarData() {
         b.s = 'UNSORTED';
         b.a = true; // active
 
-        this.bars.push(b);
         this.values.push(b);
     }
 }
@@ -121,7 +119,7 @@ function BarWidget(sort) {
 
     // init draw
     this.svg.selectAll('rect')
-        .data(this.data.bars)
+        .data(this.data.values)
         .enter()
         .append('rect')
         .attr('x', function(d, i) { return d.x; })
@@ -163,7 +161,6 @@ BarWidget.prototype.update = function() {
 
     // redraw
     this.svg.selectAll('rect')
-        .data(this.data.bars)
         .transition()
         .duration(this.speed)
         .attr('x', function(d, i) { return d.x; })
@@ -192,7 +189,7 @@ BarWidget.prototype.onReset = function() {
     this.init();
 
     this.svg.selectAll('rect')
-        .data(this.data.bars)
+        .data(this.data.values)
         .attr('x', function(d, i) { return d.x; })
         .attr('y', function(d, i) { return d.y; })
         .attr('width', function(d, i) { return d.w; })
@@ -286,8 +283,6 @@ function TreeWidget(sort) {
     this.speed = SPEED;
     this.sort = sort;
 
-    this.diagonal = d3.svg.diagonal().projection(function(d) { return [d.x, d.y]; });
-
     this.init();
 
     // init draw
@@ -295,7 +290,7 @@ function TreeWidget(sort) {
         .data(this.data.links)
         .enter()
         .append('path')
-        .attr('d', this.diagonal)
+        .attr('d', d3.svg.diagonal())
         .attr('stroke', COLOR.INACTIVE)
         .attr('stroke-width', '2px')
         .attr('fill', 'none');
@@ -347,13 +342,11 @@ TreeWidget.prototype.update = function() {
 
     // redraw
     this.svg.selectAll('g')
-        .data(this.data.nodes)
         .transition()
         .duration(this.speed)
         .attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
 
     this.svg.selectAll('g circle')
-        .data(this.data.nodes)
         .transition()
         .duration(this.speed)
         .attr('fill', function(d) { return COLOR[d.s]; });
