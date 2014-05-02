@@ -5,7 +5,7 @@
 ## SVG (Scalable Vector Graphics)
 SVG用XML表示，并可以在DOM里访问和更新。`<svg width="50" height="50"></svg>`
 
-基本形状元素：
+### 基本形状元素
 
 * Rectangle `<rect x="0" y="0" width="50" height="50" fill="green" />`
 * Circle `<circle cx="25" cy="25" r="25" fill="purple" />`
@@ -39,7 +39,13 @@ Group Element: `<g transform="translate(...)">..</g>`
 * skewX(a)
 * skewY(b)
 
-元素式样属性：
+Clip Path: `<clippath id="mask"> <rect x="0" y="0" width="400" height="200"></rect> </clippath>`
+类似组，不显示具体内容，而是定义了一个裁剪区域。
+使用时用`clip-path`属性来引用：`<g clip-path="url(#mask)"></g>`
+
+Tooltip: `<rect x="0" y="0" width="400" height="200"><title>this is a tip</title></rect>`
+
+### 元素式样属性
 
 * fill
 * stroke
@@ -47,8 +53,9 @@ Group Element: `<g transform="translate(...)">..</g>`
 * opacity 也可用fill/stroke设置rgba透明度
 * font-family
 * font-size
+* text-anchor
 
-也可以用CSS指定SVG元素的式样。
+也可以用CSS指定SVG元素的式样，但必须使用和SVG属性一样的名字而不是通常的CSS属性名字。
 SVG没有深度的概念，后面的元素会覆盖前面的元素。
 
 
@@ -57,49 +64,83 @@ SVG没有深度的概念，后面的元素会覆盖前面的元素。
 d3.select('body').selectAll('p').data([1,2,3]).enter().append('p').text('hello');
 ```
 D3的大部分方法返回一个选择集合，`data()`方法也只有这个方法返回三个虚拟选择集合：
-enter: 表示还未绑定到数据上的元素占位符集合（元素少，缺少元素将被创建加入）
-update: 表示已有绑定到数据上的元素集合
-exit: 表示未被绑定到数据上的多余元素集合（数据少，多余元素将被删除）
+update（默认）: 表示已有绑定到数据上的元素集合
+`enter`: 表示还未绑定到数据上的元素占位符集合（元素少，缺少元素将被创建加入）
+`exit`: 表示未被绑定到数据上的多余元素集合（数据少，多余元素将被删除）
 [告诉D3你需要的东西而不是告诉D3怎么去做。](http://bost.ocks.org/mike/join/)
 [声明式编程](http://www.aqee.net/imperative-vs-declarative/)
 
 `data()`方法把数据绑定在每个DOM元素的`__data__`成员上。
 可以用回调函数取得并设置数据：`.text(function(d, i) { return d; })`，`d`表示原始绑定的数据，`i`表示索引序号，`this`可以引用当前DOM元素。
 
+默认的数据绑定是按照索引顺序，即第一个数组元素绑定在所选择的第一个DOM元素上，以此类推。
+可以提供一个key函数来根据key绑定：`.data([{ key: 0, value: 10 }, { key: 1, value: 20 }, { key: 2, value: 30 }], function(d) { return d.key; })`
+[数据对象恒定性](http://bost.ocks.org/mike/constancy/)
 
-## Path Data Generators
-线条生成器：
+
+## SVG Utilities
+### Path Data Generators
+生成`<path>`的属性`d`所需要的命令和数据。
+不同生成器都有自己不同的方法来设置属性。
+默认取data里的accessor方法名对应的同名属性。
+
+`d3.svg.line` 连接各点的线条
+元素属性：`x`, `y`
 ```
-var lineData = [{ "x": 1, "y": 5}, {"x": 20, "y": 20}, {"x": 40, "y": 10}, {"x": 60, "y": 40}, {"x": 80, "y": 5}, {"x": 100, "y": 60}];
-var lineFunction = d3.svg.line().x(function(d) { return d.x; }).y(function(d) { return d.y; }).interpolate("linear");
-path.attr('d', lineFunction(lineData));
+var data = [{x: 1, y: 5}, {x: 20, y: 20}, {x: 40, y: 10}, {x: 60, y: 40}, {x: 80, y: 5}, {x: 100, y: 60}];
+var gen = d3.svg.line()
+                .x(function(d) { return d.x; })
+                .y(function(d) { return d.y; })
+                .interpolate('linear');
+svg.append('path')
+    .attr('d', gen(data))
+    .attr('fill', 'transparent')
+    .attr('stroke', 'black');
 ```
 可选线形：linear/step-before/step-after/basis/basis-open/basis-closed/bundle/cardinal/cardinal-open/cardinal-closed/monotone
 
+`d3.svg.arc` 圆弧
+元素属性：`innerRadius`, `outerRadius`, `startAngle`, `endAngle`
+```
+var data = [{sa: 0, ea: Math.PI/3}, {sa: Math.PI/3, ea: Math.PI*2/3}, {sa: Math.PI*2/3, ea: Math.PI*3/2}];
+var gen = d3.svg.arc()
+    .innerRadius(50)
+    .outerRadius(100)
+    .startAngle(function(d) { return d.sa; })
+    .endAngle(function(d) { return d.ea; })
+svg.selectAll('path').data(data).enter()
+    .append('path')
+    .attr('d', gen)
+    .attr('transform', 'translate(100, 100)');
+```
+
+`d3.svg.diagonal` 对角线
+元素属性：`source {x, y}`, `target {x, y}`
+```
+var data = [
+    { source: { x: 0, y: 0, }, target: { x: 100, y: 100 } },
+    { source: { x: 100, y: 100, }, target: { x: 0, y: 200 } }
+];
+var gen = d3.svg.diagonal();
+svg.selectAll('path').data(data).enter()
+    .append('path')
+    .attr('d', gen)
+    .attr('stroke', 'gray')
+    .attr('stroke-width', '2px')
+    .attr('fill', 'none');
+```
+
+
 其他生成器：
-d3.svg.line
-d3.svg.line.radial
-d3.svg.area
-d3.svg.area.radial
-d3.svg.arc
-d3.svg.symbol
-d3.svg.chord
-d3.svg.diagonal
-d3.svg.diagonal.radial
-不同生成器都有自己不同的方法来设置属性。
+`d3.svg.line.radial`
+`d3.svg.area`
+`d3.svg.area.radial`
+`d3.svg.symbol`
+`d3.svg.chord`
+`d3.svg.diagonal.radial`
 
-
-## Scales
-线型变换：
-```
-var linearScale = d3.scale.linear().domain([0,10000]).range([0,100]);
-linearScale(100); // 1, 从[0,10000]到[0,100]缩小100倍
-```
-最大最小值可以用`d3.max`和`d3.min`取得。
-
-
-## Axes
-座标轴，可以利用scale来设置座标。
+### Axes
+`d3.svg.axis` 座标轴，可以利用scale来设置座标。
 ```
 var axisScale = d3.scale.linear().domain([0, 100]).range([0, 400]);
 var xAxis = d3.svg.axis().scale(axisScale);
@@ -107,10 +148,243 @@ var xAxisGroup = svgContainer.append('g').call(xAxis); // 显示在g组上
 ```
 
 
+## Scales
+`d3.scale.linear` 线型变换：
+```
+var linearScale = d3.scale.linear().domain([0,10000]).range([0,100]);
+linearScale(100); // 1, 从[0,10000]到[0,100]缩小100倍
+```
+数组最大最小值可以用`d3.max`和`d3.min`取得。
+
+其他变换：
+`d3.scale.sqrt` 平方根
+`d3.scale.pow` 指数
+`d3.scale.log` 对数
+`d3.scale.quantize` 线性离散（输入连续）
+`d3.scale.quantile` 线性离散（输入离散）
+`d3.scale.threshold` 阈分隔离散
+`d3.scale.identity` 同等映射
+`d3.scale.ordinal` 顺序映射
+`d3.scale.categoryX` 颜色种类
+
+
+## Transitions
+`d3.transition` 动画过渡，同一时刻过渡只能用一次（如果多次后面的会覆盖前面的，比如在`start`事件里调用），如果是链式调用则会连续应用过渡。
+
+`.delay` 延时
+`.duration` 时长
+`.ease` 效果: cubic-in-out/linear/circle/elastic/bounce
+`.each` 监听过渡开始`start`和结束`end`事件
+
+
+## Layouts
+Layouts只生成布局数据，并不真正生成图形，一般要借助Path生成器来完成绘制。
+
+`d3.layout.pie` 饼，根据数据大小自动生成起始角度`startAngle`/`endAngle`。角度12点钟为0度，数据从大到小排列。
+```
+var pie = d3.layout.pie();
+var data = [10, 20, 30, 40];
+var arcs = svg.selectAll('g')
+    .data(pie(data))
+    .enter()
+    .append('g')
+    .attr('transform', 'translate(100, 100)');
+
+var gen = d3.svg.arc()
+    .innerRadius(50)
+    .outerRadius(100);
+var color = d3.scale.category10();
+arcs.append('path')
+    .attr('fill', function(d, i) { return color(i); })
+    .attr('d', gen);
+
+arcs.append('text')
+    .attr('transform', function(d) { return 'translate(' + gen.centroid(d) + ')'; })
+    .attr('text-anchor', 'middle')
+    .text(function(d) { return d.value; });
+```
+
+`d3.layout.stack` 栈，根据数据自动计算出各层基线的高度`y0`。
+```
+var data = [
+    [ { x: 0, y: 1 }, { x: 1, y: 14 }, { x: 2, y: 11 }, { x: 3, y: 17 }, { x: 4, y: 13 } ],
+    [ { x: 0, y: 11}, { x: 1, y: 12 }, { x: 2, y: 17 }, { x: 3, y: 23 }, { x: 4, y: 18 } ],
+    [ { x: 0, y: 2 }, { x: 1, y: 22 }, { x: 2, y: 33 }, { x: 3, y: 35 }, { x: 4, y: 49 } ]
+];
+
+var stack = d3.layout.stack();
+var colors = d3.scale.category10();
+var groups = svg.selectAll('g')
+    .data(stack(data))
+    .enter()
+    .append('g')
+    .attr('fill', function(d, i) { return colors(i); });
+groups.selectAll('rect')
+    .data(function(d) { return d; })
+    .enter()
+    .append('rect')
+    .attr('x', function(d) { return d.x * 100; })
+    .attr('y', function(d) { return d.y0; })
+    .attr('height', function(d) { return d.y * 2; })
+    .attr('width', 90);
+```
+
+`d3.layout.force` 力，自动生成结点`nodes`和边`edges`的坐标以便在`tick`时更新。
+```
+var data = {
+    nodes: [
+        { name: 'A' },
+        { name: 'B' },
+        { name: 'C' },
+        { name: 'D' },
+        { name: 'E' },
+        { name: 'F' },
+        { name: 'G' },
+        { name: 'H' },
+        { name: 'I' },
+        { name: 'J' }
+    ],
+    edges: [
+        { source: 0, target: 1 },
+        { source: 0, target: 2 },
+        { source: 0, target: 3 },
+        { source: 0, target: 4 },
+        { source: 1, target: 5 },
+        { source: 2, target: 5 },
+        { source: 2, target: 5 },
+        { source: 3, target: 4 },
+        { source: 5, target: 8 },
+        { source: 5, target: 9 },
+        { source: 6, target: 7 },
+        { source: 7, target: 8 },
+        { source: 8, target: 9 }
+    ]
+};
+
+var force = d3.layout.force()
+    .nodes(data.nodes)
+    .links(data.edges)
+    .linkDistance([100])
+    .charge([-150])
+    .size([300, 300])
+    .start();
+
+var edges = svg.selectAll('line')
+    .data(data.edges)
+    .enter()
+    .append('line')
+    .attr('stroke', 'black')
+    .attr('stroke-width', 1);
+
+var nodes = svg.selectAll('circle')
+    .data(data.nodes)
+    .enter()
+    .append('circle')
+    .attr('r', 10)
+    .attr('fill', 'red')
+    .call(force.drag);
+
+force.on('tick', function() {
+    edges.attr('x1', function(d) { return d.source.x; })
+         .attr('y1', function(d) { return d.source.y; })
+         .attr('x2', function(d) { return d.target.x; })
+         .attr('y2', function(d) { return d.target.y; });
+
+    nodes.attr('cx', function(d) { return d.x; })
+         .attr('cy', function(d) { return d.y; });
+});
+```
+
+`d3.layout.tree` 树，根据树形结构数据自动生成结点`nodes`和连接`links`关系信息。
+```
+var data = {
+    name: 'A',
+    children: [
+        {
+            name: 'B',
+            children: [
+                {
+                    name: 'C',
+                    children: [
+                        {name: 'E'},
+                        {name: 'F'},
+                        {name: 'G'}
+                    ]
+                },
+                {
+                    name: 'D',
+                    children: [
+                        {name: 'H'},
+                        {name: 'I'}
+                    ]
+                }
+            ]
+        }
+    ]
+};
+
+var tree = d3.layout.tree().size([600, 300]);
+var nodes = tree.nodes(data);
+var links = tree.links(nodes);
+
+svg.selectAll('path')
+    .data(links)
+    .enter()
+    .append('path')
+    .attr('d', d3.svg.diagonal())
+    .attr('stroke', 'gray')
+    .attr('stroke-width', '2px')
+    .attr('fill', 'none');
+
+var group = svg.selectAll('g')
+    .data(nodes)
+    .enter()
+    .append('g')
+    .attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+
+group.append('circle')
+    .attr('r', 20)
+    .attr('fill', 'red');
+
+group.append('text')
+    .attr('text-anchor', 'middle')
+    .text(function(d) { return d.name; });
+```
+
+其他布局：
+
+`d3.layout.bundle`
+`d3.layout.chord`
+`d3.layout.cluster`
+`d3.layout.histogram`
+`d3.layout.pack`
+`d3.layout.partition`
+`d3.layout.treemap`
+
+
+## Geography
+[地图可视化](http://bost.ocks.org/mike/map/)使用JSON格式的地理位置数据[GeoJSON](http://geojson.org/)，以及[编辑](http://geojson.io/)，[简化](http://mapshaper.org/)和[验证](http://geojsonlint.com/)工具。
+[简化](http://bost.ocks.org/mike/simplify/)紧凑的地图数据[TopoJSON](https://github.com/mbostock/topojson)，和GeoJSON的[区别](http://stackoverflow.com/questions/14740705/difference-between-geojson-and-topojson)。
+有不同的[投影方式](http://bl.ocks.org/mbostock/3711652)，并能够把[经纬度](http://www.teczno.com/squares/)映射成坐标。
+```
+var data = us_geo_json;
+var projection = d3.geo.albersUsa().translate([200, 100]);
+var path = d3.geo.path().projection(projection);
+svg.selectAll('path')
+    .data(data.features)
+    .enter()
+    .append('path')
+    .attr('d', path);
+```
+
+
 ## Reference
 [Data-Driven Documents](http://d3js.org/)
+[API Reference](https://github.com/mbostock/d3/wiki/API-Reference)
 [Dashing D3.js](https://www.dashingd3js.com/)
 [Interactive Data Visualization for the Web](http://chimera.labs.oreilly.com/books/1230000000345)
+[MDN SVG](https://developer.mozilla.org/en-US/docs/Web/SVG)
+[D3 Tips and Tricks](https://leanpub.com/D3-Tips-and-Tricks/read)
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
