@@ -45,6 +45,38 @@ Host github.com
 `ssh-add -L` 查看生效的公钥内容
 `ssh-keygen -lf ~/.ssh/id_rsa.pub` 显示公钥的长度，指纹及注释
 
+
+## SSH Tunnel
+### 本地端口转发
+`local$ ssh -L 8080:target:80 middle` (-L 本地端口:目标主机:目标主机端口)
+在本机上监听8080端口，并通过middle转发到target的80端口上。
+e.g.: 本机上通过curl访问 `curl --proxy 127.0.0.1:8080 http://target/index.html`
+
+`local$ ssh -L 8080:localhost:80 middle`
+当target是localhost，即middle就是目标主机，将本机的8080端口映射到middle的80端口。
+
+### 远程端口转发
+`middle$ ssh -R 8080:target:80 local` (-R 远程主机端口:目标主机:目标主机端口)
+在中间主机上执行，让local（对于自己是远程主机）监听8080端口，并通过自己转发到target的80端口上。
+要求local也运行有sshd。
+
+### 动态转发(SOCKS代理)
+`ssh -D 8080 server`
+在本地监听8080端口，把数据转发到server上，server充当一个SOCKS代理服务器负责和外部主机通信。
+e.g.: `curl --socks5 127.0.0.1:8080 www.google.com`
+
+### 常用参数
+`-N` 只连接，不打开shell。
+`-T` 不为这个连接分配TTY。
+`-f` 连接成功后，转入后台运行。
+`-NTf` 这个三个参数常一起使用，表示这个SSH连接只用来传数据，不需执行操作。
+
+## 远程操作
+`tar czv dir` | ssh server 'tar xz' 复制dir目录到server
+`ssh server 'tar cz dir' | tar xzv` 复制server dir目录到本地
+`ssh server 'ps auxf'` 显示服务器进程信息
+
+
 ## 配置文件
 client用户配置文件：`~/.ssh/config`
 server`sshd`配置文件：`/etc/ssh/sshd_config`
@@ -59,8 +91,9 @@ server`sshd`配置文件：`/etc/ssh/sshd_config`
 `~/.ssh` 755
 
 ## Reference
+[SSH, The Secure Shell: The Definitive Guide](http://docstore.mik.ua/orelly/networking_2ndEd/ssh/index.htm)
+[实战SSH端口转发](http://www.ibm.com/developerworks/cn/linux/l-cn-sshforward/)
 [GitHub SSH Help](https://help.github.com/categories/56/articles)
-
 
 </xmp>
 <script src="js/strapdown.js"></script>
