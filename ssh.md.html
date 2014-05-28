@@ -25,7 +25,7 @@ client必须生成自己的公钥私钥对，并把公钥保存到server上。
 保存公钥到server：`ssh-copy-id user@server`，公钥会被保存到server的`~/.ssh/authorized_keys`中。等价命令`cat ~/.ssh/id_rsa.pub | ssh user@server 'cat >> ~/.ssh/authorized_keys'`。
 
 ### GitHub
-如果用ssh登录GitHub等网站，则需要将公钥复制到保存网站上。
+如果用[ssh登录GitHub](https://help.github.com/categories/56/articles)等网站，则需要将公钥复制到保存网站上。
 验证：`ssh -T git@github.com`
 
 如果22端口被限制访问，可以使用HTTPS的443端口。
@@ -65,6 +65,20 @@ e.g.: 本机上通过curl访问 `curl --proxy 127.0.0.1:8080 http://target/index
 在本地监听8080端口，把数据转发到server上，server充当一个SOCKS代理服务器负责和外部主机通信。
 e.g.: `curl --socks5 127.0.0.1:8080 www.google.com`
 
+### X转发
+DISPLAY环境变量: `DISPLAY=host:NumA.NumB`
+host: Xserver的地址, 如果为空表示Xserver运行于本机（一般为`DISPLAY=:0.0`，Xclient用unix domain socket而不是TCP连接到Xserver），如果是localhost指本机使用TCP方式。
+NumA: 当图形程序(Xclient)使用TCP方式连接时, NumA为连接的端口减去6000的值, 如果NumA为0, 则表示连接到6000端口; 使用unix domain socket方式连接时, NumA则表示连接的unix socket的路径, 如果为0, 则表示连接到`/tmp/.X11-unix/X0`。
+NumB: 几乎总为0.
+
+X转发配置:
+服务端 `/etc/ssh/sshd_config`: X11Forwarding yes
+客户端 `~/.ssh/config`: ForwardX11 yes （或直接`ssh -X`）
+当从客户端ssh到服务端后会自动在服务端设置DISPLAY环境变量`DISPLAY=localhost:NumA.0`，服务端sshd会运行一个Xserver的模拟器并监听本地的NumA+6000端口，并将接收到的X命令通过ssh连接转到客户端，由客户端再作为Xclient发送显示在本地Xserver上（所以SSH客户端不需要运行`xhost +`）。
+
+`xhost`: 控制Xserver访问权限。
+为了安全，Xserver默认情况下不允许别的user(比如su切换时)或者别的host的图形程序显示在当前屏幕上，`xhost +[user/host]`命令将允许显示。
+
 ### 常用参数
 `-N` 只连接，不打开shell。
 `-T` 不为这个连接分配TTY。
@@ -72,14 +86,54 @@ e.g.: `curl --socks5 127.0.0.1:8080 www.google.com`
 `-NTf` 这个三个参数常一起使用，表示这个SSH连接只用来传数据，不需执行操作。
 
 ## 远程操作
-`tar czv dir` | ssh server 'tar xz' 复制dir目录到server
+`tar czv dir | ssh server 'tar xz'` 复制dir目录到server
 `ssh server 'tar cz dir' | tar xzv` 复制server dir目录到本地
 `ssh server 'ps auxf'` 显示服务器进程信息
 
 
 ## 配置文件
-client用户配置文件：`~/.ssh/config`
 server`sshd`配置文件：`/etc/ssh/sshd_config`
+
+client用户配置文件：`~/.ssh/config`
+```
+# 多条连接共享
+ControlMaster auto
+ControlPath /tmp/ssh_mux_%h_%p_%r
+
+# 长连接, useful for scp
+ControlPersist 4h
+
+# 连接中转认证
+ForwardAgent yes
+
+# 减少延迟
+GSSAPIAuthentication no
+
+# 加速连接
+Ciphers arcfour
+
+Host myhost
+    User kelvin
+    HostName 192.168.2.100
+    Port 8888
+    ForwardX11 yes
+    # 服务器间跳转
+    ProxyCommand ssh -q -W %h:%p 192.168.1.1
+    #ProxyCommand ssh 192.168.1.1 nc %h:%p
+    #ProxyCommand ssh kelvin@192.168.1.1 "/usr/bin/bash -c 'exec 3<>/dev/tcp/%h/%p; cat <&3 & cat >&3;kill $!'"
+    # 使用http代理
+    ProxyCommand corkscrew proxy.example.org 8080 %h %p
+
+# 通配
+Host www* mail intranet
+    HostName %h.example.com
+
+# 端口转发
+Host api
+    LocalForward 8080 localhost:80
+```
+[更多选项](http://man7.org/linux/man-pages/man5/ssh_config.5.html)
+
 
 ## Trouble Shooting
 加上参数`ssh -vvv user@server`可以输出更多debug信息。
@@ -90,10 +144,19 @@ server`sshd`配置文件：`/etc/ssh/sshd_config`
 `~/.ssh/known_hosts` 644
 `~/.ssh` 755
 
+
+## sshfs
+把远程主机的文件系统通过ssh映射到本地。
+挂载：`sshfs user@host:path/to/dir/ /local/mount/point`
+取消：`fusermount -u /local/mount/point`
+[开机自动挂载](http://www.debuntu.org/mounting-a-fuse-filesystem-from-etcfstab/)：在`/etc/fstab`中加入`sshfs#user@host:path/to/dir/ /local/mount/point fuse defaults,auto,allow_other 0 0`，需要公钥登录。
+
+另可用scp直接访问远程文件：`vim scp://user@host/path/to/file`
+
+
 ## Reference
 [SSH, The Secure Shell: The Definitive Guide](http://docstore.mik.ua/orelly/networking_2ndEd/ssh/index.htm)
 [实战SSH端口转发](http://www.ibm.com/developerworks/cn/linux/l-cn-sshforward/)
-[GitHub SSH Help](https://help.github.com/categories/56/articles)
 
 </xmp>
 <script src="js/strapdown.js"></script>
