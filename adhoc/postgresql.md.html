@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<title>PostgreSQL</title>
+<xmp theme="united" style="display:none;">
+http://www.postgresql.org | v9.3
+
+## [SchemaSpy](http://schemaspy.sourceforge.net/)
+图形化数据库数据，需要[graphviz](http://www.graphviz.org/)，以及[JDBC Driver](http://jdbc.postgresql.org/download.html)。
+
+用法：
+`java -jar schemaSpy.jar -t dbType -db dbName [-s schema] -u user [-p password] -o outputDir`
+
+例如：
+`java -jar schemaSpy_5.0.0.jar -t pgsql -db dbName -s public -u user -host localhost -dp ./postgresql-9.3-1101.jdbc3.jar -o out-dir`
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+<script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full"></script>
+</html>

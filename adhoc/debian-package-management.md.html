@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<title>Debian Package Management</title>
+<xmp theme="united" style="display:none;">
+## apt-get
+配置：`/etc/apt/sources.list`
+
+`update` 更新源，换源后执行
+`upgrade` 更新所有已安装的包
+`dist-upgrade` 升级系统
+`dselect-upgrade` 使用`dselect`升级
+`check` 检查是否有损坏的依赖
+`changelog` 下载并显示包的changelog
+
+`install` 安装（升级）包，`--reinstall` 重新安装，`-f install` 修复安装，`-s install` 模拟安装，`<pkg>=<ver>` 安装指定版本
+`remove` 删除包
+`autoremove` 自动删除无用的包
+`purge` 删除包以及相关配置文件
+`source` 下载该包的源代码
+`build-dep` 安装编译包的源码所需要的所有依赖包
+`clean` 删除下载的包
+`autoclean` 删除旧的下载的包
+`download` 下载包到当前目录
+
+## apt-cache
+`gencaches` 建立包和源码的缓存
+`stats` 显示所有包的统计信息
+`unmet` 显示所有未被满足的依赖
+`pkgnames` 列出所有包
+`dotty` 生成包的GraphViz关系图
+`xvcg` 生成包的xvcg关系图
+`dump` 生成所有包信息
+`dumpavail` 生成可用包信息
+
+`search` 搜索包
+`show` 获取包的详细信息，如说明、大小、版本等
+`showpkg` 显示包的版本，依赖等信息
+`showsrc` 显示包的源码信息
+`depends` 查看包的依赖
+`rdepends` 查看该包被哪些包依赖
+`policy` 显示已安装的和候选包的版本信息
+`madison` 显示包的所有可安装版本及对应源
+
+## add-apt-repository
+加入新源(ppa or deb)
+
+## apt-file
+默认未安装，用于查询apt repo中包里的文件
+
+## apt-show-versions
+默认未安装，用于查询版本信息
+
+## dpkg
+`-i` 安装包
+`-r` 删除包
+`-P` 删除包和配置文件
+`-L` 显示已安装包的文件列表
+`-s` 查看已安装包的信息
+`-c` 显示指定deb包文件列表
+`-I` 显示指定deb包信息
+`-S` 显示指定文件属于已安装的哪个包
+
+## dpkg-query
+## dpkg-deb
+
+## aptitude/dselect/gnome-apt
+APT的GUI前端
+</xmp>
+<script src="../js/strapdown.js"></script>
+<script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full"></script>
+</html>
