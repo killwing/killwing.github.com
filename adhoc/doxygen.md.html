@@ -4,13 +4,16 @@
 <xmp theme="united" style="display:none;">
 http://www.doxygen.org | v1.8.7
 
-## 配置
+## 安装配置
+用clang作为parser代替内置parser来解析代码以达到更精准的效果。
+需要编译doxygen时配置参数：`./configure --with-libclang`，并设置选项`CLANG_ASSISTED_PARSING = YES`。
+
+配置文件：`Doxyfile`
 生成默认配置：`doxygen -g`
 
-用libclang生成：
-`./configure --with-libclang`
-`CLANG_ASSISTED_PARSING = YES`
-设置编译参数：`CLANG_OPTIONS`
+## 注释风格
+按照[Javadoc](http://en.wikipedia.org/wiki/Javadoc)注释规则。
+对于长注释，可以使用Markdown格式。
 
 ## Reference
 [Doxygen Manual](http://www.stack.nl/~dimitri/doxygen/index.html)
