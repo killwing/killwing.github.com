@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+<title>Go</title>
+<xmp theme="readable" style="display:none;">
+[http://golang.org](http://golang.org) | v1.3
+
+## Basics
+源文件以UTF8编码。
+语句以分号结尾，一个语句时通常省略，全局域中以及括号后边也不需要。
+圆括号通常只用在参数列表中。
+花括号的位置在一行末尾。（gofmt工具可以用来格式化代码风格）
+标识: 数字，字母，下划线。
+注释: `/* */`，`//`
+
+## 基本类型
+数字: int, int8/16/32/64, uint, uint8/16/32/64, float32, float64, byte(unit8), rune(int32, 代表一个Unicode码), uintptr, complex64, complex128
+布尔(bool): true, false (预定义常量)
+字符串(string):
+
+* 可复制但不可修改其中字符。
+* 16进制: `"\xFF"    // 1 byte`
+* Unicode: `"\u00FF"  // 1 unicode char, 2 bytes of UTF-8`
+* Raw: 
+```
+`\n\.abc\t\` 相当于 "\\n\\.abc\\t\\"
+```
+
+类型转换
+
+* 转换只适用于几种简单的情况：转换整数(int)到去其他的精度和大小，整数(int)与浮点数(float)的转换
+* 没有隐式转换
+* 显式转换T(v)：
+```
+uint8(int_var)   // truncate to size
+int(float_var)   // truncate fraction
+float64(int_var) // convert to float
+string(0x1234)          // == "\u1234"
+string(array_of_bytes)  // bytes -> bytes
+string(array_of_ints)   // ints -> Unicode/UTF-8
+```
+
+操作符优先级：`* / % << >> & &^（位清除）`，`+ - | ^（异或）`，`== != < <= > >=`，`<-（通信）`，`&&`，`||`。
+
+
+## 变量常量
+var(变量): 必须有类型和初始化表达式之一。
+未初始化的变量自动为0, 指针和引用为nil。
+不用的变量可以使用`_`。
+`:=`缩写声明并初始化变量，只可以在函数中使用。
+有指针(*Type)，但没有指针算术。用`&`取得变量的指针。
+未被使用的变量或导入的包被认为是个错误。
+```
+var i int
+var j = 365.245 // 自动推导类型
+var a, b int = 1, 2 // a,b都是int
+v := value // 省略var的简写
+a, b, c, d := 1, 2.0, "three", FOUR
+
+// 初始化表
+var (
+    i int;
+    j = 356.245; // 分号可省
+    k int = 0;
+    l, m uint64 = 1, 2;
+    billion int64 = 1e9;
+    inter, floater, stringer = 1, 2.0, "hi"
+)
+```
+
+`const`(常量): 必须有编译期确定初始化表达式，类型说明可省。
+```
+const (
+    Monday, Tuesday, Wednesday = 1, 2, 3;
+    Thursday, Friday, Saturday = 4, 5, 6;
+)
+
+// 使用iota自增长counter
+const (
+    loc0, bit0 uint32 = iota, 1<<iota;  // 0, 1
+    loc1, bit1;                         // 1, 2 重复上一个表达式
+    loc2, bit2;                         // 2, 4
+)
+```
+
+`type`: 类似C里的typedef
+```
+type Point struct {
+    x, y, z float;
+    name string
+}
+type Operator func(a, b int) int
+type ArrayOfIntPointers []*int
+```
+
+赋值，可以多个变量一起
+```
+a = b
+x, y, z = f1(), f2(), f3()
+a, b = b, a
+nbytes, error := Write(buf)
+```
+
+`new` 是一个函数，分配了一个零初始化的类型值，返回指向它的指针，没有delete。
+```
+var p *Point = new(Point) // 或 &Point{}
+v := new(int)   // v has type *int
+```
+
+`make`
+
+* 对于引用语义的复杂类型(slice, map, channel)用make来初始化引用（分配内存和初始化结构）。
+* 未初始化的引用为nil, 如: `var ar []int`, `var m map[string]int`, `var chan int`
+* 字面定义`ar := []int {}` 和 `ar := make([]int)`
+* 字面定义`m := map[string]int {}` 和 `m := make(map[string]int)`
+
+
+## 控制结构
+`if`: 可以有一个简单的语句（初始化变量的作用域仅在if/else内），也可以什么也没有表示true(switch同)
+```
+if v := f(); v < 10 {
+    fmt.Printf("%d less than 10\n", v)
+} else {
+    fmt.Printf("%d not less than 10", v)
+}
+```
+
+`for`: 表示循环(没有while)
+```
+for i := 0; i < 10; i++ { ... }
+for i < 10 { ... } // while
+for { fmt.Printf("Mine! ") } // endless loop
+for key, value := range m { // m is map, 也可只取key，对于array和slice, 返回index及value
+    fmt.Printf("key %s, value %g\n", key, value)
+}
+s := "[\u00ff\u754c]";
+for i, c := range s { // 对于string，按照utf-8字节流迭代
+    fmt.Printf("%d:%c ", i, c)  // 打印 0:[ 1:ÿ 3:界 6:]
+}
+```
+
+`switch`: 任意类型，除非以`fallthrough`语句结束并进入下一个分支，否则分支会自动终止，一个case可以带多个值
+```
+a, b := x[i], y[j];
+switch { // true
+case a < b:  return -1
+case a == b: return 0
+case a > b:  return 1
+}
+```
+
+`break`, `continue`: 后面可以接一个label(goto)
+
+
+## Packages
+定义包名(每个源文件): `package fmt`
+导入其它包: `import my_fmt "fmt"  // use the name my_fmt`
+导入多个包：
+```
+import (
+    "fmt"
+    "math"
+)
+```
+每个程序都有一个入口包`package main`，内含一个main函数`main.main()`
+在一个包内部，所有全局变量等对于包的源文件可见。对于包的使用者来说，只有开头字母大写的可见。
+全局变量的初始化：声明的时候初始；使用init()函数，一个源文件一个。初始化总是单线程的，根据包的依赖顺序执行。
+一般来说，一个目录一个包，作为一个单元一起编译，忽略测试文件。可以在Make.pkg帮助下使用Makefile。
+测试一个包:
+
+* 工具: `gotest`, 运行所有测试文件。
+* 文件名: `*_test.go`
+* 函数签名: `func TestXxxx(t *testing.T)`
+* 测试工具包: `import "testing"`, 支持logging, error reporting...
+
+文档: godoc将包中的注释文档化输出。
+
+
+## 复杂类型
+### Array
+声明: `var ar [3]int`, 长度: `len(ar)`
+按值传递，但可以用指针避免复制(更多的是使用slice)。
+初始化
+```
+[3]int { 1, 2, 3 } 
+[10]int { 1, 2, 3 } // 其它为0
+[...]int { 1, 2, 3 } // 自己计算长度
+[10]int { 2:1, 3:1, 5:1, 7:1 } // 个别赋值
+```
+
+### Slice
+Slice是对一个Array的部分引用。
+声明: `var a []int`, 不指定长度。
+`len()`可以取得长度，而`cap()`则返回slice的容量(一直至原数组cap尾的大小)。
+初始化，赋值
+```
+a = ar[7:9]; // 长度为2, [7,9)
+a2 = ar[7:9:10]; // 指定容量为3, [7,10)
+a3 = &ar;  // same as a = ar[0:len(ar)] or ar[:]
+header, data := buf[0:n], buf[n:len(buf)] // split
+var slice = []int{ 1,2,3,4,5 } // 字面定义
+var s100 = make([]int, 100) // slice: 100 ints
+var sl = make([]int, 0, 100)  // len 0, cap 100
+```
+string也可以被slice。不可修改。
+
+### Map
+Map也是一个引用类型。
+声明: `var m map[string] float // key:string, value:float`, 长度: `len(m)`返回key的个数
+初始化，赋值
+```
+m = map[string]float { "1":1, "pi":3.1415 } // 字面定义
+m = make(map[string]float) 
+var m1 map[string]float = m // m1 and m now refer to same map
+```
+访问元素
+```
+one   := m["1"] // 取值
+crash := m["not present"]  // 0
+m["2"] = 2;
+v, ok := m[x];  // the "comma ok" form, 测试是否有值
+delete(m, x)   // deletes entry for x
+```
+
+### Struct
+Struct是值类型，声明: `var p struct { x, y float }`
+`var pp *Point = new(Point); pp.x = 1; pp.y = 2 // 没有"->"，统一用"."访问成员，或(*pp).x`
+初始化，赋值
+```
+type Point struct { x, y float };
+p = Point{ 7.2, 8.4 }
+p = Point{ y:8.4, x:7.2 }
+pp := &Point{ 23.4, -1 }   // idiomatic
+```
+如果一个struct成员开头大写，则表示对包外可见。
+匿名域：如果一个struct包含一个没有命名的变量，则用它的类型名字命名。`type B struct {string}; fmt.Println(b.string);`
+如果成员是个匿名struct，则还可以平展开，就像自己有这样的成员，但外面的名字会具有高优先级。同级不能有相同名字的成员。（类似继承）
+```
+type B struct { a, b int }
+type D struct { B; b float }
+var d D;
+fmt.Println(d.b)
+fmt.Println(d.B.b)
+```
+同一包内的struct可以使用另一个包内struct的域及方法（包内全可见）。
+
+## 函数及接口
+### function
+first class, 定义:
+```
+func MySqrt(f float) (v float, ok bool) {
+    if f >= 0 { v,ok = math.Sqrt(f),true }
+    return // implicit
+}
+```
+可以指定每个参数的名字或者不指定任何参数名字，不能只指定部分函数参数的名字。
+如果是相邻的参数是相同的类型，也可以统一指定类型。
+如果命名了返回值参数，return可以不带参数返回当前值。
+
+闭包：
+```
+func adder() (func(int) int) {
+    var x int
+    return func(delta int) int {
+        x += delta
+        return x
+    }
+}
+var f = adder();
+fmt.Print(f(1));
+fmt.Print(f(20));
+fmt.Print(f(300));
+```
+
+### method
+只有struct没有class，可以把方法附加在本包内的任意非指针类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针，一般使用指针避免值传递）。
+```
+type Point struct { x, y float }
+// A method on *Point
+func (p *Point) Abs() float {
+    return math.Sqrt(p.x*p.x + p.y*p.y)
+}
+
+p := &Point{ 3, 4 };
+fmt.Print(p.Abs());  // will print 5
+```
+
+类型和它的方法必须在同一包内。
+当一个匿名类型嵌入一个struct，它的所有方法也被“继承”。同名方法可以被此struct重载。
+```
+type Mutex struct { ... }
+func (m *Mutex) Lock() { ... }
+type Buffer struct {
+    data [100]byte
+    Mutex  // need not be first in Buffer
+}
+var buf = new(Buffer);
+buf.Lock();  // == buf.Mutex.Lock()
+```
+如果为一个类型定义`String()`方法，则可以直接被`fmt.Print[ln]`打印使用。
+
+### interface
+一个interface是许多method的集合。
+定义:
+```
+type EmptyInterface interface { }
+type AbsInterface interface {
+    Abs() float32  // receiver is implied
+}
+```
+
+任何实现了其接口的类型的变量都可以赋值给interface变量（隐式接口，无需声明），它存储了receiver的值（如果要修改成员变量必须传递指针类型）以及一张method表。
+```
+type Vector struct {
+    a []EmptyInterface // 可以放任意类型的vector
+}
+```
+将接口类型转回原类型：`interface_value.(type_to_extract)`，在运行期检测（使用comma,ok检测，否则会panic）。
+接口之间也可以互相转换，取决于底层所包含的类型能否转换。
+```
+// 检查是否实现了String接口
+type Stringer interface { String() string }
+if sv, ok := v.(Stringer); ok {
+    fmt.Printf("implements String(): %s\n", sv.String()); // note: sv not v
+}
+```
+Print等利用反射机制("reflect" package)知道其参数类型，也可以用"%v"表示任意类型格式。
+
+
+## Concurrency
+> Do not communicate by sharing memory. Instead, share memory by communicating.
+
+### Goroutine
+goroutine指在同一地址空间内并发执行的函数，非常廉价和轻量级。执行: `go f()`
+`go`也可以用于启动新定义的内部函数（闭包）为goroutines。
+可以在不同的处理器上并发运行，而且共享内存。(gccgo目前是使用pthred实现的)
+`runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，默认最大10000），一般设为CPU核心数。
+goroutine如果内部调用了非内联函数（内联函数如lambda），会在函数入口采用抢占式调度。
+goroutine的默认堆栈大小8KB，最大1GB（64bit），250M（32bit）。
+
+### Channel
+声明: `chan element_type`，创建: `var c = make(chan int)`
+channel是引用类型。
+```
+var c = make(chan int)
+c <- 1   // send
+i := <-c // receive
+```
+channel是同步的，发送要等待接收，接收要等待发送。只有一个goroutine的情况下(main)，等待会抛出死锁异常。
+可以用make指定buffer: `make(chan int, 50)`, buffer只是channel的属性不是类型，默认大小为0（无缓冲）。
+range会从channel迭代数据，直到channel关闭。
+```
+func suck(ch chan int) {
+    go func() {
+        for v := range ch { fmt.Println(v) }
+    }()
+}
+```
+
+关闭channel: `close()`, 测试: `closed()`。
+只有发送者才能关闭channel，而不是接收者。向一个已经关闭的channel发送数据会引起panic，从一个已经关闭的channel接收数据为0/nil和false: `v, ok = <-c`。
+默认channel是双向的，也可以指定方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
+
+`select`
+
+* select的case必须是channel操作。
+* 如果每个条件都阻塞，select就会阻塞（如果有default则进入操作）。
+* 如果多个条件满足，则随机选择一个执行。
+```
+c1 := make(chan int)
+c2 := make(chan int)
+select {
+case v := <-c1:
+    fmt.Printf("received %d from c1\n", v)
+case v := <-c2:
+    fmt.Printf("received %d from c2\n", v)
+case t := <-time.After(1 * time.Second):  // time.After 返回一个阻塞的chan，时间到后变为可读，返回当前时间
+    fmt.Printf("received timeout, current time: %s\n", t)
+default:
+    time.Sleep(10000)
+}
+```
+
+`chanOfChans := make(chan chan int)`
+
+
+## 错误处理
+error接口，当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
+```
+type error interface {
+    Error() string
+}
+```
+
+`defer`: defer后面的语句在函数return时候调用，参数值在defer的定义点确定。可以有多个defer，执行时按LIFO顺序。
+
+`panic`: 类似抛出异常，并终止程序。
+`recover`: 终止panic展开，返回panic的参数，一般使用在defer中。
+
+## 工具和环境
+编译工具链（编译器g，链接器l，C编译器c，汇编器a）：
+
+* amd64 (a.k.a. x86-64); 6g,6l,6c,6a
+* 386 (a.k.a. x86 or x86-32); 8g,8l,8c,8a
+* arm (a.k.a. ARM); 5g,5l,5c,5a
+
+另外还有[gccgo](http://golang.org/doc/install/gccgo)，[llgo](https://github.com/go-llvm/llgo)
+
+编译运行简单程序: `6g test.go`, `6l test.6`
+一般直接使用`go build/run test.go`来编译和运行。
+查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`
+
+## Reference
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
