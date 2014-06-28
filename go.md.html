@@ -49,6 +49,7 @@ var(变量): 必须有类型和初始化表达式之一。
 `:=`缩写声明并初始化变量，只可以在函数中使用。
 有指针(*Type)，但没有指针算术。用`&`取得变量的指针。
 未被使用的变量或导入的包被认为是个错误。
+多重赋值的时候，先计算等号右边的表达式，再进行复制（都是从左到右的顺序）。
 ```
 var i int
 var j = 365.245 // 自动推导类型
@@ -181,7 +182,7 @@ import (
 按值传递，但可以用指针避免复制(更多的是使用slice)。
 初始化
 ```
-[3]int { 1, 2, 3 } 
+[3]int { 1, 2, 3 }
 [10]int { 1, 2, 3 } // 其它为0
 [...]int { 1, 2, 3 } // 自己计算长度
 [10]int { 2:1, 3:1, 5:1, 7:1 } // 个别赋值
@@ -193,9 +194,9 @@ Slice是对一个Array的部分引用。
 `len()`可以取得长度，而`cap()`则返回slice的容量(一直至原数组cap尾的大小)。
 初始化，赋值
 ```
-a = ar[7:9]; // 长度为2, [7,9)
-a2 = ar[7:9:10]; // 指定容量为3, [7,10)
-a3 = &ar;  // same as a = ar[0:len(ar)] or ar[:]
+a = ar[7:9] // 长度为2, [7,9)
+a2 = ar[7:9:10] // 指定容量为3, [7,10)
+a3 = &ar  // same as a = ar[0:len(ar)] or ar[:]
 header, data := buf[0:n], buf[n:len(buf)] // split
 var slice = []int{ 1,2,3,4,5 } // 字面定义
 var s100 = make([]int, 100) // slice: 100 ints
@@ -209,16 +210,17 @@ Map也是一个引用类型。
 初始化，赋值
 ```
 m = map[string]float { "1":1, "pi":3.1415 } // 字面定义
-m = make(map[string]float) 
+m = make(map[string]float)
 var m1 map[string]float = m // m1 and m now refer to same map
 ```
 访问元素
 ```
 one   := m["1"] // 取值
 crash := m["not present"]  // 0
-m["2"] = 2;
-v, ok := m[x];  // the "comma ok" form, 测试是否有值
+m["2"] = 2
+v, ok := m[x] // the "comma ok" form, 测试是否有值
 delete(m, x)   // deletes entry for x
+for key, value := range m { ... } // 迭代，顺序不固定
 ```
 
 ### Struct
@@ -242,6 +244,11 @@ fmt.Println(d.b)
 fmt.Println(d.B.b)
 ```
 同一包内的struct可以使用另一个包内struct的域及方法（包内全可见）。
+
+### 比较
+只有Struct, Array可以进行`==`, `!=`比较，逐个元素比较。
+Slice, Map, Function都只可以和nil比较。
+
 
 ## 函数及接口
 ### function
@@ -327,7 +334,7 @@ Print等利用反射机制("reflect" package)知道其参数类型，也可以�
 
 
 ## Concurrency
-> Do not communicate by sharing memory. Instead, share memory by communicating.
+> [Do not communicate by sharing memory; instead, share memory by communicating.](http://blog.golang.org/share-memory-by-communicating)
 
 ### Goroutine
 goroutine指在同一地址空间内并发执行的函数，非常廉价和轻量级。执行: `go f()`
@@ -336,6 +343,8 @@ goroutine指在同一地址空间内并发执行的函数，非常廉价和轻�
 `runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，默认最大10000），一般设为CPU核心数。
 goroutine如果内部调用了非内联函数（内联函数如lambda），会在函数入口采用抢占式调度。
 goroutine的默认堆栈大小8KB，最大1GB（64bit），250M（32bit）。
+
+关于goroutine的调度，可以看[go-scheduler](http://morsmachine.dk/go-scheduler) （[中文](http://mikespook.com/2013/07/%E7%BF%BB%E8%AF%91go-%E7%9A%84%E8%B0%83%E5%BA%A6%E5%99%A8/)）, [netpoller](http://morsmachine.dk/netpoller)，以及[原始设计文档](https://docs.google.com/document/d/1TTj4T2JO42uD5ID9e89oa0sLKhJYD0Y_kqxDv3I3XMw)。
 
 ### Channel
 声明: `chan element_type`，创建: `var c = make(chan int)`
@@ -384,7 +393,7 @@ default:
 
 
 ## 错误处理
-error接口，当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
+内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
 ```
 type error interface {
     Error() string
