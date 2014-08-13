@@ -824,7 +824,6 @@ a.label:hover,a.badge:hover{color:#ffffff;text-decoration:none;cursor:pointer;}
 .show{display:block;}
 .invisible{visibility:hidden;}
 .affix{position:fixed;}
-body{word-spacing:-0.05em;}
 h1{font-size:2.5em;}
 h2{font-size:2em;}
 h3{font-size:1.5em;}
