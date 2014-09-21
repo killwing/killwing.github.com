@@ -500,7 +500,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 命令参数中为了避免commit或引用和path冲突，中间要用`--`分隔。
 
 `git show` 相当于`git cat-file -p`。
-`git clean` `-fd`清除未加入版本库的文件和目录。`-nd`测试运行。
+`git clean` `-fd`清除未加入版本库的文件和目录。`-nd`测试运行。`-X`仅清除被ignore的文件，常用于完全重新编译。
 `git archive` 将版本库所有文件打包归档，如果要忽略某些文件可以设置export-ignore属性。`--prefix=`增加目录前缀。
 `git check-ref-format` 检查引用的命名规范。
 `git cherry` 查看哪些提交未被推送到上游跟踪分支中。
@@ -579,7 +579,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 [Learn Version Control with Git](http://www.git-tower.com/learn/)
 [Think Like a Git](http://think-like-a-git.net/)
 [git ready](http://gitready.com/)
-[Git From the Bottom Up](http://ftp.newartisans.com/pub/git.from.bottom.up.pdf)
+[Git From the Bottom Up](http://ftp.newartisans.com/pub/git.from.bottom.up.pdf) [Web](http://jwiegley.github.io/git-from-the-bottom-up/)
 [Git the basics](http://www.jukie.net/~bart/slides/intro-to-git/intro-to-git.pdf)
 [A Visual Git Reference (zh)](http://marklodato.github.io/visual-git-guide/index-zh-cn.html)
 [git - the simple guide (zh)](http://rogerdudler.github.io/git-guide/index.zh.html)
@@ -598,6 +598,7 @@ Workflow
 
 Cheat Sheet
 
+* [GitHub Git Cheat Sheet](https://training.github.com/kit/downloads/github-git-cheat-sheet.pdf)
 * [Heroku Cheat Sheet](https://na1.salesforce.com/help/doc/en/salesforce_git_developer_cheatsheet.pdf)
 * [Visual Git Cheat Sheet](http://ndpsoftware.com/git-cheatsheet.html)
 * [escape a git mess, step-by-step](http://justinhileman.info/article/git-pretty/git-pretty.png)
