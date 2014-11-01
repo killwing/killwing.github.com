@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<title>K'Notebook</title>
+<xmp theme="readable" style="display:none;">
+## Intro
+一个tar由连续512字节的基本块组成，结尾是连续2个填充为0字节的块。
+一个文件记录通常由一个文件头块和内容块组成，内容要对齐成512字节的块大小，目录等没有内容块。文件记录前面也可以有扩展头块及其扩展头内容块。
+
+## Format
+Pre-POSIX.1-1988 (v7): 最老的基本格式，定义了257字节的头格式（到linkname为止）。
+POSIX.1-1988 (ustar): 在原来头格式基础上扩展了243字节的内容，总共500字节（头块中填充12字节）。
+POSIX.1-2001 (pax): 头格式不变，定义了扩展头类型`x`和`g`。
+
+限制：
+
+Format|UID|File Size|File Name|Devn
+-|-|-|-|-
+v7|2097151|8GB|99|n/a
+ustar|2097151|8GB|256|21
+pax|Unlimited|Unlimited|Unlimited|Unlimited
+
+通用的结构体可以定义如下：
+```
+struct PosixUstarHeader {
+	char name[100];
+	char mode[8];
+	char uid[8];
+	char gid[8];
+	char size[12];
+	char mtime[12];
+	char checksum[8];
+	char typeflag[1];
+	char linkname[100];
+	char magic[6];
+	char version[2];
+	char uname[32];
+	char gname[32];
+	char devmajor[8];
+	char devminor[8];
+	char prefix[155];
+	char pad[12];
+};
+```
+ustar/pax各字段：
+
+* name: 文件名
+* mode: 权限，不包括文件类型等其他位
+* uid: 用户id
+* gid: 组id
+* size: 内容大小，对于普通文件为文件内容大小，对于目录可能被设为目录总文件大小，对于扩展头为头内容大小，其他为0
+* mtime: 修改时间，自epoch以来的秒数
+* checksum: 校验和，把此8位字段当作空格，然后对整个头所有字节（当作无符号数值）进行求和的值
+* typeflag: 类型标志，不认识的类型须当作普通文件处理，另不能存socket类型文件
+    * `'0'或'\0'`: 普通文件
+    * `'1'`: 硬链接
+    * `'2'`: 软链接
+    * `'3'`: 字符设备
+    * `'4'`: 块设备
+    * `'5'`: 目录
+    * `'6'`: FIFO
+    * `'7'`: 保留
+    * `'g'`: 全局pax扩展头
+    * `'x'`: 本地pax扩展头
+    * `'A'-'Z'`: vendor自定义
+        * `'L'`: GNU长文件名扩展头，头内容为长文件名
+        * `'K'`: GNU长链接名扩展头，头内容为长链接名
+* linkname: 链接名字
+* magic: 版本类型 `"ustar\0"`
+* version: 版本号 `"00"`
+* uname: 用户名，如果在当前系统里存在则优于uid设置
+* gname: 组名，如果在当前系统里存在则优于gid设置
+* devmajor: 主设备号
+* devminor: 次设备号
+* prefix: 文件前缀，加一个`/`和name连起来组成完整文件名
+* pad: 12字节的0填充
+
+对于字符串字段: 必须是以空终止的字符串(对于name, linkname, prefix可以恰好填满整个字段)。
+对于数字字段: 前面用`'0'`填充，数字以八进制存储，最后以空格或NULL结尾(对于checksum惯以一个NULL跟一个空格结尾)。
+所有未被使用的字节都应设为空NULL。
+
+### PAX
+类型`'x'`为本地扩展头，只针对本条记录，头内容格式为UTF8的文本字符串：`len key=value\n`
+
+* len为十进制整行从头到尾包括`\n`的长度。
+* 数字值以十进制存储。
+* 字符串值以UTF8格式存储。
+* key全小写表示标准属性，全大写前缀（后跟一个点）表示vendor自定义属性。
+    * atime, ctime, mtime: 访问/inode改变/修改时间，可以精确到小数
+    * hdrcharset: 表示字符串值的编码格式，值可以是"BINARY"（平台相关的unicode编码）或"ISO-IR 10646 2000 UTF-8"（默认）
+    * uname, uid, gname, gid: 用户名及id，组名及id
+    * path, linkpath: 完整文件名，链接名
+    * size: 文件大小
+    * realtime.\*, security.\*: 保留
+* 扩展属性优先级高，覆盖标准头里面相应的字段值。
+
+类型`'g'`为全局扩展头，可以为后面所有的记录提供默认值。（不常用）
+
+
+
+## Reference
+[Wiki](http://en.wikipedia.org/wiki/Tar_%28computing%29)
+[GNU tar](http://www.gnu.org/software/tar/manual/)
+[libarchive wiki](https://github.com/libarchive/libarchive/wiki/ManPageTar5)
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>

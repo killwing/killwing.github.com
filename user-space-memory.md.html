@@ -2,38 +2,43 @@
 <html>
 <title>User Space Memory</title>
 <xmp theme="readable" style="display:none;">
-## Memory Layout
-正文段(.text)：可执行代码段
-初始化数据段(.data)：已初始化的全局变量，局部及非局部静态变量
-非初始化数据段(.bss)：未赋初值的全局变量，局部及非局部静态变量，初始化为0。
-栈(.stack)：动态分配的内存
-堆(.heap)：局部变量
+## Memory Segment Layout
 
 ```
  +-----------------------------+  max
+ |                             |
+ |           kernel space      |
+ |                             |
+ +-----------------------------+
+ |                             |
+ +-----------------------------+  stack offset
  |                         |   |
  |           stack         |   |
+ |                         v   |
+ +-----------------------------+  <- stack top
+ |                             |
+ |                             |
+ +-----------------------------+  RLIMIT_STACK
+ |                             |
+ +-----------------------------+  mmap offset
+ |                         |   |
+ |           heap (mmap)   |   |
  |                         v   |
  +-----------------------------+
  |                             |
  |                             |
  |                             |
  |                             |
- +-----------------------------+
- |           heap (mmap)       |
- +-----------------------------+
  |                             |
- |                             |
- |                             |
- |                             |
- |                             |
- +-----------------------------+  heap top
+ +-----------------------------+  <- break (heap top)
  |                             |
  |                         ^   |
  |           heap (brk)    |   |
  |                         |   |
  |                             |
- +-----------------------------+  heap bottom
+ +-----------------------------+  brk offset
+ |                             |
+ +-----------------------------+
  |           bss               |
  +-----------------------------+
  |           data              |
@@ -42,26 +47,58 @@
  +-----------------------------+  0
 ```
 
+为了安全防止hack，stack和heap(brk/mmap)的起始地址都有一个随机的offset。
+编译时确定.text, .data, .bss, .stack的大小（静态分配）。
 
-## Allocation
-静态分配：编译时确定.text, .data, .bss, .stack的大小，.text和.data影响编译出来的文件大小。
-动态分配：glibc函数`malloc`/`free` (C++中`new`/`delete`)
+### 栈 (.stack)
+保存局部变量，函数参数。
+调用函数时产生一个新的栈帧在栈顶，函数返回时销毁。数据按照FIFO的顺序存放。
+栈的最大大小由`RLIMIT_STACK`决定，通常为8MB。
+进程里的每个线程都有自己的栈。
+栈映射的物理内存只增不减，栈收缩时并不释放。
 
-`malloc`调用系统调用`brk(sbrk)`/`mmap(mmap2)`分配内存。
-`malloc/new`调用的时候，分配虚拟内存，并不占用实际的物理内存，只有这块内存被初始化或使用的时候才分配物理内存。
-当申请内存小于阀值时，调用`brk`。
-当申请内存大于等于阀值时，调用`mmap`（并不在真正的堆上）。
-阀值`M_MMAP_THRESHOLD`默认为128k，而且可以动态调整：当分配的内存大于当前的`M_MMAP_THRESHOLD`，且小于等于`DEFAULT_MMAP_THRESHOLD_MAX`(默认512k)时，`M_MMAP_THRESHOLD`就被设为当前分配的值，而且`M_TRIM_THRESHOLD`被设为2倍于当前分配的值。如果`M_TRIM_THRESHOLD`, `M_TOP_PAD`, `M_MMAP_THRESHOLD`, `M_MMAP_MAX`任意一个被显式设置，则动态调整被禁止。
+### 堆 (.heap)
+`malloc/new`调用系统调用`brk(sbrk)`/`mmap(mmap2)`动态分配内存。开始调用的时候，分配虚拟内存，并不占用实际的物理内存，只有这块内存被初始化或使用的时候才分配物理内存。
+根据申请的内存大小和阈值`M_MMAP_THRESHOLD`，分为两部分：
 
-`free` 调用系统调用`brk`/`munmap`释放内存。
+* 堆：当申请内存小于阀值时，调用`brk`。
+* 内存映射段：当申请内存大于等于阀值时，调用`mmap`。（匿名映射，此段还保存用文件映射加载的动态库）
+
+阀值默认为128kB，而且可以动态调整：当分配的内存大于当前的阈值，且小于等于`DEFAULT_MMAP_THRESHOLD_MAX`(默认512kB)时，阈值就被设为当前分配的值，而且`M_TRIM_THRESHOLD`被设为2倍于当前分配的值。如果`M_TRIM_THRESHOLD`, `M_TOP_PAD`, `M_MMAP_THRESHOLD`, `M_MMAP_MAX`任意一个被显式设置，则动态调整被禁止。
+
+`free/delete` 调用系统调用`brk`/`munmap`释放内存。
 通过`mmap`分配的，立即释放回OS。
 通过`brk`分配的，并不立即释放，而是积累到阈值`M_TRIM_THRESHOLD`时才释放。如果这块内存不在堆顶也不能释放，必须等到堆顶内存先释放。
+
+### 非初始化数据段 (.bss)
+未赋初值的全局变量，局部及非局部静态变量，初始化为0。
+内存区域（读写）并不映射到二进制可执行文件中。
+
+### 初始化数据段 (.data)
+已初始化的全局变量，局部及非局部静态变量。
+内存区域（读写）映射到二进制可执行文件中，但更新并不会反映到文件。
+
+### 正文段 (.text)
+可执行代码段，字符串常量。
+内存区域（只读）映射到二进制可执行文件中。
+只有.text及.data和二进制可执行文件的大小有关。
 
 
 ## Utilities
 ### size
 `size file`
 显示一个对象文件各段(.text, .data, .bss)大小。
+
+### pmap
+`pmap -d pid`
+`cat /proc/pid/maps`
+显示一个进程的内存映射。
+
+### nm
+显示文件里的符号
+
+### objdump
+显示文件里的对象信息
 
 ### ulimit
 `ulimit`
@@ -71,11 +108,6 @@
 * `-c` 控制coredump大小，unlimited为无限制。
 `/proc/sys/kernel/core_uses_pid`: 设为“1”，以pid为扩展名
 `/proc/sys/kernel/core_pattern`: 设置目录及文件名格式: `/mycores/core-%e-%p-%t` 命令名-pid-时间戳
-
-### pmap
-`pmap -d pid`
-`cat /proc/pid/maps`
-显示一个进程的内存映射。
 
 ### pstack
 
