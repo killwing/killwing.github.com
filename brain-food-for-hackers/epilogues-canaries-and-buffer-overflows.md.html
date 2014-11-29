@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<title>Epilogues, Canaries, and Buffer Overflows</title>
+<xmp theme="readable" style="display:none;">
+http://duartes.org/gustavo/blog/post/epilogues-canaries-buffer-overflows/
+
+上周我们学习了[栈是怎么工作的](journey-to-the-stack.md.html)以及栈帧是怎么在函数序言过程中创建的。现在是时候来看看相反的过程：栈帧在函数尾声中的销毁。先把我们的朋友`add.c`叫回来：
+**Simple Add Program - add.c**
+```
+int add(int a, int b)
+{
+  int result = a + b;
+  return result;
+}
+
+int main(int argc)
+{
+  int answer;
+  answer = add(40, 2);
+}
+
+```
+现在我们执行到了第4行，就在`a+b`赋值到`result`之后。看看发生了什么：
+![returnFromAdd](img/stack/returnFromAdd.png)
+
+第一个指令是多余的且看起来有点傻，因为我们知道`eax`已经等于`result`了，但这是你把优化关掉了才会发生。然后`leave`指令开始执行，一步做了两件事：重置`esp`到当前栈帧的开始位置(epb的位置)，然后恢复saved ebp的值到`ebp`。这两个操作逻辑上是不同的，所以在图上分开显示，但如果你在调试器里跟踪的话，会发现实际上是原子性一起执行的。
+
+在`leave`执行之后，前一栈帧就恢复了。调用`add`唯一留下的痕迹就是位于栈顶的返回地址。它保存了在`add`完成之后必须执行的`main`里指令的地址。`ret`指令来处理它：把返回地址弹出保存在指向下一个要执行指令的`eip`寄存器中。程序现在返回到了`main`中继续执行：
+![returnFromMain](img/stack/returnFromMain.png)
+
+`main`把`add`的返回值复制到局部变量`answer`中，然后执行和其它函数一样的它自己的函数尾声。同样唯一特别的是在`main`中saved ebp为空，因为它是我们代码中的第一个栈帧。最后一步，程序执行回到了将退出到操作系统的C运行时(`libc`)。这里有一个[完整的返回时序图](img/stack/returnSequence.png)给所需要的人。
+
+你现在已经很好地掌握了栈是怎样工作的，让我们来点有趣的看一下一直以来最著名的攻击：攻防缓存溢出。这是一个易受攻击的程序：
+**Vulnerable Program - buffer.c**
+```
+void doRead()
+{
+    char buffer[28];
+    gets(buffer);
+}
+
+int main(int argc)
+{
+    doRead();
+}
+```
+
+上面的代码使用[gets](http://linux.die.net/man/3/gets)从标准输入读入。`gets`一直读直至遇到一个换行或文件结束符。这是读取了一个字符串后栈的样子：
+![bufferCopy](img/stack/bufferCopy.png)
+
+这里的问题在于`gets`并不知道`buffer`的大小，它会毫不知情地一直读取输入并把数据填到`buffer`之后的栈空间中，把saved ebp的值，返回地址，以及下面的任何东西给覆盖掉。利用这个手段，攻击者可以组织一个精准的攻击代码并填充到程序当中。这是在调用`gets`之后，受到攻击的栈看起来的样子：
+![bufferOverflowExploit](img/stack/bufferOverflowExploit.png)
+
+基本的思想就是准备一个要执行的恶意汇编代码，并*覆写*栈上的返回地址上使之指向这个代码。这有点像病毒入侵细胞，腐蚀它们，并引入一些核糖核酸到它们未来的目标上。
+
+就像病毒一样，攻击者的弹药有很多显著的特性。它以一些`nop`指令开始以提高攻击成功的胜算。原因是返回地址是绝对的且必须得猜出来，因为攻击者并不知道他们的代码存放在栈中的准确位置。但只要他们放置了`nop`，攻击就奏效了：处理器会一直执行nops直至遇到真正工作的指令。
+
+`exec /bin/sh`符号表示执行一个shell（例如想象这是一个网络程序的漏洞，攻击者则可以提供一个访问系统的shell）的原始汇编指令。向一个期望命令或用户输入的程序注入原始汇编代码的思想一开始令人害怕，但这也是使得安全研究如此有趣和令人兴奋的一部分。为了让你认识到事情如何变得不可思议：一些有漏洞的程序会在它们的输入上调用`tolower`或`toupper`，使得攻击者写出的汇编指令的字节不落在upper或lower的ascii字母范围之内。
+
+最后，攻击者重复好几次猜测返回地址，以他们的喜好一点点增加胜算。从一个4字节边界开始并不断重复，他们就极有可能就改写了栈上原来的返回地址。
+
+幸好现代操作系统有许多[保护缓存溢出的措施](http://paulmakowski.wordpress.com/2011/01/25/smashing-the-stack-in-2011/)，包括非可执行的栈和*栈探测仪*。探测仪(canary)这个名字来源于典故[煤矿里的金丝雀](http://en.wiktionary.org/wiki/canary_in_a_coal_mine)，其补充了计算机科学丰富的词汇表。以Steve McConnell的话来说：
+
+> 计算机科学领域中有着所有学科中最为丰富多彩的语言。你走进一间安全严密、温度精确控制在20°C的房间，并在里面发现了病毒（virus）、特洛伊木马（Trojan horse）、蠕虫（worm）、臭虫（bug）、逻辑炸弹（bomb）、崩溃（crash）、论坛口水战（flame）、双绞线转换头（twisted sex changer）、还有致命错误（fatal error）…… 在其他领域中，你能遇到这些吗？
+- Steve McConnell *代码大全2*
+
+不管怎样，这是栈探测仪看起来的样子：
+![bufferCanary](img/stack/bufferCanary.png)
+
+探测仪是由编译器实现的。例如，GCC的[stack-protector](http://gcc.gnu.org/onlinedocs/gcc-4.2.3/gcc/Optimize-Options.html)选项可以在任何有着潜在危险的函数里使用探测仪。函数序言加载一个魔法数值到探测位置，函数尾声时检查这个值是否是原封不动没改过的。如果不是，就很可能发生了缓存溢出（或者出错了），程序就通过[__stack_chk_fail](http://refspecs.linux-foundation.org/LSB_4.0.0/LSB-Core-generic/LSB-Core-generic/libc---stack-chk-fail-1.html)中止。由于它们在栈上的关键位置，探测仪使得缓存溢出攻击变得非常困难。
+
+到此我们的深度栈之旅就结束了。我们不想再挖得更远更深了。下周我们将更加抽象地来看看递归，尾调用和其它小玩意，可能会用到Google的V8引擎。我以刻在美国国家档案馆前纪念碑上的珍贵名言来结束这个关于序言和尾声的讨论：
+![past-is-prologue](img/stack/past-is-prologue.jpg)
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
