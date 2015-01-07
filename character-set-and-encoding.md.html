@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<title>Character Set and Encoding</title>
+<xmp theme="readable" style="display:none;">
+## 字符集
+ASCII(SBCS): 用7-bit来表示128个字符，其中有95个是可打印字符（0x20-0x7E）。可以用`man ascii`速查。
+ISO 8859系列(SBCS): 一共15种8-bit字符集，兼容并扩展了ASCII为256个字符，其中ISO 8859-1(latin1)和Unicode兼容。
+GB 2312(DBCS)/GBK(DBCS)/GB 18030(MBCS)/Big5(DBCS): 简体/繁体中文字符集。
+Unicode(UCS): [ISO 10646](https://tools.ietf.org/html/rfc3629)，包含所有字符的字符集。
+
+### Unicode
+每个字符唯一对应一个码点(code point，即编号)，一般用`U+16进制值`表示。[根据码点查询对应字符信息](http://www.fileformat.info/info/unicode/char/search.htm)。
+分为17个层面(plane)，每个层面的大小是16bit，即可表示65536个码点/字符。
+第0个层面叫基本面(BMP)，包含几乎所有常见字符，其它的叫补充面(SMP)。
+
+
+## 代码页
+代码页是字符集的具体实现，是一张“字符-内码（字节）”的映射表。比如GBK字符集对应于Windows下的[936代码页](http://msdn.microsoft.com/en-us/library/cc194913.aspx)。
+
+
+## Locale
+Locale（区域）是根据国家或地区定义了语言，时间，日期，数字，货币等的一组格式参数，决定了用户界面的显示以及软件运行的环境。
+
+### Windows
+每个Locale用32位的`LCID`标识。
+在控制面板->区域和语言，可以为系统和用户分别设置Locale。系统Locale决定语言（字符集），用户Locale决定时间，日期，数字，货币等格式。
+
+### Linux
+在`/usr/share/i18n/locales/`存放了所有Locale的定义文件，用`locale -a`列出，用`language[_territory][.codeset][@modifier]`格式标识。
+在`/usr/share/i18n/charmaps/`存放了所有字符集。
+可以用`localedef`命令自定义Locale，生成在`/usr/lib/locale/`目录中。
+
+Locale分为12大类，可以分别设置（环境变量或系统设置`/etc/default/locale`），优先级`LC_ALL > LC_* > LANG`：
+
+* 语言符号及其分类(LC_CTYPE)
+* 数字(LC_NUMERIC)
+* 比较和排序习惯(LC_COLLATE)
+* 时间显示格式(LC_TIME)
+* 货币单位(LC_MONETARY)
+* 信息主要是提示信息,错误信息, 状态信息, 标题, 标签, 按钮和菜单等(LC_MESSAGES)
+* 姓名书写方式(LC_NAME)
+* 地址书写方式(LC_ADDRESS)
+* 电话号码书写方式(LC_TELEPHONE)
+* 度量衡表达方式(LC_MEASUREMENT)
+* 默认纸张尺寸大小(LC_PAPER)
+* locale自身包含信息的概述(LC_IDENTIFICATION)
+* 全部(LC_ALL)
+* 默认值(LANG)
+
+如果不做任何设置，则使用C(POSIX) Locale相当于`LC_ALL=C`，C Locale使用ASCII字符集。
+用`locale`命令列出当前设置。
+
+
+
+## 编码（存储表示）
+非Unicode: 字符集规定了字符对应的编码字节，字节数以及字节序（和endian无关）。使用查表的方式进行编解码。
+Unicode:
+
+* UCS-2: 双字节编码，只能表示BMP内的字符。（逐渐被UTF-16取代，UCS-4类似被UTF-32取代）
+* UTF-16: BMP内用双字节编码和UCS-2兼容，SMP字符需要用四个字节编码。
+* UTF-8: 用1-4个字节来编码，并和ASCII兼容（使用一个字节，非ASCII使用2-4字节）。以单字节为编码单元，没有字节序的问题。
+* UTF-32: 直接用完整四个字节的对应码点编码。
+
+BOM (Byte Order Mark)
+UTF-8`EF BB BF`: 有兼容性问题，不建议使用，而应改用算法检测是否是UTF-8。
+UTF-16/UCS-2: big`FE FF`, little`FF FE`。
+
+关于Windows记事本的保存选项，这些名称也用于Windows其它软件中：
+
+* ANSI: 通常指Windows系统的默认字符集编码（系统Locale），在英文系统中是ISO 8859-1，简体中文系统为GBK。
+* Unicode: UTF-16 little endian
+* Unicode big endian: UTF-16 big endian
+* UTF-8: 总是加上BOM
+
+## Reference
+[The Absolute Minimum Every Software Developer Absolutely, Positively Must Know About Unicode and Character Sets (No Excuses!)](http://www.joelonsoftware.com/articles/Unicode.html)
+[charsets man](http://man7.org/linux/man-pages/man7/charsets.7.html)
+[ubuntu wiki](http://wiki.ubuntu.org.cn/Locale) [help](https://help.ubuntu.com/community/Locale)
+[关于字符编码，你所需要知道的](http://www.cnblogs.com/KevinYang/archive/2010/06/18/1760597.html)
+[Unicode与JavaScript详解](http://www.ruanyifeng.com/blog/2014/12/unicode.html)
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
