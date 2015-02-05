@@ -524,7 +524,7 @@ wait参数：
 
 * notify_one: 通知一个等待线程。**但并不保证只有一个线程被唤醒。**
 * notify_all: 通知所有等待线程。但只有一个会得到mutex的锁。
-* notify调用不需要和mutex联用，但一般在不同线程操作共享数据时需要同一个mutex保护。
+* notify调用不需要和mutex联用，但一般[在不同线程操作共享数据（通常是条件flag）时需要同一个mutex保护](http://stackoverflow.com/questions/4544234/calling-pthread-cond-signal-without-locking-mutex)。
 
 ```
 std::mutex m;

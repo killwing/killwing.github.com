@@ -6,7 +6,7 @@
 ## 语法
 习惯在每行语句的结尾加上一个分号(可选，但一行多个语句时需要)。
 代码块：{ }
-注释：和C一样，"//"及"/*...*/" (不建议使用，因为/.../还可以表示正则)。
+注释：和C一样，`//`及`/*...*/` (不建议使用，因为`/.../`还可以表示正则)。
 
 
 ## 数据类型
@@ -35,6 +35,9 @@ String类型，用''或""声明。
 可用`typeof`运算符测试类型，值域:'number', 'string', 'boolean', 'undefined', 'function', 'object'。(eg: `typeof s`)
 `typeof`如果变量是一种引用类型（比如数组）或Null类型（null被认为是对象的占位符）, 返回的是'object'。
 `instanceof`运算符用于识别正在处理的对象的类型，判断类型的prototype是否在对象的原型链`__proto__`中。(eg: `s instanceof String`)
+
+检查变量是否声明或未初始化：`typeof x != 'undefined'`
+检查已声明的变量是否初始化：`x !== undefined`
 
 ### 类型转换
 Boolean, Number, String实例都是伪对象，所有对象都有toString()方法。
@@ -91,6 +94,7 @@ scopeTest();
 * 其中一个是true，先转换成1(false则转换为0)再做比较。
 * 其中一个值是对象，另一个是数字/字符串，则将对象转换为原始值(通过toString()或者valueOf()方法)再做比较。
 * 全等号(===)和非全等号(!==)比较前不做可能的类型转换，类型不同直接返回false。
+* 尽量都使用全等号比较以避免各种[比较转换](http://dorey.github.io/JavaScript-Equality-Table/)。
 
 逻辑: `&&, ||, !`
 
