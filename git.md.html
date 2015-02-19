@@ -237,7 +237,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 分支: 位置在`.git/refs/heads/`目录下的引用(ref)，内容是分支的最新提交。
 引用日志(reflog): 位置在`.git/logs/refs/heads/`，记录了分支的所有提交变更，默认非裸(bare)版本库都提供。
 
-`git branch` 显示分支（`*`表示当前分支），创建分支，删除分支（`-d/-D`），改名分支（`-m/-M`）。`-b`创建并切换分支。`-v`查看各个分支最后一次提交信息。`--merged`查看哪些分支已被并入当前分支。`--no-merged`查看哪些分支还没被并入当前分支。
+`git branch` 显示分支（`*`表示当前分支），创建分支，删除分支（`-d/-D`），改名分支（`-m/-M`）。`-v`查看各个分支最后一次提交信息。`--merged`查看哪些分支已被并入当前分支。`--no-merged`查看哪些分支还没被并入当前分支。
 
 
 ## 衍合
@@ -511,13 +511,14 @@ clone后同步所有子模块：`git submodule update --init --recursive`
 `git filter-branch` 针对不同的过滤器提供脚本命令从不同角度对版本库进行重构。
 `git stripspace` 删除多余空格，一般用于非代码文本。
 `git fast-import` 版本库导入。
+`git diff-tree` 比较树的内容和权限
 `git help` 显示帮助。
 
 ### Gerrit
 本地带签名提交，自动生成change-id：`git commit -s`，同一change-id代表同一个review。
 推送review：`git push origin HEAD:refs/for/master`。
 同一review修改，产生新的patch-set，change-id不变：`git commit -s --amend`。
-同步用rebase更新上游：直接远程在页面上rebase，如有冲突拉回本地手动解决：`git pull --rebase`，并重新推送。
+同步用rebase更新上游：直接远程在页面上rebase，如有冲突拉回本地手动解决：在本地工作分支上`git pull --rebase origin master`，并重新推送。
 
 
 ## 工具
