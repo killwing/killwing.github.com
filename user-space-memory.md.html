@@ -143,22 +143,6 @@ t: SHR (Shared Mem size) - 进程使用的共享内存大小，即可以和其�
 [htop](http://htop.sourceforge.net/)
 [atop](http://www.atoptool.nl/)
 
-### free
-`free -m`
-`cat /proc/meminfo`
-
-```
-             total       used       free     shared     buffers      cached
-Mem:          1002        769        232          0          62         421
--/+ buffers/cache:        286        715
-Swap:         1153          0       1153
-```
-
-Buffer Cache和Page Cache: 前者针对磁盘块的读写（设备缓存），后者针对文件inode的读写（内存缓存）。`mem <-- page cache --> fs <-- buffer cache --> disk`
-(-buffers/cache) used内存数：286M (指的第一部分Mem行中的used - buffers - cached) 反映的是被程序实实在在用掉的内存（不包括系统缓存）
-(+buffers/cache) free内存数: 715M (指的第一部分Mem行中的free + buffers + cached) 反映的是可以挪用的内存总数（包括系统缓存）
-swap: 交换分区
-
 ### vmstat
 显示memory, io, cpu等综合信息。
 </xmp>
