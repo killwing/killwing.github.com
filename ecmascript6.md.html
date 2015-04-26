@@ -249,6 +249,14 @@ class A {
     foo() { // A.prototype.foo = ...
         console.log('this is foo, x = ', this.x);
     }
+
+    static bar() { // A.bar = ...
+        console.log('this is bar');
+    }
+
+    get x() { return this.x; }
+    set x(a) { this.x = a; }
+    *gen() { ... }
 }
 ```
 只能用`new`创建实例对象。
@@ -256,11 +264,33 @@ class A {
 如果不写构造函数会默认生成空的构造函数。构造函数默认返回this。
 `A.name`属性返回类名('A')。
 表达式形式定义（类似函数）：`let A = class { ... }`
+静态函数由类名直接调用，在函数里不要引用`this`。[没法定义静态数据成员](http://stackoverflow.com/questions/22528967/es6-class-variable-alternatives)（可以直接`A.xxx`）。
+
 
 ### 继承
 ```
 class Sub extends Base {
 }
+```
+
+默认构造函数：
+```
+constructor(...args) {
+    super(...args);
+}
+```
+`super`调用父类构造函数，且只能是子类构造函数的第一个语句。
+
+子类对象(s)是子类(Sub)的实例，也是父类(Base)的实例。以下皆为true：
+```
+s instanceof Sub
+s instanceof Base
+Base.prototype instanceof Object
+Base.__proto__ === Function.prototype
+Sub.prototype instanceof Base
+Sub.__proto__ === Base
+s.__proto__ === Sub.prototype
+s.__proto__.__proto__ === Base.prototype
 ```
 
 ## Module
