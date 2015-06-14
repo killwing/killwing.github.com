@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<title>V8</title>
+<xmp theme="readable" style="display:none;">
+## Basic
+基础例子
+```
+#include "include/v8.h"
+#include "include/libplatform/libplatform.h"
+
+using namespace v8;
+
+int main(int argc, char* argv[]) {
+  // Initialize V8.
+  V8::InitializeICU();
+  Platform* platform = platform::CreateDefaultPlatform();
+  V8::InitializePlatform(platform);
+  V8::Initialize();
+
+  // Create a new Isolate and make it the current one.
+  Isolate* isolate = Isolate::New();
+  {
+    Isolate::Scope isolate_scope(isolate);
+
+    // Create a stack-allocated handle scope.
+    HandleScope handle_scope(isolate);
+
+    // Create a global object.
+    Local<ObjectTemplate> global = ObjectTemplate::New(isolate);
+
+    // Create a new persistent context with global object.
+    Local<Context> context = Context::New(isolate, NULL, global);
+    Persistent<Context> pcontext(isolate, context);
+
+    {
+        // Enter the context for compiling and running the hello world script.
+        Context::Scope context_scope(context);
+
+        // Create a string containing the JavaScript source code.
+        Local<String> source = String::NewFromUtf8(isolate, "'Hello' + ', World!'");
+
+        // Compile the source code.
+        Local<Script> script = Script::Compile(source);
+
+        // Run the script to get the result.
+        Local<Value> result = script->Run();
+
+        // Convert the result to an UTF8 string and print it.
+        String::Utf8Value utf8(result);
+        printf("%s\n", *utf8);
+    }
+
+    // Clean context.
+    pcontext.Reset();
+  }
+
+  // Dispose the isolate and tear down V8.
+  isolate->Dispose();
+  V8::Dispose();
+  V8::ShutdownPlatform();
+  delete platform;
+  return 0;
+}
+```
+
+## Handles
+handle: V8对象的句柄（指针），所有对象通过它来访问。所有的JS对象分配在堆上，handle是其堆上位置的引用。
+可被GC（从堆上删除）的垃圾对象：在JS里不能被访问到，以及没有handle引用到它。
+
+Local handle `Local<Type>`：handle分配在handle栈（不是调用栈）上，其生命周期由handle scope统一管理，handle scope只能分配在调用栈上。如果函数内部要返回一个local handle，使用`EscapableHandleScope`来代替`HandleScope`，返回调用其`Escape`方法并传入要返回的handle。
+Persistent handle：持久型handle，不能被copy但可以move。
+
+* `UniquePersistent<Type>`：handle的构造析构决定其内部对象的生命周期。
+* `Persistent<Type>`：必须显式调用`Reset`方法清除内部对象。
+* `Eternal`：不能被清除，内部对象不受GC管理。
+
+## Contexts
+context: JS执行上下文，一个VM实例(isolate)可以有多个上下文，其中的JS独立执行互不影响。从一个context可以进入换成另一个context执行，完成后再返回原来的context。
+效率：第一个context创建可能比较昂贵（使用snapshot功能可以优化，编译选项默认打开），后续有caching可以变得容易。
+
+## Templates
+template: JS对象和函数在一个上下文中的映射。
+
+### Global Functions
+```
+void add(const FunctionCallbackInfo<value>& info) {
+    info.GetReturnValue().Set(info[0]->Int32Value() + info[1]->Int32Value());
+}
+
+global->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, add));
+```
+
+### Global Variables
+
+```
+int x = 0;
+
+void xGetter(Local<String> property, const PropertyCallbackInfo<Value>& info) {
+    info.GetReturnValue().Set(x);
+}
+
+void xSetter(Local<String> property, Local<Value> value, const PropertyCallbackInfo<void>& info) {
+    x = value->Int32Value();
+}
+
+global->SetAccessor(String::NewFromUtf8(isolate, "x"), xGetter, xSetter);
+```
+
+### Classes
+例如C++类：
+```
+class Point {
+public:
+    Point(int x, int y) : x_(x), y_(y) {}
+    double distance() const { return std::hypot(x_, y_); }
+    int x_, y_;
+};
+```
+
+在构造函数中，使用external values和internal object fields将JS类对象和C++类实例关联起来。
+和handle相反，external values是JS对象对C++实例的间接引用，并保存在internal fields之中。
+```
+void pointCtor(const FunctionCallbackInfo<Value>& info) {
+    Local<Object> self = info.Holder();
+    int x = args[0]->Int32Value();
+    int y = args[1]->Int32Value();
+    Point* p = new Point(x, y);
+    self->SetInternalField(0, External::New(args.GetIsolate(), p));
+}
+```
+
+成员变量accessor函数：
+```
+void getPointX(Local<String> property, const PropertyCallbackInfo<Value>& info) {
+    Local<Object> self = info.Holder();
+    Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+    void* ptr = wrap->Value();
+    int value = static_cast<Point*>(ptr)->x_;
+    info.GetReturnValue().Set(value);
+}
+
+void setPointX(Local<String> property, Local<Value> value, const PropertyCallbackInfo<void>& info) {
+    Local<Object> self = info.Holder();
+    Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+    void* ptr = wrap->Value();
+    static_cast<Point*>(ptr)->x_ = value->Int32Value();
+}
+```
+
+成员函数：
+```
+void distance(const FunctionCallbackInfo<Value>& info) {
+    Local<Object> self = info.Holder();
+    Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+    void* ptr = wrap->Value();
+    info.GetReturnValue().Set(static_cast<Point*>(ptr)->distance());
+}
+```
+
+每个函数模板都有对应的实例模板和原型模板。
+最后设置相应的函数：
+
+* 在全局对象中设置构造函数
+* 在实例模板中设置internal field数目
+* 在实例模板中设置accessor
+* 在原型模板中设置成员函数
+
+```
+Local<FunctionTemplate> pointTmpl = FunctionTemplate::New(isolate, pointCtor);
+//pointTmpl->SetClassName(String::NewFromUtf8(isolate, "Point"));
+global->Set(String::NewFromUtf8(isolate, "Point"), pointTmpl);
+
+Local<ObjectTemplate> objTmpl = pointTmpl->InstanceTemplate();
+objTmpl->SetInternalFieldCount(1);
+objTmpl->SetAccessor(String::NewFromUtf8(isolate, "x"), getPointX, setPointX);
+objTmpl->SetAccessor(String::NewFromUtf8(isolate, "y"), getPointY, setPointY);
+
+Local<ObjectTemplate> protoTmpl = pointTmpl->PrototypeTemplate();
+protoTmpl->Set(String::NewFromUtf8(isolate, "distance"), FunctionTemplate::New(isolate, distance));
+
+```
+
+
+## Reference
+https://developers.google.com/v8/
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
