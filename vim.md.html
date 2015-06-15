@@ -175,6 +175,7 @@ q{reg}            |开始录制记录宏到{reg}=a-z
 @{reg}            |播放记录宏{reg}
 @@                |重复上次播放
 gq{text-obj}      |格式化文本对象
+{operator}gn      |依次操作于上一次搜索的结果，{operator}可以是d,c,gU等，按`.`可以依次重复一组操作
 ~                 |反转大小写，并移至下一个字符
 guw               |变word为小写
 gUw               |变word为大写
@@ -426,7 +427,7 @@ retab                                                     |把缩进中连续的
 nohls/nohlsearch                                          |去掉当前的高亮显示
 behave xterm/mswin                                        |设置鼠标行为标准
 helptags ~/.vim/doc                                       |生成一个本地化的的tags文件,自动被添加到local-additions小节
-{range}s/substitute/from/to/{flag}                        |替换(可用re)，{flag}=g(一行中所有),p(列印),c(确认),e(没找到也不提示),i(忽略大小写),i(不忽略),可用其他字符代替分隔符'/',默认{range}为本行,normal下"&"重复上次替换,\=计算表达式
+{range}s/substitute/from/to/{flag}                        |替换(可用re)，{flag}=g(一行中所有),p(列印),c(确认),e(没找到也不提示),i(忽略大小写),i(不忽略),可用其他字符代替分隔符'/',默认{range}为本行,normal下"&"重复上次替换,\=计算表达式，e.g: `:%s/:: \(.*\)$/\=substitute(':'.system('echo '.submatch(1)),'\n','','g')/`
 {range}g/global/{pattern}/{cmd}                           |全局命令，默认{range}所有行，{cmd}可以是命令行命令也可以前面加上"norm"表示正常模式命令序列
 {range}v/{pattern}/{cmd}                                  |非{pattern}的全局命令，默认{range}所有行
 {range}move/m {address}                                   |把{range}移到{address}处
@@ -452,10 +453,10 @@ shell                                                     |执行shell
 wviminfo! {file}                                          |写入viminfo,!表示覆盖而不追加
 rviminfo! {file}                                          |读取viminfo
 mksessiion {f.vim}                                        |保存会话
-source {f.vim}                                           |恢复会话，运行vim脚本，命令以":"开头
-mkview {num,file}                                        |保存视图
+source {f.vim}                                            |恢复会话，运行vim脚本，命令以":"开头
+mkview {num,file}                                         |保存视图
 loadview {num,file}                                       |载入视图
-cd {dir}                                                 |设定当前工作目录,{dir}='-'表示设定上次工作目录为当前工作目录
+cd {dir}                                                  |设定当前工作目录,{dir}='-'表示设定上次工作目录为当前工作目录
 lcd {dir}                                                 |局部于窗口的工作目录
 pwd                                                       |查看当前工作目录
 ls/buffers{!}                                             |列出缓冲区列表,{!}列出包括"unlisted"的缓冲区
@@ -553,7 +554,7 @@ h 被载入但隐藏的缓冲区.
 
 **Tips: 窗口和缓冲区操作类比**
 ```xml
-win   new  sp	 clo  quit   <C-w>	
+win   new  sp	 clo  quit   <C-w>
 buf   bad  e/sb	 bun  bd/bw  <C-^>/b#
 
 buffer是打开文件的一个实例。

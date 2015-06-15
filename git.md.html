@@ -518,8 +518,14 @@ clone后同步所有子模块：`git submodule update --init --recursive`
 本地带签名提交，自动生成change-id：`git commit -s`，同一change-id代表同一个review。
 推送review：`git push origin HEAD:refs/for/master`。
 同一review修改，产生新的patch-set，change-id不变：`git commit -s --amend`。
-同步用rebase更新上游：直接远程在页面上rebase，如有冲突拉回本地手动解决：在本地工作分支上`git pull --rebase origin master`，并重新推送。
+同步用rebase更新上游：直接远程在页面上rebase，如有冲突拉回本地手动解决：在本地工作分支上`git pull --rebase origin master`或者先更新master，再在工作分支上rebase master，最后重新推送。
 
+在配置里设置默认push和自动加reviewer：
+```
+[remote "origin"]
+    push = +HEAD:refs/for/master
+    receivepack = git receive-pack --reviewer=alice@example.com --reviewer=bob@example.com
+```
 
 ## 工具
 图形化

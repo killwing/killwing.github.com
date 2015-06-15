@@ -55,11 +55,63 @@ Buffer Cache (buffers):  针对文件dentries和inode的读写
 写入256M数据并最后同步到磁盘：`dd bs=1M count=256 if=/dev/zero of=test conv=fdatasync`
 参数`oflag=dsync`表示每次写操作都同步一次，不加参数则由系统自动同步。
 
+
+## I/O Error Simulation
+创建虚拟磁盘(1048576个扇区，可用`blockdev --getsz /dev/loop0`查看)，不用挂载：
+```
+dd if=/dev/zero of=vdisk bs=512 count=1048576
+losetup /dev/loop0 vdisk
+```
+
+格式化：`mkfs.ext4 /dev/loop0`
+
+在`/dev/mapper/`创建磁盘映射：`dmsetup create`创建，`dmsetup remove`删除，`--table`创建参数，也可直接回车输入，然后以EOF结束。
+正常的磁盘：
+```
+dmsetup create okdev
+0 1048576 linear /dev/loop0 0
+```
+有错误的磁盘：
+```
+dmsetup create errdev
+0 261144 linear /dev/loop0 0
+261144 5 error
+261149 787427 linear /dev/loop0 261139
+```
+用[脚本](http://serverfault.com/questions/498900/intentionally-cause-an-i-o-error-in-linux)生成错误随机分布的磁盘`dmsetup`表格参数：
+```
+#!/bin/bash
+start_sector=0
+good_sector_size=0
+
+for sector in {0..1048576}; do
+
+    if [[ ${RANDOM} == 0 ]]; then
+        echo "${start_sector} ${good_sector_size} linear /dev/loop0 ${start_sector}"
+        echo "${sector} 1 error"
+        start_sector=$((${sector}+1))
+        good_sector_size=0
+    else
+        good_sector_size=$((${good_sector_size}+1))
+    fi
+done
+
+echo "${start_sector} $((${good_sector_size}-1)) linear /dev/loop0 ${start_sector}"
+```
+错误不易过长或位于特殊位置，会导致格式化和挂载失败。
+
+最后挂载到指定位置使用，读写`/mnt/okdir`正常，读写`/mnt/errdir`则会出错：
+```
+mount /dev/mapper/okdev /mnt/okdir
+mount /dev/mapper/errdev /mnt/errdir
+```
+
 ## Reference
 http://www.ibm.com/developerworks/linux/library/l-linux-filesystem/
 http://www.thesubodh.com/2013/07/what-are-exactly-odirect-osync-flags.html
 https://www.kernel.org/doc/Documentation/sysctl/vm.txt
 https://romanrm.net/dd-benchmark
+https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/5/html/Logical_Volume_Manager_Administration/device_mapper.html
 
 </xmp>
 <script src="../js/strapdown.js"></script>
