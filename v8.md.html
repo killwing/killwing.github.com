@@ -79,15 +79,16 @@ context: JS执行上下文，一个VM实例(isolate)可以有多个上下文，�
 效率：第一个context创建可能比较昂贵（使用snapshot功能可以优化，编译选项默认打开），后续有caching可以变得容易。
 
 ## Templates
-template: JS对象和函数在一个上下文中的映射。
+template: JS对象和函数的定义。
 
+## JS call C++
 ### Global Functions
 ```
 void add(const FunctionCallbackInfo<value>& info) {
     info.GetReturnValue().Set(info[0]->Int32Value() + info[1]->Int32Value());
 }
 
-global->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, add));
+global->Set(String::NewFromUtf8(isolate, "add"), FunctionTemplate::New(isolate, add));
 ```
 
 ### Global Variables
@@ -181,6 +182,7 @@ protoTmpl->Set(String::NewFromUtf8(isolate, "distance"), FunctionTemplate::New(i
 ```
 
 ### Interceptors
+对象属性的拦截器，可以是基于名字的或基于索引的。
 ```
 void get(Local<String> name, const PropertyCallbackInfo<Value>& info) {
     Local<Object> self = info.Holder();
@@ -203,13 +205,18 @@ void set(Local<String> name, Local<Value> value, const PropertyCallbackInfo<Valu
     map<string, string>* obj = static_cast<map<string, string>*>(ptr);
 
     String::Utf8Value key(name);
-    map<string, string>::iterator iter = obj->find(string(*key));
-    if (iter != obj->end()) {
-        String::Utf8Value utf8(value);
-        (*iter).second = *utf8;
-    }
+    String::Utf8Value utf8(value);
+    (*obj)[string(*key)] = string(*utf8);
 }
-global->SetNamedPropertyHandler(get, set);
+
+Local<ObjectTemplate> optionsTmpl = ObjectTemplate::New(isolate);
+optionsTmpl->SetInternalFieldCount(1);
+optionsTmpl->SetNamedPropertyHandler(get, set);
+// after context scope
+Local<Object> options = optionsTmpl->NewInstance();
+map<std::string, std::string> optionsMap;
+options->SetInternalField(0, External::New(isolate, &optionsMap));
+context->Global()->Set(String::NewFromUtf8(isolate, "options"), options);
 ```
 
 ## Reference
