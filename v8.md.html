@@ -122,10 +122,10 @@ public:
 ```
 void pointCtor(const FunctionCallbackInfo<Value>& info) {
     Local<Object> self = info.Holder();
-    int x = args[0]->Int32Value();
-    int y = args[1]->Int32Value();
+    int x = info[0]->Int32Value();
+    int y = info[1]->Int32Value();
     Point* p = new Point(x, y);
-    self->SetInternalField(0, External::New(args.GetIsolate(), p));
+    self->SetInternalField(0, External::New(info.GetIsolate(), p));
 }
 ```
 
@@ -180,6 +180,37 @@ protoTmpl->Set(String::NewFromUtf8(isolate, "distance"), FunctionTemplate::New(i
 
 ```
 
+### Interceptors
+```
+void get(Local<String> name, const PropertyCallbackInfo<Value>& info) {
+    Local<Object> self = info.Holder();
+    Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+    void* ptr = wrap->Value();
+    map<string, string>* obj = static_cast<map<string, string>*>(ptr);
+
+    String::Utf8Value key(name);
+    map<string, string>::iterator iter = obj->find(string(*key));
+    if (iter != obj->end()) {
+        const string &value = (*iter).second;
+        info.GetReturnValue().Set(String::NewFromUtf8(info.GetIsolate(), value.c_str(), String::kNormalString, value.length()));
+    }
+}
+
+void set(Local<String> name, Local<Value> value, const PropertyCallbackInfo<Value>& info) {
+    Local<Object> self = info.Holder();
+    Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+    void* ptr = wrap->Value();
+    map<string, string>* obj = static_cast<map<string, string>*>(ptr);
+
+    String::Utf8Value key(name);
+    map<string, string>::iterator iter = obj->find(string(*key));
+    if (iter != obj->end()) {
+        String::Utf8Value utf8(value);
+        (*iter).second = *utf8;
+    }
+}
+global->SetNamedPropertyHandler(get, set);
+```
 
 ## Reference
 https://developers.google.com/v8/
