@@ -81,15 +81,20 @@ context: JS执行上下文，一个VM实例(isolate)可以有多个上下文，�
 ## Templates
 template: JS对象和函数的定义。
 
-## JS call C++
+ObjectTemplate: 对象模版，定义对象，创建对象实例（`NewInstance()`，一个context下可以创建多个实例）。
+FunctionTemplate: 函数模版，定义函数，获取函数实例（`GetFunction()`，一个context下只能有一个实例）。相关联的`InstanceTemplate()`和`PrototypeTemplate()`都返回`ObjectTemplate`，用来定义其用于构造函数创建的实例和原型。
+
+## JS -> C++
 ### Global Functions
 ```
 void add(const FunctionCallbackInfo<value>& info) {
     info.GetReturnValue().Set(info[0]->Int32Value() + info[1]->Int32Value());
 }
 
+// 在（对象）模版上设置属性的模版，则对于它创建的每个对象都自动设上此属性实例
 global->Set(String::NewFromUtf8(isolate, "add"), FunctionTemplate::New(isolate, add));
 ```
+
 
 ### Global Variables
 
@@ -118,7 +123,7 @@ public:
 };
 ```
 
-在构造函数中，使用external values和internal object fields将JS类对象和C++类实例关联起来。
+在构造函数中，使用external values`External`和internal object fields将JS类对象和C++类实例关联起来。
 和handle相反，external values是JS对象对C++实例的间接引用，并保存在internal fields之中。
 ```
 void pointCtor(const FunctionCallbackInfo<Value>& info) {
@@ -126,6 +131,7 @@ void pointCtor(const FunctionCallbackInfo<Value>& info) {
     int x = info[0]->Int32Value();
     int y = info[1]->Int32Value();
     Point* p = new Point(x, y);
+    // 建立JS对象self（JS构造函数里的this）和C++实例p的关联
     self->SetInternalField(0, External::New(info.GetIsolate(), p));
 }
 ```
@@ -161,24 +167,61 @@ void distance(const FunctionCallbackInfo<Value>& info) {
 每个函数模板都有对应的实例模板和原型模板。
 最后设置相应的函数：
 
-* 在全局对象中设置构造函数
-* 在实例模板中设置internal field数目
-* 在实例模板中设置accessor
-* 在原型模板中设置成员函数
 
 ```
 Local<FunctionTemplate> pointTmpl = FunctionTemplate::New(isolate, pointCtor);
-//pointTmpl->SetClassName(String::NewFromUtf8(isolate, "Point"));
+// 设置打印时显示的类名
+pointTmpl->SetClassName(String::NewFromUtf8(isolate, "Point"));
+// 在全局对象中设置构造函数
 global->Set(String::NewFromUtf8(isolate, "Point"), pointTmpl);
 
 Local<ObjectTemplate> objTmpl = pointTmpl->InstanceTemplate();
+// 在实例模板中设置internal field数目
 objTmpl->SetInternalFieldCount(1);
+// 在实例模板中设置accessor
 objTmpl->SetAccessor(String::NewFromUtf8(isolate, "x"), getPointX, setPointX);
 objTmpl->SetAccessor(String::NewFromUtf8(isolate, "y"), getPointY, setPointY);
 
 Local<ObjectTemplate> protoTmpl = pointTmpl->PrototypeTemplate();
+// 在原型模板中设置成员函数
 protoTmpl->Set(String::NewFromUtf8(isolate, "distance"), FunctionTemplate::New(isolate, distance));
 
+```
+
+### Inheritance
+```
+class Circle : public Point {
+public:
+    Circle(int x, int y, int r) : Point(x, y), r_(r) { }
+    bool isOriginIn() const { return r_ >= distance(); }
+    int r_;
+};
+
+void circleCtor(const FunctionCallbackInfo<Value>& info) {
+    Local<Object> self = info.Holder();
+    int x = info[0]->Int32Value();
+    int y = info[1]->Int32Value();
+    int r = info[2]->Int32Value();
+    Circle* p = new Circle(x, y, r);
+    self->SetInternalField(0, External::New(info.GetIsolate(), p));
+}
+
+void isOriginIn(const FunctionCallbackInfo<Value>& info) {
+    Local<Object> self = info.Holder();
+    Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+    void* ptr = wrap->Value();
+    info.GetReturnValue().Set(static_cast<Circle*>(ptr)->isOriginIn());
+}
+
+Local<FunctionTemplate> circleTmpl = FunctionTemplate::New(isolate, circleCtor);
+// 继承Point的模板，继承了Point的accessor，prototype函数等，但internal field要重新设置并进行实例关联
+circleTmpl->Inherit(pointTmpl);
+circleTmpl->SetClassName(String::NewFromUtf8(isolate, "Circle"));
+Local<ObjectTemplate> protoTmpl = circleTmpl->PrototypeTemplate();
+Local<ObjectTemplate> objTmpl = circleTmpl->InstanceTemplate();
+objTmpl->SetInternalFieldCount(1);
+protoTmpl->Set(String::NewFromUtf8(isolate, "isOriginIn"), FunctionTemplate::New(isolate, isOriginIn));
+global->Set(String::NewFromUtf8(isolate, "Circle"), circleTmpl);
 ```
 
 ### Interceptors
@@ -215,8 +258,46 @@ optionsTmpl->SetNamedPropertyHandler(get, set);
 // after context scope
 Local<Object> options = optionsTmpl->NewInstance();
 map<std::string, std::string> optionsMap;
+// 关联JS对象和C++ map对象
 options->SetInternalField(0, External::New(isolate, &optionsMap));
+// 在全局对象中设置JS对象
 context->Global()->Set(String::NewFromUtf8(isolate, "options"), options);
+```
+
+## C++ -> JS
+主要通过key调用`Object::Get`到值，并`Local<Type>::Cast`到相应的类型，再使用。
+
+### Global Variables
+```
+Local<Value> x = context->Global()->Get(String::NewFromUtf8(isolate, "x"));
+
+// object
+Local<Object> x = Local<Object>::Cast(context->Global()->Get(String::NewFromUtf8(isolate, "options")));
+
+```
+
+### Global Functions
+```
+Local<Value> func = context->Global()->Get(String::NewFromUtf8(isolate, "add"));
+Local<Value> v1 = Int32::New(isolate, 1);
+Local<Value> v2 = Int32::New(isolate, 2);
+Local<Value> args[2] = {v1, v2};
+Local<Function> add = Local<Function>::Cast(func);
+Local<Value> ret = add->Call(context->Global(), 2, args);
+```
+
+## Exceptions
+```
+// 捕获Run()可能抛出的异常
+TryCatch trycatch(isolate);
+Local<Value> v = script->Run(); // 如果执行错误，一般返回一个空的handle，并抛出异常（在trycatch里设置异常）
+if (v.IsEmpty()) { // 检查handle是否为空
+    // 如果为空则可能Run()抛出了异常，则取出异常信息并打印
+    Local<Value> exception = trycatch.Exception();
+    String::Utf8Value exception_str(exception);
+    printf("Exception: %s\n", *exception_str);
+    // ...
+}
 ```
 
 ## Reference

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<title>Node.js | io.js</title>
+<xmp theme="united" style="display:none;">
+https://iojs.org | v2.3.0
+https://nodejs.org/
+https://www.npmjs.com/
+
+## 模块
+require返回exports。
+module: 当前模块对象。
+require, module, exports(===module.exports)都是针对每个模块的本地变量。
+缓存：多次调用require会返回同样的对象（require.cache），除非解析的加载模块路径变了（调用`require.resolve()`查看）。
+如果直接由node执行，则`require.main === module`.
+
+### 核心模块
+在源代码lib/下，优先加载。
+
+### 文件模块
+以`/`, `./`, `../`开头。相对路径是相对于调用require的文件来说。
+如果找不到，则会顺序尝试加上js, json, node(编译过的addon，用dlopen加载)后缀。
+如果是目录（目录模块）: 目录下定义一个package.json（没有则会找index.js, index.node）
+```
+{
+  name: 'mylib',
+  main: './lib/mylib.js'
+}
+```
+
+### 其他路径
+如果不是核心模块，也不以以'/', './', '../'开头，则会在调用require的文件的目录加上"node_modules"路径来寻找，如果还找不到则再到父级目录加上"node_modules"找，直到根目录。
+如果以上都找不到，则会顺序到以下路径找:
+
+* NODE_PATH定义的路径
+* $HOME/.node_modules/
+* $HOME/.node_libraries/
+* $INSTALL_PREFIX/lib/node/   (如果自定义了的话，可以在process.installPrefix查看)
+
+## NPM
+`~/.npmrc`: 配置文件，用代理时使用非https源: `registry = http://registry.npmjs.org`。
+`~/.npm/`:  cache目录。
+-g运行时安装在`$INSTALL_PREFIX/node_modules`下。
+npm会根据package.json里的依赖定义自动管理版本依赖性（npm ls查看）， 如果已安装且module的版本满足就不会再装，否则在自己的node_modules目录安装特定版本。
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
