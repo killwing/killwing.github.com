@@ -7,14 +7,20 @@ https://nodejs.org/
 https://www.npmjs.com/
 
 ## 模块
-require返回exports。
-module: 当前模块对象。
-require, module, exports(===module.exports)都是针对每个模块的本地变量。
+一个（入口）文件对应一个模块。
+两种常用导出方式：
+
+* 在`exports`对象上设置导出函数/属性。
+* 在`module.exports`赋予导出函数或对象供直接使用。
+
+`exports`只是方便使用的别名，可以只用`module.exports`（由require返回）。
+
+module为当前模块对象。require, module, exports都是针对每个模块的本地变量。
 缓存：多次调用require会返回同样的对象（require.cache），除非解析的加载模块路径变了（调用`require.resolve()`查看）。
 如果直接由node执行，则`require.main === module`.
 
 ### 核心模块
-在源代码lib/下，优先加载。
+在源代码lib目录下，优先加载。
 
 ### 文件模块
 以`/`, `./`, `../`开头。相对路径是相对于调用require的文件来说。
@@ -28,7 +34,7 @@ require, module, exports(===module.exports)都是针对每个模块的本地变�
 ```
 
 ### 其他路径
-如果不是核心模块，也不以以'/', './', '../'开头，则会在调用require的文件的目录加上"node_modules"路径来寻找，如果还找不到则再到父级目录加上"node_modules"找，直到根目录。
+如果不是核心模块，也不以以`/`, `./`, `../`开头，则会在调用require的文件的目录加上"node_modules"路径来寻找，如果还找不到则再到父级目录加上"node_modules"找，直到根目录。
 如果以上都找不到，则会顺序到以下路径找:
 
 * NODE_PATH定义的路径
@@ -36,11 +42,45 @@ require, module, exports(===module.exports)都是针对每个模块的本地变�
 * $HOME/.node_libraries/
 * $INSTALL_PREFIX/lib/node/   (如果自定义了的话，可以在process.installPrefix查看)
 
+[详细模块加载算法](https://iojs.org/api/modules.html#modules_all_together)
+
 ## NPM
-`~/.npmrc`: 配置文件，用代理时使用非https源: `registry = http://registry.npmjs.org`。
+`~/.npmrc`: 配置文件。用代理时使用非https源: `registry = http://registry.npmjs.org`。
 `~/.npm/`:  cache目录。
--g运行时安装在`$INSTALL_PREFIX/node_modules`下。
-npm会根据package.json里的依赖定义自动管理版本依赖性（npm ls查看）， 如果已安装且module的版本满足就不会再装，否则在自己的node_modules目录安装特定版本。
+
+### install
+`npm install`
+本地安装：没有`-g`选项，无包名则根据package.json自动安装所有依赖的包。`--save`/`--save-dev`安装时同时加到package.json文件中。
+全局安装：带有`-g`选项，安装在`$INSTALL_PREFIX/node_modules`下，不能被require到，一般用来安装命令行工具类（有bin文件）的包。
+npm会根据package.json里的依赖定义自动管理版本依赖性（`npm ls`查看）， 如果已安装且module的版本满足就不会再装，否则在自己的node_modules目录安装特定版本。
+
+更新本地包：`npm update`
+卸载本地包：`npm uninstall <package>` 加上`--save`也从package.json里面移除
+更新全局包：`npm install -g [package]` 省略package则更新全部
+卸载全局包：`npm uninstall -g <package>`
+查看过时包：`npm outdated [-g]`
+查看所有包：`npm ls [-g]`
+更新npm自己：`npm install npm -g`
+
+### publish
+发布到`https://www.npmjs.org/package/<package>`上。
+步骤：
+
+* adduser: 加用户
+* login: 登录npmjs
+* version major/minor/patch: 产生一个新版本（更新package.json里的版本，commit并打上tag）
+* publish: 发布
+
+关于[semver](http://semver.org/) :
+major: `*` or `x`
+minor: `1` or `1.x` or `^1.0.4`
+patch: `1.0` or `1.0.x` or `~1.0.4`
+
+### develop package
+初始化package.json：`npm init`
+测试全局安装：`npm install . -g`或`npm link`
+测试本地安装：在新的目录 `npm install path/to/my/package`
+
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>
