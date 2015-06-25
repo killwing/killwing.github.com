@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
 handle: V8对象的句柄（指针），所有对象通过它来访问。所有的JS对象分配在堆上，handle是其堆上位置的引用。
 可被GC（从堆上删除）的垃圾对象：在JS里不能被访问到，以及没有handle引用到它。
 
-Local handle `Local<Type>`：handle分配在handle栈（不是调用栈）上，其生命周期由handle scope统一管理，handle scope只能分配在调用栈上。如果函数内部要返回一个local handle，使用`EscapableHandleScope`来代替`HandleScope`，返回调用其`Escape`方法并传入要返回的handle。
+Local handle `Local<Type>`：handle分配(`Type::New()`)在handle栈（不是调用栈）上，其生命周期由handle scope统一管理。handle scope只能分配在调用栈上，管理此scope下面包括函数调用里面分配的所有handle，并可以多个scope嵌套。如果函数内部要返回一个local handle，使用`EscapableHandleScope`来代替`HandleScope`，返回调用其`Escape`方法并传入要返回的handle。
 Persistent handle：持久型handle，不能被copy但可以move。
 
 * `UniquePersistent<Type>`：handle的构造析构决定其内部对象的生命周期。
@@ -79,7 +79,7 @@ context: JS执行上下文，一个VM实例(isolate)可以有多个上下文，�
 效率：第一个context创建可能比较昂贵（使用snapshot功能可以优化，编译选项默认打开），后续有caching可以变得容易。
 
 ## Templates
-template: JS对象和函数的定义。
+template: JS对象和函数的定义模版。
 
 ObjectTemplate: 对象模版，定义对象，创建对象实例（`NewInstance()`，一个context下可以创建多个实例）。
 FunctionTemplate: 函数模版，定义函数，获取函数实例（`GetFunction()`，一个context下只能有一个实例）。相关联的`InstanceTemplate()`和`PrototypeTemplate()`都返回`ObjectTemplate`，用来定义其用于构造函数创建的实例和原型。
@@ -191,7 +191,8 @@ protoTmpl->Set(String::NewFromUtf8(isolate, "distance"), FunctionTemplate::New(i
 由C++产生对象：
 ```
 Local<Function> ctor = pointTempl->GetFunction();
-Local<Object> obj = ctor->NewInstance(); // 会调用到pointCtor
+Local<Value> argv[2] = { Int32::New(isolate, 3), Int32::New(isolate, 4) };
+Local<Object> obj = ctor->NewInstance(2, argv); // 会调用到pointCtor
 context->Global()->Set(String::NewFromUtf8(isolate, "point1"), obj);
 ```
 
@@ -270,6 +271,24 @@ options->SetInternalField(0, External::New(isolate, &optionsMap));
 // 在全局对象中设置JS对象
 context->Global()->Set(String::NewFromUtf8(isolate, "options"), options);
 ```
+
+### Signature
+signature检查callback必须由recv的实例(`recv->GetFunction()->NewInstance()`)或recv继承的实例(`recv->Inherit()`)进行调用，否则TypeError
+```
+Local<Signature> s = Signature::New(isolate, recv);
+Local<FunctionTemplate> t = FunctionTemplate::New(isolate, callback, Handle<Value>(), s);
+```
+
+[`This()` vs `Holder()`](https://groups.google.com/forum/#!topic/v8-users/Axf4hF_RfZo):
+```
+var x = { }
+x.__proto__ = document;
+var div = x.createElement('div');
+```
+在createElement函数中：
+This: x, 对应JS里的this。
+Holder: document, 原型链中实际进行调用的对象。
+
 
 ## C++ -> JS
 主要通过key调用`Object::Get`到值，并`Local<Type>::Cast`到相应的类型，再使用。
