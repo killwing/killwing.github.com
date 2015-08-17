@@ -43,17 +43,26 @@ http://golang.org/doc/cmd
 注释: `/* */`，`//`
 
 ## 基本类型
-数字: int, int8/16/32/64, uint, uint8/16/32/64, float32, float64, byte(unit8), rune(int32, 代表一个Unicode码), uintptr, complex64, complex128
+数字: int, int8/16/32/64, uint, uint8/16/32/64, float32/64, byte(unit8), rune(int32, 代表一个Unicode码), uintptr, complex64/128。支持八进制(0)，十六进制(0x)及科学记数法。
 布尔(bool): true, false (预定义常量)
 字符串(string):
 
-* 可复制但不可修改其中字符。
+* 默认空串(`""`)。不以0结尾。
+* 可复制但不可修改其中字符，要修改必须先转为`[]byte`, `[]rune`再转回来并会造成复制。下标访问其中的字符。
+* `+`连接字符串。内部是UTF8的字节数组，可以用slice相关的操作。
 * 16进制: `"\xFF"    // 1 byte`
 * Unicode: `"\u00FF"  // 1 unicode char, 2 bytes of UTF-8`
 * Raw:
 ```
 `\n\.abc\t\` 相当于 "\\n\\.abc\\t\\"
 ```
+
+指针：
+
+* 默认值`nil`
+* 有指针(`*Type`)及指针的指针(`**Type`)，但没有指针算术。
+* 用`&`取得变量的指针，一律用`.`访问目标。
+* 函数中可以返回局部变量的指针。
 
 类型转换
 
@@ -77,9 +86,8 @@ var(变量): 必须有类型和初始化表达式之一。
 未初始化的变量自动为0, 指针和引用为nil。
 不用的变量可以使用`_`。
 `:=`缩写声明并初始化变量，只可以在函数中使用。
-有指针(*Type)，但没有指针算术。用`&`取得变量的指针。
-未被使用的变量或导入的包被认为是个错误。
-多重赋值的时候，先计算等号右边的表达式，再进行复制（都是从左到右的顺序）。
+未被使用的局部非常变量或导入的包被认为是个错误。
+多重赋值的时候，先计算等号右边的表达式，再进行赋值（都是从左到右的顺序）。
 ```
 var i int
 var j = 365.245 // 自动推导类型
@@ -100,9 +108,21 @@ var (
 
 `const`(常量): 必须有编译期确定初始化表达式，类型说明可省。
 ```
+// 枚举（只可以此类型自己或常量匹配）
+type Weekday int
 const (
-    Monday, Tuesday, Wednesday = 1, 2, 3;
-    Thursday, Friday, Saturday = 4, 5, 6;
+    Monday Weekday = iota
+    Tuesday
+    Wednesday
+    Thursday
+    Friday
+    Saturday
+    Sunday
+)
+
+const (
+    a = "xyz"
+    b            // 同上
 )
 
 // 使用iota自增长counter
@@ -113,7 +133,7 @@ const (
 )
 ```
 
-`type`: 类似C里的typedef
+`type`: 类似C里的typedef，但不是别名（需要显式转换）
 ```
 type Point struct {
     x, y, z float;
@@ -144,9 +164,12 @@ v := new(int)   // v has type *int
 * 字面定义`ar := []int {}` 和 `ar := make([]int)`
 * 字面定义`m := map[string]int {}` 和 `m := make(map[string]int)`
 
+`++`/`--` 是语句不是表达式，只能后置使用。
 
 ## 控制结构
 `if`: 可以有一个简单的语句（初始化变量的作用域仅在if/else内），也可以什么也没有表示true(switch同)
+其他类型不能自动转为bool，因此不能直接用于条件语句。
+不支持三元操作`x > y ? x : y`。
 ```
 if v := f(); v < 10 {
     fmt.Printf("%d less than 10\n", v)
@@ -164,10 +187,12 @@ for key, value := range m { // m is map, 也可只取key，对于array和slice, 
     fmt.Printf("key %s, value %g\n", key, value)
 }
 s := "[\u00ff\u754c]";
-for i, c := range s { // 对于string，按照utf-8字节流迭代
+for i, c := range s { // 对于string，按照rune类型迭代
     fmt.Printf("%d:%c ", i, c)  // 打印 0:[ 1:ÿ 3:界 6:]
 }
+for range s {  } // iterate only
 ```
+range会复制一份对象出来迭代，尽量使用引用类型。
 
 `switch`: 任意类型，除非以`fallthrough`语句结束并进入下一个分支，否则分支会自动终止，一个case可以带多个值
 ```
@@ -179,7 +204,7 @@ case a > b:  return 1
 }
 ```
 
-`break`, `continue`: 后面可以接一个label(goto)
+`break`(可用于for/switch/select), `continue`(可用于for): 后面可以接一个label(goto)
 
 ## 复杂类型
 ### Array
@@ -194,7 +219,7 @@ case a > b:  return 1
 ```
 
 ### Slice
-Slice是对一个Array的部分引用。
+Slice是一个引用类型，是对一个Array的部分引用。
 声明: `var a []int`, 不指定长度。
 `len()`可以取得长度，而`cap()`则返回slice的容量(一直至原数组cap尾的大小)。
 初始化，赋值
