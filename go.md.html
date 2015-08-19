@@ -216,60 +216,69 @@ case a > b:  return 1
 [10]int { 1, 2, 3 } // 其它为0
 [...]int { 1, 2, 3 } // 自己计算长度
 [10]int { 2:1, 3:1, 5:1, 7:1 } // 个别赋值
+[...][2]int {{1,2}, {3,4}, {5,6}} // 2维数组
 ```
 
 ### Slice
 Slice是一个引用类型，是对一个Array的部分引用。
 声明: `var a []int`, 不指定长度。
-`len()`可以取得长度，而`cap()`则返回slice的容量(一直至原数组cap尾的大小)。
+`len()`可以取得长度，而`cap()`则返回slice的容量(默认一直至被引用数组结尾的大小)。基于slice创建的slice不能超过cap大小。
+string也可以被slice。不可修改。
 初始化，赋值
 ```
 a = ar[7:9] // 长度为2, [7,9)
-a2 = ar[7:9:10] // 指定容量为3, [7,10)
+a2 = ar[7:9:10] // 指定容量为3, [7,10)，下标都是指索引值
 a3 = &ar  // same as a = ar[0:len(ar)] or ar[:]
 header, data := buf[0:n], buf[n:len(buf)] // split
-var slice = []int{ 1,2,3,4,5 } // 字面定义
-var s100 = make([]int, 100) // slice: 100 ints
+var slice = []int{ 1,2,3,4,5 } // 字面定义，可以个别赋值，自动创建底层数组
+var s100 = make([]int, 100) // slice: 100 ints, cap = len
 var sl = make([]int, 0, 100)  // len 0, cap 100
+data := [][]int {[]int{1,2}, []int{3,4}} // slice of slice
 ```
-string也可以被slice。不可修改。
+
+`append(slice, value)`: 在slice结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
+`copy(dest, src)`: 复制一个slice到另一个，直到其中一个结尾。
+
 
 ### Map
-Map也是一个引用类型。
+Map是哈希表，引用类型。
 声明: `var m map[string] float // key:string, value:float`, 长度: `len(m)`返回key的个数
 初始化，赋值
 ```
 m = map[string]float { "1":1, "pi":3.1415 } // 字面定义
-m = make(map[string]float)
+m = make(map[string]float, 500) // len为0，500类似cap，cap不可作用于map
 var m1 map[string]float = m // m1 and m now refer to same map
 ```
 访问元素
 ```
-one   := m["1"] // 取值
+one   := m["1"] // 取值，会复制一份出来
 crash := m["not present"]  // 0
 m["2"] = 2
 v, ok := m[x] // the "comma ok" form, 测试是否有值
-delete(m, x)   // deletes entry for x
-for key, value := range m { ... } // 迭代，顺序不固定
+delete(m, x)   // deletes entry for x，若不存在不会出错
+for key, value := range m { ... } // 迭代，顺序不固定，其中可以有删除操作
 ```
 
 ### Struct
 Struct是值类型，声明: `var p struct { x, y float }`
+可用`-`表示占位字段。成员可以是自身类型的指针。
 `var pp *Point = new(Point); pp.x = 1; pp.y = 2 // 没有"->"，统一用"."访问成员，或(*pp).x`
-初始化，赋值
+初始化，赋值:
 ```
 type Point struct { x, y float };
-p = Point{ 7.2, 8.4 }
+p = Point{ 7.2, 8.4 } // 顺序初始化必须包括所有成员
 p = Point{ y:8.4, x:7.2 }
 pp := &Point{ 23.4, -1 }   // idiomatic
 ```
+可以为字段定义一个标签（属于类型的一部分），用于反射读取。`var x struct {pos int "position"}`
 如果一个struct成员开头大写，则表示对包外可见。
-匿名域：如果一个struct包含一个没有命名的变量，则用它的类型名字命名。`type B struct {string}; fmt.Println(b.string);`
+匿名域：如果一个struct包含一个没有命名的变量，则用它的类型名字命名（同时用匿名类型及其指针类型会同名）。`type B struct {string}; fmt.Println(b.string);`
 如果成员是个匿名struct，则还可以平展开，就像自己有这样的成员，但外面的名字会具有高优先级。同级不能有相同名字的成员。（类似继承）
 ```
 type B struct { a, b int }
 type D struct { B; b float }
 var d D;
+fmt.Println(d.a)
 fmt.Println(d.b)
 fmt.Println(d.B.b)
 ```
@@ -309,12 +318,17 @@ fmt.Print(f(300));
 ```
 
 ### method
-只有struct没有class，可以把方法附加在本包内的任意非指针类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针，一般使用指针避免值传递）。
+可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针，一般使用指针避免值传递）。
+只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
 ```
-type Point struct { x, y float }
+type Point struct { x, y float64 }
 // A method on *Point
-func (p *Point) Abs() float {
+func (p *Point) Abs() float64 {
     return math.Sqrt(p.x*p.x + p.y*p.y)
+}
+func (p Point) Swap() Point {
+    p.x, p.y = p.y, p.x
+    return p
 }
 
 p := &Point{ 3, 4 };
@@ -334,6 +348,19 @@ var buf = new(Buffer);
 buf.Lock();  // == buf.Mutex.Lock()
 ```
 如果为一个类型定义`String()`方法，则可以直接被`fmt.Print[ln]`打印使用。
+
+method value & method expression：可以把method像函数一样赋值给其他变量
+```
+mv := p.Abs
+mv() // 已绑定实例
+me := (*Point).Abs
+me(&p) // 传递实例
+sv := p.Swap // 如果接收者以值传递会造成复制
+se := Point.Swap
+se2 := (*Point).Swap
+se2(&p) // 仍会复制
+me2 := Point.Abs // compile error
+```
 
 ### interface
 一个interface是许多method的集合。
