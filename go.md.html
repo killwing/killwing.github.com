@@ -2,7 +2,7 @@
 <html>
 <title>Go</title>
 <xmp theme="readable" style="display:none;">
-[http://golang.org](http://golang.org) | v1.3
+[http://golang.org](http://golang.org) | v1.4
 
 ## 准备
 ### 下载安装
@@ -41,6 +41,7 @@ http://golang.org/doc/cmd
 花括号的位置在一行末尾。（gofmt工具可以用来格式化代码风格）
 标识: 数字，字母，下划线。
 注释: `/* */`，`//`
+命名：camelCasing风格。
 
 ## 基本类型
 数字: int, int8/16/32/64, uint, uint8/16/32/64, float32/64, byte(unit8), rune(int32, 代表一个Unicode码), uintptr, complex64/128。支持八进制(0)，十六进制(0x)及科学记数法。
@@ -300,13 +301,15 @@ func MySqrt(f float) (v float, ok bool) {
 ```
 可以指定每个参数的名字或者不指定任何参数名字，不能只指定部分函数参数的名字。
 如果是相邻的参数是相同的类型，也可以统一指定类型。
-如果命名了返回值参数，return可以不带参数返回当前值。
+如果命名了返回值参数（局部变量），return可以不带参数返回当前值（不被其他同名变量遮盖(shadowed)的情况下）。
+不支持默认参数。
+多返回值可以直接作为函数调用的实参。
 
 闭包：
 ```
 func adder() (func(int) int) {
     var x int
-    return func(delta int) int {
+    return func(delta int) int { // lambda
         x += delta
         return x
     }
@@ -315,6 +318,19 @@ var f = adder();
 fmt.Print(f(1));
 fmt.Print(f(20));
 fmt.Print(f(300));
+```
+闭包以引用的方式使用外部变量。
+
+可变参数：只能有一个，必须放在所有参数最后。类似slice的处理。
+```
+func foo(x int, y ...int) {
+    for i, v := range y {
+        x += v
+    }
+}
+
+a := []int {1, 2, 3, 4}
+foo(100, a...) // 展开slice
 ```
 
 ### method
@@ -358,12 +374,12 @@ me(&p) // 传递实例
 sv := p.Swap // 如果接收者以值传递会造成复制
 se := Point.Swap
 se2 := (*Point).Swap
-se2(&p) // 仍会复制
+se2(&p) // 只是改变签名，仍会复制
 me2 := Point.Abs // compile error
 ```
 
 ### interface
-一个interface是许多method的集合。
+一个interface是许多method的集合。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
 定义:
 ```
 type EmptyInterface interface { }
@@ -372,22 +388,38 @@ type AbsInterface interface {
 }
 ```
 
-任何实现了其接口的类型的变量都可以赋值给interface变量（隐式接口，无需声明），它存储了receiver的值（如果要修改成员变量必须传递指针类型）以及一张method表。
+任何实现了其接口的类型的变量都可以赋值给interface变量（隐式接口，无需声明），它存储了receiver的值（只读复制品，如果要修改成员变量必须传递指针类型）以及一张method表。
 ```
 type Vector struct {
     a []EmptyInterface // 可以放任意类型的vector
 }
 ```
-将接口类型转回原类型：`interface_value.(type_to_extract)`，在运行期检测（使用comma,ok检测，否则会panic）。
-接口之间也可以互相转换，取决于底层所包含的类型能否转换。
+将接口类型转回原类型：`interface_value.(type_to_extract)`，在运行期检测（使用comma,ok或switch检测，否则会panic）。
+接口之间也可以互相转换，取决于底层所包含的类型能否转换，超集可以转换为子集。
 ```
 // 检查是否实现了String接口
 type Stringer interface { String() string }
 if sv, ok := v.(Stringer); ok {
     fmt.Printf("implements String(): %s\n", sv.String()); // note: sv not v
 }
+
+switch sv := v.(type) {
+case Stringer:
+    ...
+}
 ```
-Print等利用反射机制("reflect" package)知道其参数类型，也可以用"%v"表示任意类型格式。
+Print等利用反射机制("reflect" package)知道其参数类型，也可以用`%v`表示任意类型格式。
+
+接口一般只针对method，如果一般函数要实现接口：
+```
+type ToString func() string
+func (this ToString) String() string {
+    return this()
+}
+
+var s Stringer = ToString(func() string { return "test" })
+s.String()
+```
 
 
 ## Concurrency
@@ -396,16 +428,22 @@ Print等利用反射机制("reflect" package)知道其参数类型，也可以�
 ### Goroutine
 goroutine指在同一地址空间内并发执行的函数，非常廉价和轻量级。执行: `go f()`
 `go`也可以用于启动新定义的内部函数（闭包）为goroutines。
-可以在不同的处理器上并发运行，而且共享内存。(gccgo目前是使用pthred实现的)
-`runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，默认最大10000），一般设为CPU核心数。
-goroutine如果内部调用了非内联函数（内联函数如lambda），会在函数入口采用抢占式调度。
+可以在不同的处理器上并发运行，而且共享内存。(gccgo目前是使用pthread实现的)
 goroutine的默认堆栈大小8KB，最大1GB（64bit），250M（32bit）。
+
+### 调度
+`runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，默认最大10000），一般设为CPU核心数。
+`runtime.Goexit()`终止当前goroutine的执行（defer仍起作用）。
+`runtime.Gosched()`暂停当前goroutine，等待被再次调度（类似协程里的yield）。
+goroutine如果内部调用了非内联函数（内联函数如lambda），会在函数入口采用抢占式调度。
+进程退出时并不等待goroutine结束，可以用`sync.WaitGroup`等待。
 
 关于goroutine的调度，可以看[go-scheduler](http://morsmachine.dk/go-scheduler) （[中文](http://mikespook.com/2013/07/%E7%BF%BB%E8%AF%91go-%E7%9A%84%E8%B0%83%E5%BA%A6%E5%99%A8/)）, [netpoller](http://morsmachine.dk/netpoller)，以及[原始设计文档](https://docs.google.com/document/d/1TTj4T2JO42uD5ID9e89oa0sLKhJYD0Y_kqxDv3I3XMw)。
 
 ### Channel
 声明: `chan element_type`，创建: `var c = make(chan int)`
-channel是引用类型。
+channel是引用类型，内部同步，并发安全。
+`len`返回未被读取的缓冲元素个数，`cap`返回缓冲区大小。
 ```
 var c = make(chan int)
 c <- 1   // send
@@ -424,13 +462,14 @@ func suck(ch chan int) {
 
 关闭channel: `close()`, 测试: `closed()`。
 只有发送者才能关闭channel，而不是接收者。向一个已经关闭的channel发送数据会引起panic，从一个已经关闭的channel接收数据为0/nil和false: `v, ok = <-c`。
-默认channel是双向的，也可以指定方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
+默认channel是双向的，也可以转换为指定的方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
 
 `select`
 
 * select的case必须是channel操作。
 * 如果每个条件都阻塞，select就会阻塞（如果有default则进入操作）。
 * 如果多个条件满足，则随机选择一个执行。
+* `select {}`阻塞goroutine。
 ```
 c1 := make(chan int)
 c2 := make(chan int)
@@ -456,20 +495,29 @@ type error interface {
     Error() string
 }
 ```
+`error.New`：创建error对象。
 
-`defer`: defer后面的语句在函数return时候调用，参数值在defer的定义点确定。可以有多个defer，执行时按LIFO顺序。
+`defer`
 
-`panic`: 类似抛出异常，并终止程序。
-`recover`: 终止panic展开，返回panic的参数，一般使用在defer中。
+* defer后面的语句在函数return时候调用（最终返回之前，(如果有)计算return表达式之后）。
+* defer函数的参数值在defer的定义点确定并复制（如果需要实时的值，可以使用闭包）。
+* 可以有多个defer，执行时按LIFO顺序，即使中间发生panic也都保证后续执行。
+* defer性能不高，不要在循环内使用。
+
+`panic`: 类似抛出异常，并终止程序。参数类型为`interface{}`，可接受任何参数。
+`recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。
 
 
 ## Packages
-每个go的源文件都必须是`package xxx`
+每个go的源文件第一行都必须是`package xxx`
 
 * 可执行文件包名`package main`(在单独目录)，内含一个main函数。
 * 库文件包名(一般和所在目录名相同，包里的每个源文件都必须有相同的名字): `package fmt`
 
-导入其它包: `import my_fmt "fmt"  // use the name my_fmt`
+导入包: `import myfmt "path/to/fmt"  // use the name myfmt，相对pkg/<arch>/的路径`
+导入本地包：`import "./myfmt" // 仅对go run有效`
+不导入仅初始化：`import _ "fmt"`
+全部导入（无须以包名开头使用）：`import . "fmt"`
 导入多个包：
 ```
 import (
@@ -477,10 +525,18 @@ import (
     "math"
 )
 ```
-在一个包内部，所有全局变量等对于包的源文件可见。对于包的使用者来说，只有开头字母大写的可见。
-全局变量的初始化：声明的时候初始；使用init()函数，一个源文件一个。初始化总是单线程的，根据包的依赖顺序执行。
+
+在一个包内部，所有全局变量函数等对于包的源文件可见。对于包的使用者来说，只有开头字母大写的可见。
+全局变量的初始化：声明的时候初始化；使用`init()`函数，在包所有全局变量初始化后执行`main.main()`之前执行。初始化总是单线程的，根据包的依赖顺序执行。
 一般来说，一个目录一个包，作为一个单元一起编译，忽略测试文件。
 
+## 注释文档
+规范化注释格式，可被`godoc`提取为文档（除了package main）。
+
+* 要和被注释的成员相邻
+* 用空行分隔段落
+* 缩进表示格式化文本（代码片段）
+* bug: `// BUG(author): overflow`
 
 ## Testing
 * 命令: `go test`, 运行所有测试文件。
@@ -488,6 +544,7 @@ import (
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
 * 测试工具包: `import "testing"`, 支持logging, error reporting...
 
+## Example
 
 ## Debuging
 查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`
