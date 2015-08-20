@@ -2,7 +2,7 @@
 <html>
 <title>Go</title>
 <xmp theme="readable" style="display:none;">
-[http://golang.org](http://golang.org) | v1.4
+[http://golang.org](http://golang.org) | v1.5
 
 ## 准备
 ### 下载安装
@@ -18,7 +18,7 @@ export PATH=$PATH:$GOROOT/bin
 http://golang.org/doc/code.html
 
 工作区：包含src, pkg, bin目录。
-项目一般都是单独git目录在src下，编译`go build`出来的包文件和可执行文件安装`go install`在pkg（import查找路径），bin下。
+项目一般都是单独git目录在src下，编译`go build`出来的库文件和可执行文件安装`go install`在pkg，bin下。
 设置工作区环境变量：
 ```
 export GOPATH=$HOME/go_ws
@@ -32,6 +32,9 @@ export PATH=$PATH:$GOPATH/bin
 http://golang.org/doc/cmd
 
 编译并直接运行：`go run test.go`
+
+交叉编译：
+如在mac上：`GOOS=linux GOARCH=amd64 go build`
 
 
 ## Basics
@@ -247,6 +250,7 @@ Map是哈希表，引用类型。
 初始化，赋值
 ```
 m = map[string]float { "1":1, "pi":3.1415 } // 字面定义
+m = map[Point]string {{1,2} : "foo", {5,6} : "bar"}
 m = make(map[string]float, 500) // len为0，500类似cap，cap不可作用于map
 var m1 map[string]float = m // m1 and m now refer to same map
 ```
@@ -432,7 +436,7 @@ goroutine指在同一地址空间内并发执行的函数，非常廉价和轻�
 goroutine的默认堆栈大小8KB，最大1GB（64bit），250M（32bit）。
 
 ### 调度
-`runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，默认最大10000），一般设为CPU核心数。
+`runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，默认最大10000），默认为CPU核心线程数。`runtime.NumGoroutine()`返回当前存在的goroutine的数目。
 `runtime.Goexit()`终止当前goroutine的执行（defer仍起作用）。
 `runtime.Gosched()`暂停当前goroutine，等待被再次调度（类似协程里的yield）。
 goroutine如果内部调用了非内联函数（内联函数如lambda），会在函数入口采用抢占式调度。
@@ -514,8 +518,9 @@ type error interface {
 * 可执行文件包名`package main`(在单独目录)，内含一个main函数。
 * 库文件包名(一般和所在目录名相同，包里的每个源文件都必须有相同的名字): `package fmt`
 
-导入包: `import myfmt "path/to/fmt"  // use the name myfmt，相对pkg/<arch>/的路径`
+导入包: `import myfmt "path/to/fmt"  // use the name myfmt，相对src的路径`
 导入本地包：`import "./myfmt" // 仅对go run有效`
+导入内部包（内部包只能包自己可以用，`go run`不受此限制）。`import "myfmt/internal/util"`
 不导入仅初始化：`import _ "fmt"`
 全部导入（无须以包名开头使用）：`import . "fmt"`
 导入多个包：
@@ -525,13 +530,17 @@ import (
     "math"
 )
 ```
-
 在一个包内部，所有全局变量函数等对于包的源文件可见。对于包的使用者来说，只有开头字母大写的可见。
 全局变量的初始化：声明的时候初始化；使用`init()`函数，在包所有全局变量初始化后执行`main.main()`之前执行。初始化总是单线程的，根据包的依赖顺序执行。
 一般来说，一个目录一个包，作为一个单元一起编译，忽略测试文件。
 
+### Vendoring
+实验性功能，默认不启用。启用：`GO15VENDOREXPERIMENT=1`
+如果有形如`d/vendor`的目录，那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
+
+
 ## 注释文档
-规范化注释格式，可被`godoc`提取为文档（除了package main）。
+规范化注释格式，可被`go doc`提取为文档（除了package main）。
 
 * 要和被注释的成员相邻
 * 用空行分隔段落
@@ -548,6 +557,9 @@ import (
 
 ## Debuging
 查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`
+查看go相关环境变量：`go env`
+查看import及依赖：`go list -json`
+
 
 ## Reference
 http://godoc.org/
