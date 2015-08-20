@@ -5,8 +5,7 @@
 [http://golang.org](http://golang.org) | v1.5
 
 ## 准备
-### 下载安装
-http://golang.org/doc/install
+### [下载安装](http://golang.org/doc/install)
 
 下载安装包，并解压到安装路径(如`$HOME/go`)，最后配置环境变量。
 ```
@@ -14,9 +13,7 @@ export GOROOT=$HOME/go
 export PATH=$PATH:$GOROOT/bin
 ```
 
-### 环境配置
-http://golang.org/doc/code.html
-
+### [环境配置](http://golang.org/doc/code.html)
 工作区：包含src, pkg, bin目录。
 项目一般都是单独git目录在src下，编译`go build`出来的库文件和可执行文件安装`go install`在pkg，bin下。
 设置工作区环境变量：
@@ -28,10 +25,9 @@ export PATH=$PATH:$GOPATH/bin
 可执行文件和它所依赖的包都是静态链接在一起的。
 
 
-### 工具集
-http://golang.org/doc/cmd
-
+### [工具集](http://golang.org/doc/cmd)
 编译并直接运行：`go run test.go`
+清除src目录下build生成的临时对象文件：`go clean`
 
 交叉编译：
 如在mac上：`GOOS=linux GOARCH=amd64 go build`
@@ -539,27 +535,59 @@ import (
 如果有形如`d/vendor`的目录，那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
 
 
-## 注释文档
-规范化注释格式，可被`go doc`提取为文档（除了package main）。
+## [Testing](http://golang.org/pkg/testing/)
+### Test
+* 命令: `go test`, 运行所有测试文件。
+* 文件名: `*_test.go`
+* 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
+* 测试工具包: `import "testing"`, 支持logging, error reporting...
+* 重写`TestMain`以进行初始化/清理工作。
+```
+func TestMain(m *testing.M) {
+    // do setup
+    code := m.Run()
+    // do teardown
+    os.Exit(code)
+}
+```
+
+### Benchmarks
+`go test -bench`
+
+### Example
+示例函数命名(suffix可选)：
+
+* package: Example_suffix
+* func: ExampleFuncA_suffix
+* type: ExampleTypeA_suffix
+* method: ExampleTypeA_MethodA_suffix
+
+通过stdout输出来判断结果。(内置函数`print/println`输出到stderr)
+
+## [Debuging](https://golang.org/pkg/runtime/debug/)
+查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`
+查看go相关环境变量：`go env`
+查看import及依赖：`go list -json`
+竞态检测：`go run/build/test -race`
+
+[GDB](https://golang.org/doc/gdb): v7.1+
+
+* debug: 禁止内联和优化 `-gcflags "-N -l"`。
+* release: 删除调试信息和符号表 `-ldflags "-w -s"`。
+
+## [Coverage](http://golang.org/cmd/cover/)
+## [Profiling](http://golang.org/cmd/pprof/)
+https://golang.org/pkg/runtime/pprof/
+
+## [Documentation](http://godoc.org/golang.org/x/tools/cmd/godoc)
+规范化注释格式，可被`godoc`提取为文档（除了package main）。
 
 * 要和被注释的成员相邻
 * 用空行分隔段落
 * 缩进表示格式化文本（代码片段）
 * bug: `// BUG(author): overflow`
 
-## Testing
-* 命令: `go test`, 运行所有测试文件。
-* 文件名: `*_test.go`
-* 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
-* 测试工具包: `import "testing"`, 支持logging, error reporting...
-
-## Example
-
-## Debuging
-查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`
-查看go相关环境变量：`go env`
-查看import及依赖：`go list -json`
-
+## [CodingStyle](http://golang.org/cmd/gofmt/)
 
 ## Reference
 http://godoc.org/
