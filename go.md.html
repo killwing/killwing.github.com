@@ -33,15 +33,17 @@ export PATH=$PATH:$GOPATH/bin
 如在mac上：`GOOS=linux GOARCH=amd64 go build`
 
 
-### Other Tools
-`go get`安装到workspace的bin下
+### 开发辅助工具
+用[vim-go](https://github.com/fatih/vim-go)的`:GoInstallBinaries`命令安装或`go get`安装到workspace的bin下
+
+github.com:
 [godef](https://github.com/rogpeppe/godef)
 [gotags](https://github.com/jstemmer/gotags)
 [gocode](https://github.com/nsf/gocode)
 [errcheck](https://github.com/kisielk/errcheck)
 [golint](https://github.com/golang/lint)
 
-https://go.googlesource.com/tools/ 在cmd下`go install`
+https://go.googlesource.com/tools/
 goimports
 oracle
 gorename
@@ -146,7 +148,11 @@ const (
 )
 ```
 
-`type`: 类似C里的typedef，但不是别名（需要显式转换）
+`type`: 给一个匿名类型（一般是复合类型，如`[]int`, `map[int]int`, `struct {}`, `func() {}`）起个名字（命名！简单区别：命名类型只含有标识没有其它符号）或一个命名类型起个别名，类似C里的typedef，但不完全一样：
+
+* 如果两个类型的变量都是命名类型，即使底层一样也不能通用。
+* 如果两个类型的变量其中有一个是匿名类型，如果底层一样则可以通用。
+
 ```
 type Point struct {
     x, y, z float;
@@ -246,6 +252,7 @@ header, data := buf[0:n], buf[n:len(buf)] // split
 var slice = []int{ 1,2,3,4,5 } // 字面定义，可以个别赋值，自动创建底层数组
 var s100 = make([]int, 100) // slice: 100 ints, cap = len
 var sl = make([]int, 0, 100)  // len 0, cap 100
+s1 = nil // clear
 data := [][]int {[]int{1,2}, []int{3,4}} // slice of slice
 ```
 
@@ -545,7 +552,7 @@ import (
 
 ### Vendoring
 实验性功能，默认不启用。启用：`GO15VENDOREXPERIMENT=1`
-如果有形如`d/vendor`的目录，那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
+在src下如果有形如`d/vendor`的目录（一般vendor不直接放在src下），那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
 
 
 ## [Testing](http://golang.org/pkg/testing/)
