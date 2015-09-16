@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<title>XACML</title>
+<xmp theme="united" style="display:none;">
+## Overview
+简单地说，XACML引擎根据预先定义策略集来对传入的请求进行授权，产生的结果可以有：
+
+* Permit: 允许对资源进行操作。
+* Deny: 拒绝对资源进行操作。
+* Not Applicable (NA): 不可用，没有找到适用的策略。
+* Indeterminate: 不确定。
+
+## 请求 Request
+一个请求包含多组属性：
+
+Subject: 请求的主体，发起者
+Resource: 数据，服务
+Action: 请求对资源的操作
+Environment: 全局环境属性，独立于具体的Subject, Resource, Action
+
+请求的响应：
+
+Decision: `Permit|Deny|NA`
+Status: `status:ok`等
+Obligations:
+
+## 策略 Policies
+一个策略包含：
+
+Obligations: 可选，根据策略评估的结果执行指定的操作
+Target: 策略适用的目标，使用匹配函数对下列项目在请求中进行匹配 `Evaluate function XXX-Match ("an-attr-value", [XXXAttributeDesignator Value])`。`AttributeDesignator`从请求中寻找对应的属性值。
+
+* Subjects
+* Resources
+* Actions
+* Environment
+
+Rules:
+
+* Effect: 条件返回True时的结果，`Permit|Deny` （False: NA, Indeterminate: Indeterminate）。
+* Condition: 规则的条件，授权的核心判断逻辑，使用逻辑函数判断 `And (isResourceEqual("a-path"), Or(isSubjectEqual("a-sub"), isActionEqual("an-action"))`，返回`True|False|Indeterminate`。
+* Target: 规则适用的目标，类似策略的Target
+
+Rule Combining Algorithm: 当有多条规则时，计算出最终的结果
+
+* permit-overrides: 一票通过
+* ordered-permit-overrides:
+* deny-overrides: 一票否决
+* ordered-deny-overrides:
+* first-applicable: 取第一条适用规则的结果
+
+策略集：包含多个策略，以及Target，Policy Combining Algorithm，和前述类似。
+
+## 引擎组件
+Policy Enforcement Point (PEP)
+Policy Administration Point (PAP)
+Policy Decision Point (PDP)
+Policy Information Point (PIP)
+Context Handler
+
+## Reference
+[SPEC](http://docs.oasis-open.org/xacml/3.0/xacml-3.0-core-spec-os-en.html)
+[Understanding Xacml Policy Language XACML](http://wso2.com/library/articles/2011/10/understanding-xacml-policy-language-xacml-extended-assertion-markup-langue-part-1/)
+[XML 安全: 使用 XACML 控制信息访问](http://www.ibm.com/developerworks/cn/xml/x-xacml/index.html)
+[Tutorial on XACML](http://www.cs.odu.edu/~mukka/cs795sum15.net/Lecturenotes/day7/xacmltutorial.pptx)
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

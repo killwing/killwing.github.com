@@ -188,7 +188,7 @@ v := new(int)   // v has type *int
 ## 控制结构
 `if`: 可以有一个简单的语句（初始化变量的作用域仅在if/else内），也可以什么也没有表示true(switch同)
 其他类型不能自动转为bool，因此不能直接用于条件语句。
-不支持三元操作`x > y ? x : y`。
+不支持三元操作`x > y ? x : y`。没有逗号操作符。
 ```
 if v := f(); v < 10 {
     fmt.Printf("%d less than 10\n", v)
@@ -356,6 +356,7 @@ foo(100, a...) // 展开slice
 ### method
 可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针，一般使用指针避免值传递）。
 只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
+Accessor方法命名惯例直接用属性名表示get，“set属性名”表示set。
 ```
 type Point struct { x, y float64 }
 // A method on *Point
@@ -400,6 +401,7 @@ me2 := Point.Abs // compile error
 
 ### interface
 一个interface是许多method的集合。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
+如果你的类型实现了一个和众所周知的类型具有相同含义的方法，那么就使用相同的名字和签名；如Read，Write，Close，Flush，String等。
 定义:
 ```
 type EmptyInterface interface { }
@@ -423,7 +425,8 @@ if sv, ok := v.(Stringer); ok {
     fmt.Printf("implements String(): %s\n", sv.String()); // note: sv not v
 }
 
-switch sv := v.(type) {
+// 习惯在switch里重用一个名字，实际上是在每个case里声名一个新的变量，其具有相同的名字，但是不同的类型。
+switch v := v.(type) {
 case Stringer:
     ...
 }
@@ -523,6 +526,7 @@ type error interface {
 * defer函数的参数值在defer的定义点确定并复制（如果需要实时的值，可以使用闭包）。
 * 可以有多个defer，执行时按LIFO顺序，即使中间发生panic也都保证后续执行。
 * defer性能不高，不要在循环内使用。
+* 如果要在语句块中使用，可以写成lambda代替语句块。
 
 `panic`: 类似抛出异常，并终止程序。参数类型为`interface{}`，可接受任何参数。
 `recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。
@@ -549,6 +553,7 @@ import (
 在一个包内部，所有全局变量函数等对于包的源文件可见。对于包的使用者来说，只有开头字母大写的可见。
 全局变量的初始化：声明的时候初始化；使用`init()`函数，在包所有全局变量初始化后执行`main.main()`之前执行。初始化总是单线程的，根据包的依赖顺序执行。
 一般来说，一个目录一个包，作为一个单元一起编译，忽略测试文件。
+按照惯例，包名使用小写，且为一个单词的名字；不要使用下划线或者混合大小写。
 
 ### Vendoring
 实验性功能，默认不启用。启用：`GO15VENDOREXPERIMENT=1`
@@ -600,12 +605,15 @@ func TestMain(m *testing.M) {
 https://golang.org/pkg/runtime/pprof/
 
 ## [Documentation](http://godoc.org/golang.org/x/tools/cmd/godoc)
-规范化注释格式，可被`godoc`提取为文档（除了package main）。
+规范化注释格式，任何直接属于顶层声明的注释都会可被`godoc`提取为文档注释（除了package main）。
 
 * 要和被注释的成员相邻
 * 用空行分隔段落
 * 缩进表示格式化文本（代码片段）
 * bug: `// BUG(author): overflow`
+* 每个程序包都应该有一个包注释，一个位于package语句之前的注释（只需要出现在一个文件中）。
+* 每一个被导出的（大写的）名字，都应该有一个注释。
+* 注释的第一句话应该为一条概括，并且使用被声明的名字作为开头。`// FuncName does ...`
 
 ## [CodingStyle](http://golang.org/cmd/gofmt/)
 
