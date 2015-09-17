@@ -91,6 +91,7 @@ float64(int_var) // convert to float
 string(0x1234)          // == "\u1234"
 string(array_of_bytes)  // bytes -> bytes
 string(array_of_ints)   // ints -> Unicode/UTF-8
+[]byte("hello")  // string -> array of byte
 ```
 
 操作符优先级：`* / % << >> & &^（位清除）`，`+ - | ^（异或）`，`== != < <= > >=`，`<-（通信）`，`&&`，`||`。
@@ -256,12 +257,12 @@ s1 = nil // clear
 data := [][]int {[]int{1,2}, []int{3,4}} // slice of slice
 ```
 
-`append(slice, value)`: 在slice结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
+`append(slice, v1, v2, ...)`: 在slice结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
 `copy(dest, src)`: 复制一个slice到另一个，直到其中一个结尾。
 
 
 ### Map
-Map是哈希表，引用类型。
+Map是哈希表（key可以为任何定义了等于操作符的类型），引用类型。
 声明: `var m map[string] float // key:string, value:float`, 长度: `len(m)`返回key的个数
 初始化，赋值
 ```
@@ -354,7 +355,8 @@ foo(100, a...) // 展开slice
 ```
 
 ### method
-可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针，一般使用指针避免值传递）。
+可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针类型）。
+无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用，但只有用指针接收者才能避免值拷贝传递以及做修改。
 只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
 Accessor方法命名惯例直接用属性名表示get，“set属性名”表示set。
 ```
@@ -411,11 +413,20 @@ type AbsInterface interface {
 ```
 
 任何实现了其接口的类型的变量都可以赋值给interface变量（隐式接口，无需声明），它存储了receiver的值（只读复制品，如果要修改成员变量必须传递指针类型）以及一张method表。
+每个类型都有与之关联的方法集，这个集合决定了实现了接口的哪些方法。
+
+* 类型`T`包含全部接收者类型为`T`的方法。
+* 类型`*T`包含全部接收者类型为`T`和`*T`的方法。
+* 如类型`S`包含匿名字段`T`，则包含`T`的方法。
+* 如类型`S`包含匿名字段`*T`，则包含`T`和`*T`的方法。
+* 不管包含`T`还是`*T`，`*S`总是包含`T`和`*T`的方法。
+
 ```
 type Vector struct {
     a []EmptyInterface // 可以放任意类型的vector
 }
 ```
+
 将接口类型转回原类型：`interface_value.(type_to_extract)`，在运行期检测（使用comma,ok或switch检测，否则会panic）。
 接口之间也可以互相转换，取决于底层所包含的类型能否转换，超集可以转换为子集。
 ```
