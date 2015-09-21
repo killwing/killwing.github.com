@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<title>URL</title>
+<xmp theme="readable" style="display:none;">
+## Syntax Components
+URL(Uniform Resource Locator)是URI(Uniform Resource Identifier)的一个子集。
+```
+         http://example.com:8042/over/there?name=ferret&age=30#nose
+         \_/   \______________/\_________/ \_________________/ \__/
+          |           |            |                |            |
+       scheme     authority       path            query      fragment
+```
+
+## 字符编码
+URL里只能包含：
+
+* 保留字符(reserved, 18个)：
+    * gen-delims: `: / ? # [ ] @`
+    * sub-delmis: `! $ & ' ( ) * + , ; =`
+* 非保留字符(unreserved)：`- . _ ~`以及数字和大小写字母
+* 表示编码的(pct-encoded)：`"%" HEXDIG HEXDIG`
+
+安全字符：不用编码的字符。不同的component安全字符集不一样。
+对于一般component内容里（不包括分隔符，比如query的key和value）安全字符为`unreserved / pct-encoded`，出现时其它字符时必须用%百分号加上两位字符表一个字节的十六进制形式编码（多字节字符一般用UTF8编码）来表示其原有意义（对于安全字符编不编码等价）。
+对于path name(segment), 其安全字符是`unreserved / pct-encoded / sub-delims / ":" / "@"` (pchar)。
+对于`application/x-www-form-urlencoded`这种类型（表单），空格`[SP]`常被替换成`+`而不是`%20`。
+
+## 语言使用
+### [JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent)
+JS里的编码函数及安全字符：
+`escape`: 对path进行编码，不常使用，`*/@+-._0-9a-zA-Z`
+`encodeURI`: 对整个URI进行编码，不常使用，`!#$&'()*+,/:;=?@-._~0-9a-zA-Z`
+`encodeURIComponent`: 对component进行编码，`!'()*-._~0-9a-zA-Z`，此安全字符集和RFC3986并不兼容。
+
+和RFC3986兼容的`encodeURIComponent`:
+```
+function fixedEncodeURIComponent(str) {
+  return encodeURIComponent(str).replace(/[!'()*]/g, function(c) {
+    return '%' + c.charCodeAt(0).toString(16);
+  });
+}
+```
+
+### [Golang](http://golang.org/pkg/net/url)
+例子：
+```
+u := url.URL{}
+u.Scheme = "https"
+u.Host = "google.com"
+u.Path = "/hello,world"
+q := u.Query()
+q.Set("q", "go,lang")
+u.RawQuery = q.Encode()
+fmt.Println(u.String()) // https://google.com/hello,world?q=go%2Clang
+```
+
+## 编码表
+保留字符符号编码：
+
+:|/|?|#|[|]|@|!|$|&|'|(|)|*|+|,|;|=
+-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|-
+%3A|%2F|%3F|%23|%5B|%5D|%40|%21|%24|%26|%27|%28|%29|%2A|%2B|%2C|%3B|%3D
+
+其它常用符号编码：
+
+[SP]|%|"
+-|-|-|-
+%20|%25|%22
+
+## Reference
+http://tools.ietf.org/html/rfc3986
+http://blog.lunatech.com/2009/02/03/what-every-web-developer-must-know-about-url-encoding [CN](http://www.oschina.net/translate/what-every-web-developer-must-know-about-url-encoding)
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
