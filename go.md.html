@@ -63,10 +63,11 @@ gorename
 字符串(string):
 
 * 默认空串(`""`)。不以0结尾。
-* 可复制但不可修改其中字符，要修改必须先转为`[]byte`, `[]rune`再转回来并会造成复制。下标访问其中的字符。
+* 可复制但不可修改其中字符，要修改必须先转为`[]byte`, `[]rune`再转回来并会造成复制。下标访问其中的字节/字符。
 * `+`连接字符串。内部是UTF8的字节数组，可以用slice相关的操作。
 * 16进制: `"\xFF"    // 1 byte`
 * Unicode: `"\u00FF"  // 1 unicode char, 2 bytes of UTF-8`
+* `len`返回字节数。用`utf8.RuneCountInString()`返回实际字符数。
 * Raw:
 ```
 `\n\.abc\t\` 相当于 "\\n\\.abc\\t\\"
@@ -77,7 +78,7 @@ gorename
 * 默认值`nil`
 * 有指针(`*Type`)及指针的指针(`**Type`)，但没有指针算术。
 * 用`&`取得变量的指针，一律用`.`访问目标。
-* 函数中可以返回局部变量的指针。
+* 函数中可以返回局部变量的指针，因为局部变量不一定分配在栈上。
 
 类型转换
 
@@ -95,7 +96,7 @@ string(array_of_ints)   // ints -> Unicode/UTF-8
 []byte("hello")  // string -> array of byte
 ```
 
-操作符优先级：`* / % << >> & &^（位清除）`，`+ - | ^（异或）`，`== != < <= > >=`，`<-（通信）`，`&&`，`||`。
+操作符优先级：`* / % << >> & &^（位清除）^（取反）`，`+ - | ^（异或）`，`== != < <= > >=`，`<-（通信）`，`&&`，`||`。
 
 
 ## 变量常量
@@ -164,6 +165,13 @@ type Operator func(a, b int) int
 type ArrayOfIntPointers []*int
 ```
 
+当把一个（非interface）的类型定义为一个新的类型时，可以在新的类型上增加方法，但新的类型不会继承现有类型的方法，而interface类型会保留。可以用匿名内嵌的方式：
+```
+type myType struct {
+    AType
+}
+```
+
 赋值，可以多个变量一起
 ```
 a = b
@@ -172,7 +180,7 @@ a, b = b, a
 nbytes, error := Write(buf)
 ```
 
-`new` 是一个函数，分配了一个零初始化的类型值，返回指向它的指针，没有delete。
+`new` 是一个函数，分配了一个零初始化的类型值，返回指向它的指针，没有delete。不一定分配在堆上。
 ```
 var p *Point = new(Point) // 或 &Point{}
 v := new(int)   // v has type *int
@@ -213,7 +221,7 @@ for i, c := range s { // 对于string，按照rune类型迭代
 }
 for range s {  } // iterate only
 ```
-range会复制一份对象出来迭代，尽量使用引用类型。
+range会复制一份对象出来迭代，尽量使用引用或指针类型。注意[和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind)。
 
 `switch`: 任意类型，除非以`fallthrough`语句结束并进入下一个分支，否则分支会自动终止，一个case可以带多个值
 ```
@@ -225,7 +233,7 @@ case a > b:  return 1
 }
 ```
 
-`break`(可用于for/switch/select), `continue`(可用于for): 后面可以接一个label(goto)
+`break`(可用于for/switch/select), `continue`(可用于for): 后面可以接一个label(也可以用`goto`)
 
 ## 复杂类型
 ### Array
@@ -258,18 +266,18 @@ s1 = nil // clear
 data := [][]int {[]int{1,2}, []int{3,4}} // slice of slice
 ```
 
-`append(slice, v1, v2, ...)`: 在slice结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
-`copy(dest, src)`: 复制一个slice到另一个，直到其中一个结尾。
+`append(slice, v1, v2, ...)`: 在slice（可以是nil）结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
+`copy(dest, src)`: 复制一个slice到另一个，直到其中一个结尾。复制到一个数组：`copy(array[:], src)`
 
 
 ### Map
 Map是哈希表（key可以为任何定义了等于操作符的类型），引用类型。
-声明: `var m map[string] float32 // key:string, value:float32`, 长度: `len(m)`返回key的个数
+声明: `var m map[string] float32 // key:string, value:float32`, 长度: `len(m)`返回key的个数，cap不可作用于map。
 初始化，赋值
 ```
 m = map[string]float32 { "1":1, "pi":3.1415 } // 字面定义
 m = map[Point]string {{1,2} : "foo", {5,6} : "bar"}
-m = make(map[string]float32, 500) // len为0，500类似cap，cap不可作用于map
+m = make(map[string]float32, 500) // len为0，500类似cap
 var m1 map[string]float32 = m // m1 and m now refer to same map
 ```
 访问元素
@@ -278,6 +286,7 @@ one   := m["1"] // 取值，会复制一份出来
 crash := m["not present"]  // 0
 m["2"] = 2
 v, ok := m[x] // the "comma ok" form, 测试是否有值
+m[x].name = "abc" // 如果没有值则error
 delete(m, x)   // deletes entry for x，若不存在不会出错
 for key, value := range m { ... } // 迭代，顺序不固定，其中可以有删除操作
 ```
@@ -316,8 +325,8 @@ fmt.Println(d.s)    // xyz
 同一包内的struct可以使用另一个包内struct的域及方法（包内全可见）。
 
 ### 比较
-只有Struct, Array可以进行`==`, `!=`比较，逐个元素比较。
-Slice, Map, Function都只可以和nil比较。
+只有Struct, Array可以进行`==`, `!=`比较，逐个元素比较，成员必须也可以比较。
+Slice, Map, Function都只可以和nil比较。可以用`reflect.DeepEqual()`函数来比较。
 
 
 ## 函数及接口
@@ -365,22 +374,26 @@ foo(100, a...) // 展开slice
 
 ### method
 可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针类型）。
-无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用，但只有用指针接收者才能避免值拷贝传递以及做修改。
+无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用，但只有用指针接收者而不论调用者的形式才能避免值拷贝传递以及做修改（类似函数参数）。
+用值调用指针接收方法时，值要可以取址。有着非指针类型struct元素值的Map如`m[1]`不可取址（slice却可以），也不能直接赋值`m[1].x=2`，必须使用临时变量。
 只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
 Accessor方法命名惯例直接用属性名表示get，“set属性名”表示set。
 ```
 type Point struct { x, y float64 }
-// A method on *Point
-func (p *Point) Abs() float64 {
+func (p Point) Abs() float64 {
     return math.Sqrt(p.x*p.x + p.y*p.y)
 }
-func (p Point) Swap() Point {
+func (p *Point) Swap() Point {
     p.x, p.y = p.y, p.x
     return p
 }
 
-p := &Point{ 3, 4 };
+p := &Point{3, 4};
 fmt.Print(p.Abs());  // will print 5
+
+p2 := Point{5,6}
+p2.Swap()
+fmt.Print(p);  // will print {6,5}
 ```
 
 类型和它的方法必须在同一包内。
@@ -412,6 +425,7 @@ me2 := Point.Abs // compile error
 
 ### interface
 一个interface是许多method的集合。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
+interface变量仅在类型和值都为nil时才为nil: `val==nil`。如果只是值为nil，那么会打印出`<nil>`。
 如果你的类型实现了一个和众所周知的类型具有相同含义的方法，那么就使用相同的名字和签名；如Read，Write，Close，Flush，String等。
 定义:
 ```
@@ -477,10 +491,10 @@ goroutine指在同一地址空间内并发执行的函数，非常廉价和轻�
 goroutine的默认堆栈大小8KB，最大1GB（64bit），250M（32bit）。
 
 ### 调度
-`runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，默认最大10000），默认为CPU核心线程数。`runtime.NumGoroutine()`返回当前存在的goroutine的数目。
+`runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，最大256），默认为CPU核心线程数。`runtime.NumGoroutine()`返回当前存在的goroutine的数目。`runtime.NumCPU()`返回CPU核心数目。
 `runtime.Goexit()`终止当前goroutine的执行（defer仍起作用）。
 `runtime.Gosched()`暂停当前goroutine，等待被再次调度（类似协程里的yield）。
-goroutine如果内部调用了非内联函数（内联函数如lambda），会在函数入口采用抢占式调度。
+goroutine如果内部调用了非内联函数（内联函数如lambda，编译运行时可以用`-gcflags -m`查看），会在函数入口采用抢占式调度。其他调度时机：在`Gosched()`，GC、go声明、阻塞channel、阻塞系统调用和lock操作后进行调度。
 进程退出时并不等待goroutine结束，可以用`sync.WaitGroup`等待。
 
 关于goroutine的调度，可以看[go-scheduler](http://morsmachine.dk/go-scheduler) （[中文](http://mikespook.com/2013/07/%E7%BF%BB%E8%AF%91go-%E7%9A%84%E8%B0%83%E5%BA%A6%E5%99%A8/)）, [netpoller](http://morsmachine.dk/netpoller)，以及[原始设计文档](https://docs.google.com/document/d/1TTj4T2JO42uD5ID9e89oa0sLKhJYD0Y_kqxDv3I3XMw)。
@@ -495,6 +509,7 @@ c <- 1   // send
 i := <-c // receive
 ```
 channel是同步的，发送要等待接收，接收要等待发送。只有一个goroutine的情况下(main)，等待会抛出死锁异常。
+在一个nil的channel上发送和接收会永久阻塞，可用来控制select中的某个case。
 可以用make指定buffer: `make(chan int, 50)`, buffer只是channel的属性不是类型，默认大小为0（无缓冲）。
 range会从channel迭代数据，直到channel关闭。
 ```
@@ -506,7 +521,7 @@ func suck(ch chan int) {
 ```
 
 关闭channel: `close()`, 测试: `closed()`。
-只有发送者才能关闭channel，而不是接收者。向一个已经关闭的channel发送数据会引起panic，从一个已经关闭的channel接收数据为0/nil和false: `v, ok = <-c`。
+一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞），而从一个已经关闭的channel接收数据为0/nil和false: `v, ok = <-c`。
 默认channel是双向的，也可以转换为指定的方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
 
 `select`
@@ -638,6 +653,12 @@ https://golang.org/pkg/runtime/pprof/
 * 注释的第一句话应该为一条概括，并且使用被声明的名字作为开头。`// FuncName does ...`
 
 ## [CodingStyle](http://golang.org/cmd/gofmt/)
+
+## [Packages](https://golang.org/pkg/)
+* `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
+* 未导出的结构体的字段将不会被（json、xml、gob等）编码。
+* 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。
+* 如果不想http保持连接，在发送请求之前设置`req.Close = true`或者`req.Header.Add("Connection", "close")`。
 
 ## Reference
 http://godoc.org/
