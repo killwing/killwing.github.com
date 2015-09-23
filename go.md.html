@@ -105,7 +105,7 @@ var(变量): 必须有类型和初始化表达式之一。
 不用的变量可以使用`_`。
 `:=`缩写声明并初始化变量，只可以在函数中使用。
 未被使用的局部非常变量或导入的包被认为是个错误。
-多重赋值的时候，先计算等号右边的表达式，再进行赋值（都是从左到右的顺序）。
+多重赋值的时候，先计算等号右边的表达式，再进行赋值（都是从左到右的顺序）。多重赋值可以用于函数调用时实参传给形参。
 ```
 var i int
 var j = 365.245 // 自动推导类型
@@ -537,7 +537,7 @@ case v := <-c1:
     fmt.Printf("received %d from c1\n", v)
 case v := <-c2:
     fmt.Printf("received %d from c2\n", v)
-case t := <-time.After(1 * time.Second):  // time.After 返回一个阻塞的chan，时间到后变为可读，返回当前时间
+case t := <-time.After(1 * time.Second):
     fmt.Printf("received timeout, current time: %s\n", t)
 default:
     time.Sleep(10000)
@@ -546,6 +546,77 @@ default:
 
 `chanOfChans := make(chan chan int)`
 
+## Concurrency Patterns
+### [Timing out, moving on](http://blog.golang.org/go-concurrency-patterns-timing-out-and)
+#### timeouts
+```
+timeout := make(chan bool, 1)
+go func() {
+    time.Sleep(1 * time.Second)
+    timeout <- true
+}()
+
+select {
+case <-ch:
+    // a read from ch has occurred
+case <-timeout:
+    // the read from ch has timed out
+}
+```
+实际中直接使用`<-time.After(1 * time.Second)`代替case timeout条件。`time.After`返回一个阻塞的chan，时间到后变为可读，返回当前时间。
+
+#### race condition
+取query中第一个返回的response：
+```
+func Query(conns []Conn, query string) Result {
+    ch := make(chan Result, 1)
+    for _, conn := range conns {
+        go func(c Conn) {
+            select {
+            case ch <- c.DoQuery(query):
+            default:
+            }
+        }(conn)
+    }
+    return <-ch
+}
+```
+带有空default的select：非阻塞，保证ch满（其它case阻塞）时也能正常退出，释放goroutine资源。
+带有buffer的channel：保证还未开始接收时，也能存放结果，否则（不带缓存）发送全部失败，接收永远阻塞。
+
+### [Pipelines and cancellation](http://blog.golang.org/pipelines)
+pipeline: 一系列由channel连接的处理过程，每个处理过程由一组goroutine执行完成相同的功能。
+
+### [Context](http://blog.golang.org/context)
+Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
+Context本身是线程安全的，它携带的参数也必须是线程安全的。
+Context可以有继承关系，当一个Context被取消，它所有的子Context都会被取消（收到通知）。
+```
+// A Context carries a deadline, cancelation signal, and request-scoped values
+// across API boundaries. Its methods are safe for simultaneous use by multiple
+// goroutines.
+type Context interface {
+    // Done returns a channel that is closed when this Context is canceled
+    // or times out.
+    Done() <-chan struct{}
+
+    // Err indicates why this context was canceled, after the Done channel
+    // is closed.
+    Err() error
+
+    // Deadline returns the time when this Context will be canceled, if any.
+    Deadline() (deadline time.Time, ok bool)
+
+    // Value returns the value associated with key or nil if none.
+    Value(key interface{}) interface{}
+}
+```
+
+`func Background() Context` 返回可以作为所有Context的父Context，它永远不会被取消。
+`func WithCancel(parent Context) (ctx Context, cancel CancelFunc)` 当cancel被调用到时（一般在处理这个请求的handler返回时调用），ctx得到通知（`Done()返回`）。
+`func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)` 当超过某段时间时，ctx得到通知。
+`func WithDeadline(parent Context, deadline time.Time) (Context, CancelFunc)` 当某个时间点到达时，ctx得到通知。
+`func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
 
 ## 错误处理
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
