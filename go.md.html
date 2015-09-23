@@ -212,7 +212,7 @@ if v := f(); v < 10 {
 for i := 0; i < 10; i++ { ... }
 for i < 10 { ... } // while
 for { fmt.Printf("Mine! ") } // endless loop
-for key, value := range m { // m is map, 也可只取key，对于array和slice, 返回index及value
+for key, value := range m { // m is map, 也可只取key，对于array和slice, 返回index及value，key&value每次迭代都会被重用
     fmt.Printf("key %s, value %g\n", key, value)
 }
 s := "[\u00ff\u754c]";
@@ -221,7 +221,8 @@ for i, c := range s { // 对于string，按照rune类型迭代
 }
 for range s {  } // iterate only
 ```
-range会复制一份对象出来迭代，尽量使用引用或指针类型。注意[和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind)。
+range会复制一份对象出来迭代，循环里引用的是复制过的对象，尽量使用引用或指针类型。
+迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind)。
 
 `switch`: 任意类型，除非以`fallthrough`语句结束并进入下一个分支，否则分支会自动终止，一个case可以带多个值
 ```
@@ -288,7 +289,7 @@ m["2"] = 2
 v, ok := m[x] // the "comma ok" form, 测试是否有值
 m[x].name = "abc" // 如果没有值则error
 delete(m, x)   // deletes entry for x，若不存在不会出错
-for key, value := range m { ... } // 迭代，顺序不固定，其中可以有删除操作
+for key, value := range m { ... } // 迭代，顺序不固定，其中可以有删除操作，删除的元素不会被后续迭代到
 ```
 
 ### Struct
@@ -374,7 +375,7 @@ foo(100, a...) // 展开slice
 
 ### method
 可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针类型）。
-无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用，但只有用指针接收者而不论调用者的形式才能避免值拷贝传递以及做修改（类似函数参数）。
+无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用（编译器会转成接收者对应的类型），但只有用指针接收者的形式才能避免值拷贝传递以及做修改（类似函数参数）。
 用值调用指针接收方法时，值要可以取址。有着非指针类型struct元素值的Map如`m[1]`不可取址（slice却可以），也不能直接赋值`m[1].x=2`，必须使用临时变量。
 只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
 Accessor方法命名惯例直接用属性名表示get，“set属性名”表示set。
@@ -383,9 +384,8 @@ type Point struct { x, y float64 }
 func (p Point) Abs() float64 {
     return math.Sqrt(p.x*p.x + p.y*p.y)
 }
-func (p *Point) Swap() Point {
+func (p *Point) Swap() {
     p.x, p.y = p.y, p.x
-    return p
 }
 
 p := &Point{3, 4};
@@ -393,7 +393,7 @@ fmt.Print(p.Abs());  // will print 5
 
 p2 := Point{5,6}
 p2.Swap()
-fmt.Print(p);  // will print {6,5}
+fmt.Print(p2);  // will print {6,5}
 ```
 
 类型和它的方法必须在同一包内。
@@ -412,15 +412,14 @@ buf.Lock();  // == buf.Mutex.Lock()
 
 method value & method expression：可以把method像函数一样赋值给其他变量
 ```
-mv := p.Abs
+mv := p.Abs // method value
 mv() // 已绑定实例
-me := (*Point).Abs
-me(&p) // 传递实例
-sv := p.Swap // 如果接收者以值传递会造成复制
-se := Point.Swap
-se2 := (*Point).Swap
-se2(&p) // 只是改变签名，仍会复制
-me2 := Point.Abs // compile error
+me := Point.Abs // method exp: func(p Point) float64
+me(p)
+
+sv := p.Swap
+se := (*Point).Swap // func(p *Point)
+se(&p)
 ```
 
 ### interface
@@ -526,7 +525,7 @@ func suck(ch chan int) {
 
 `select`
 
-* select的case必须是channel操作。
+* select的case必须是channel操作。如果有表达式都会被依次求值。
 * 如果每个条件都阻塞，select就会阻塞（如果有default则进入操作）。
 * 如果多个条件满足，则随机选择一个执行。
 * `select {}`阻塞goroutine。
