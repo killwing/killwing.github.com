@@ -519,8 +519,7 @@ func suck(ch chan int) {
 }
 ```
 
-关闭channel: `close()`, 测试: `closed()`。
-一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞），而从一个已经关闭的channel接收数据为0/nil和false: `v, ok = <-c`。
+关闭channel: `close()`, 一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞），而从一个已经关闭（如果有buffer数据会先读完）的channel接收数据为0/nil和false: `v, ok = <-c`。
 默认channel是双向的，也可以转换为指定的方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
 
 `select`
@@ -586,6 +585,33 @@ func Query(conns []Conn, query string) Result {
 
 ### [Pipelines and cancellation](http://blog.golang.org/pipelines)
 pipeline: 一系列由channel连接的处理过程，每个处理过程由一组goroutine执行完成相同的功能。
+
+```
+func gen(nums ...int) <-chan int {
+    out := make(chan int)
+    go func() {
+        for _, n := range nums {
+            out <- n
+        }
+        close(out)
+    }()
+    return out
+}
+
+func sq(in <-chan int) <-chan int {
+    out := make(chan int)
+    go func() {
+        for n := range in {
+            out <- n * n
+        }
+        close(out)
+    }()
+    return out
+}
+```
+
+fan-out: 多个函数从同一个channel里面读直至关闭。
+fan-in: 一个函数从不同的输入读取和处理并汇总到一个channel输出直到所有输入都关闭。
 
 ### [Context](http://blog.golang.org/context)
 Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
