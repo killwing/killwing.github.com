@@ -21,7 +21,7 @@ export PATH=$PATH:$GOROOT/bin
 export GOPATH=$HOME/go_ws
 export PATH=$PATH:$GOPATH/bin
 ```
-安装一个包或可执行文件都会自动安装其依赖的包。如果有源文件import了一个repo URL，运行`go get`会自动下载编译和安装。
+安装一个包或可执行文件都会自动安装其依赖的包。如果有源文件import了一个repo URL，运行`go get`会自动下载编译和安装（git clone最新的，一般用于稳定通用库，不用于普通项目依赖管理）。
 可执行文件和它所依赖的包都是静态链接在一起的。
 
 
@@ -815,6 +815,7 @@ https://golang.org/pkg/runtime/pprof/
 
 ## Reference
 http://godoc.org/
+https://github.com/golang/go/wiki
 
 </xmp>
 <script src="js/strapdown.js"></script>

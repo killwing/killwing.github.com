@@ -414,7 +414,14 @@ clone后同步所有子模块：`git submodule update --init --recursive`
 1. 重置当前分支到这个合并树提交。
 
 合并后更新外部版本库上游改动：先更新对应的本地分支，再利用子树合并策略合并到当前分支上`git merge -Xsubtree=path branch`。
-利用[git-subtree](https://github.com/apenwarr/git-subtree)插件方便地完成子树合并，拆分等操作。
+
+### 高级子树命令
+方便地完成子树合并，拆分等操作。比submodule更好的选择，不会产生新的子repo而是做merge。
+`git subtree add` 添加一个远程repo。`--squash`丢弃repo的历史记录，合并成一个提交。建议用`-m`记录远程地址。
+`git subtree pull` 更新远程repo。可以切换branch，每次会产生一个新的merge提交。
+`git subtree push` 提交到远程repo。
+`git subtree split` 把一个目录变为一个subtree。
+更多：[Mastering Git subtrees](https://medium.com/@porteneuve/mastering-git-subtrees-943d29a798ec#.s47eurttt)
 
 
 ## 其它
