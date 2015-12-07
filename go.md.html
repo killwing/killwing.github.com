@@ -703,7 +703,9 @@ type Context interface {
 `func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
 
 ## 错误处理
+https://golang.org/pkg/errors/
 http://blog.golang.org/error-handling-and-go
+http://blog.golang.org/defer-panic-and-recover
 
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
 ```
