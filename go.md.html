@@ -270,8 +270,9 @@ data := [][]int {[]int{1,2}, []int{3,4}} // slice of slice
 `append(slice, v1, v2, ...)`: 在slice（可以是nil）结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
 `copy(dest, src)`: 复制一个slice到另一个，直到其中一个结尾。复制到一个数组：`copy(array[:], src)`
 
+更多操作：[SliceTricks](https://github.com/golang/go/wiki/SliceTricks)
 
-### Map
+### [Map](https://blog.golang.org/go-maps-in-action)
 Map是哈希表（key可以为任何定义了等于操作符的类型），引用类型。
 声明: `var m map[string] float32 // key:string, value:float32`, 长度: `len(m)`返回key的个数，cap不可作用于map。
 初始化，赋值
@@ -291,6 +292,7 @@ m[x].name = "abc" // 如果没有值则error
 delete(m, x)   // deletes entry for x，若不存在不会出错
 for key, value := range m { ... } // 迭代，顺序不固定，其中可以有删除操作，删除的元素不会被后续迭代到
 ```
+如果需要有序遍历map，则要维护一个有序的key slice，然后用其来迭代。
 
 ### Struct
 Struct是值类型，声明: `var p struct { x, y float32 }`
@@ -701,6 +703,8 @@ type Context interface {
 `func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
 
 ## 错误处理
+http://blog.golang.org/error-handling-and-go
+
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
 ```
 type error interface {
@@ -806,12 +810,55 @@ https://golang.org/pkg/runtime/pprof/
 * 注释的第一句话应该为一条概括，并且使用被声明的名字作为开头。`// FuncName does ...`
 
 ## [CodingStyle](http://golang.org/cmd/gofmt/)
+http://blog.golang.org/go-fmt-your-code
 
 ## [Packages](https://golang.org/pkg/)
-* `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
-* 未导出的结构体的字段将不会被（json、xml、gob等）编码。
+### net/http
 * 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。
 * 如果不想http保持连接，在发送请求之前设置`req.Close = true`或者`req.Header.Add("Connection", "close")`。
+
+### [reflection](http://blog.golang.org/laws-of-reflection)
+通过reflection可以取得接口里面的类型和值的信息。
+
+#### 从接口得到reflection对象
+`reflect.ValueOf()` 取得值对象
+`reflect.Type()` 取得类型对象
+`reflect.Kind()/reflect.Type().Kind()` 取得类型的枚举值(底层类型)，可以用getter/setter方法转为相应的（最大范围）类型。
+
+#### 从reflection对象到接口
+`v.Interface()` 将reflect值对象转为interface。
+`v.Elem()` 如果v底层是Interface或Ptr对象，取得其包含或指向的对象。
+`t.Elem()` 如果v底层是Array, Chan, Map, Ptr, 或Slice类型，取得其元素类型。
+
+#### 更新可设置reflection对象的值
+`v.CanSet()` 测试一个值是否可以设置(是否可以通过reflection对象来设置原始值，这就要求取得reflection对象时必须传递指针给ValueOf()，则`v.Elem().CanSet()`为true)。
+
+#### Struct
+通过value对象的field方法取得field对象。
+通过type对象的field方法取得field元信息。
+struct的field可设置必须首先是导出的。
+
+```
+type T struct {
+    A int
+    B string
+}
+t := T{23, "skidoo"}
+s := reflect.ValueOf(&t).Elem()
+typeOfT := s.Type()
+for i := 0; i < s.NumField(); i++ {
+    f := s.Field(i)
+    fmt.Printf("%d: %s %s = %v\n", i,
+        typeOfT.Field(i).Name, f.Type(), f.Interface())
+}
+// out:
+// 0: A int = 23
+// 1: B string = skidoo
+```
+
+### misc
+* `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
+* 未导出的结构体的字段将不会被（json、xml、gob等）编码。
 
 ## Reference
 http://godoc.org/
