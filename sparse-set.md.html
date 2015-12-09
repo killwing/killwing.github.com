@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<title>Sparse Set</title>
+<xmp theme="readable" style="display:none;">
+## Intro
+一般表示一个整数的set可以用位图来表示，比如32位整型一共需要2^32bit(约536M, range: m)表示。
+对于位图，增加，删除，测试操作都是常数时间复杂度；而对于迭代和清空操作则是O(m)。
+
+如果set的元素个数(n)远小于其范围(m)，且迭代和清空操作又比较多的情况下，则可以使用稀疏set。
+稀疏set利用空间换时间，达到比较好的效率：
+
+Operation|Bit Vector|Sparse Set
+-|-|-
+add|		O(1)|		O(1)
+del|		O(1)|		O(1)
+has|		O(1)|		O(1)
+reset|		O(m)|		O(1)
+iterate|	O(m)|	    O(n)
+而且稀疏set的迭代是按照插入的顺序，而位图是按照整数大小的顺序。
+
+## Implementation
+两个数组sparse和dense，及dense元素个数n。
+特点：dense依次存放元素，且sparse和dense数组的值和索引互相映射。
+
+add(i)
+```
+dense[n] = i
+sparse[i] = n
+n++
+```
+
+del(i)
+```
+j = dense[n-1];
+dense[sparse[i]] = j;
+sparse[j] = sparse[i];
+n = n - 1
+```
+
+has(i)
+```
+sparse[i] < n && dense[sparse[i]] == i  // 如果i不在set中，要么sparse[i] >= n，要么sparse[i] < n 但找不到对应的映射。
+```
+
+reset()
+```
+n = 0
+```
+
+iterate()
+```
+for (i = 0; i < n; i++)
+    yield dense[i]
+```
+
+Golang:
+https://github.com/google/codesearch/blob/master/sparse/set.go
+
+## Reference
+http://research.swtch.com/sparse
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>

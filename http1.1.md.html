@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<title>HTTP/1.1 (Hypertext Transfer Protocol)</title>
+<xmp theme="readable" style="display:none;">
+## Basic
+超文本传输协议（HTTP）是一种为分布式，合作式，多媒体信息系统服务，面向应用层的无状态的协议。
+HTTP/1.1中，一个连接可以被用于一个或更多请求/响应交换，虽然连接可能会因为各种原因中断。
+HTTP/1.1将 CR LF 的序列定义为任何协议元素的行尾标志，但这除了实体主体（endtity-body）外。实体主体的行尾标志是由它的关联媒体类型定义的。
+
+## 协议参数
+### HTTP版本
+`HTTP-Version = "HTTP" "/" 1*DIGIT "." 1*DIGIT`
+HTTP消息的版本在HTTP-Version域被指明，HTTP-Version域在消息的第一行中。
+
+### 统一资源标识符（URI）
+HTTP里的URI可以表示成绝对形式或相对形式（相对于已知的URL）。绝对URI总是以一个方案（scheme）名作为开头，其后是一个冒号。
+HTTP方案被用于定位网络资源的位置：`http_URL = "http:" "//" host [ ":" port ] [ abs_path [ "?" query ]]`
+
+URI 比较：当比较两个URI是否匹配时，客户应该对整个URI比较时应该区分大小写，并且一个字节一个字节的比较。
+
+* 一个为空或未给定的端口等同于URI-refernece（见RFC 2396）里的默认端口（http为80）
+* 主机（host）名的比较必须不必分大小写
+* 方案（scheme）名的比较必须是不区分大小写的
+* 一个空绝对路径（abs_path）等同于"/"
+除了"保留（reserved）"和"不安全（unsafe）"字符集里的字符（参见RFC 2396 [42]） ，其它字符都等效于它们的"%HEXHEX"编码。
+
+### 字符集
+在Content-Type头里指定：`Content-Type: text/plain; charset=UTF-8`，如果缺省，接收者必须猜测实体主体的字符集是什么。
+
+### 内容编码
+`Content-Coding = token`
+表示一种已经或可以应用于实体的编码转换，主要用于文档的压缩或其它有效的变换。如gzip/compress/Welch等。
+
+### 媒体类型
+`media-type = type "/" subtype * ( ";" parameter )`
+在Content-Type实体头域和Accept请求头域里利用网络媒体类型，提供公开的可扩展的数据打印和类型协商。
+
+文本类型（text type）
+允许文本媒体以一个CR或LF代表一个换行符传输，并且这样做要贯穿整个实体主体（entity-body）。
+在HTTP消息结构里，一个单独的CR或LF都不能代替CRLF（如头域和多边界体（multipart boundaries）结构里）。
+
+多部分类型（multipart type）
+在单个消息主体内包装一个或多个实体。任何多部分类型的消息尾声必须不能存在。
+如果收到一个不能识别的多部分子类型，必须将它视为"multipart/mixed"。
+"multipart/form-data"类型已经被规范的定义为当用POST请求方法处理数据时传送表单的数据 。
+
+### 产品标记
+`product = token ["/" product-version]`
+产品标记用产品名和版本号识别通讯应用软件。常用于User-Agent头域中。
+
+
+## HTTP消息
+### 消息类型
+HTTP消息由从客户到服务器的请求和从服务器到客户的响应组成。两种类型的消息由开始行，零个或多个头域，一个指示头域结束的空行，一个可选的消息主体组成。
+一个HTTP/1.1客户端不能在请求前和请求后加一些不必要的CRLF。
+
+### 消息头
+HTTP头域包括常用头，请求头，响应头和实体头域。
+常用头：即适用于请求也适用于响应消息（Cache-Control/Connection/Date/Pragma/Trailer/Transfer-Encoding/Upgrade/Via/Warning）。
+请求头：允许客户端传递请求的附加信息和客户端自己的附加信息给服务器（Accept/Accept-Charset/Accept-Encoding/Accept-Language/Authorization/Expect/From/Host/If-Match/If-Modified-Since/If-None-Match/If-Range/If-Unmodified-Since/Max-Forwards/Proxy-Authorization/Range/Referer/TE/User-Agent）。
+响应头：允许服务器传送响应的附加信息（Accept-Ranges/Age/Etag/Location/Proxy-Autenticate/Retry-After/Server/Vary/WWW-Authenticate）。
+不能识别的头域会被看作实体头域（Allow/Content-Encoding/Content-Language/Content-Length/Content-Location/Content-MD5/Content-Range/Content-Type/Expires/Last-Modified）。
+
+Accept: 用于指明请求是期望服务器返回某些期望的媒体类型的响应。指定服务器返回给客户端可接受的响应媒体类型。
+Allow: 列出了请求URI指定资源所支持的几种方法。目的是严格地让接收端知道资源所适合的方法。Allow头域必须出现在405（方法不被允许）响应中。
+Authorization: 用户代理往往希望通过服务器给自己授权。Authorization头域由包含用户代理对那个请求资源域的授权信息的证书（credentials）组成。
+Connection: 允许发送者指定某一特定连接中的选项，这些选项不得由代理（proxy）在以后的连接中传送。
+Content-Type: 指明发给接收者的实体主体的媒体类型。
+Host: 说明了正在请求资源的网络主机和端口号。一个客户端必须在所有HTTP/1.1请求消息里包含一个Host头域。
+Location: 用于为了完成请求或识别一个新资源，使接收者能重定向于Location指示的URI而不是请求URI。
+Referer: 允许客户指定某资源的URI，客户端是从此资源获得的请求URI的地址。允许服务器生成关于到资源的反向连接（back-link）的列表，为了兴趣，记录，优化的高速缓存，追踪过时的或错误类型的链接等等。
+Upgrade: 允许客户端指定它支持什么样的应用层附加传输协议，服务器会切换到Upgrade指定的协议如果它觉得合适的话。服务器必须将Upgrade头域放到一个101（切换协议）响应里，用来指明将哪个协议被切换了。在改变协议后的第一次动作必须是对初始HTTP请求（包含Upgrade头域）的响应。Upgrade头域只能应用于立即连接，不能被用来指定切换到一个不同连接的协议，同时upgrade关键字必须被提供在Connection头域里。
+User-Agent: 包含关于发起请求的用户代理的信息。这是为了统计，跟踪协议违反的情况，和为了识别用户代理从而为特定用户代理自动定制响应。
+WWW-Authenticate: 必须包含在401（没有被授权）响应消息中。此域值至少应该包含一个callenge，指明授权方案和适用于请求URI的参数。
+
+### 请求
+请求行：`Request-Line =Method SP Request-URI SP HTTP-Version CRLF`
+
+方法
+方法标记指示了在被Request-URI指定的资源上执行的方法。
+资源允许的方法由Allow头域指定。对于不支持的方法，一个源服务器应该返回405状态码（方法不能允许）或501状态码（没有实现）。
+方法GET和HEAD必须被所有常规目的的服务器支持，所有其它的方法是可选的。
+
+方法定义
+OPTIONS: 表明请求想得到请求/响应链上关于此请求里的URI（Request-URI）指定资源的通信选项信息。
+GET: 获取被请求URI（Request-URI）指定的信息（以实体的格式）。
+HEAD: GET方法一致，除了服务器不能在响应里返回消息主体。HEAD请求响应里HTTP头域里的元信息应该和GET请求响应里的元信息一致。常被用来测试超文本链接的有效性，可访问性，和最近的改变。
+POST: 用于请求源服务器接受请求中的实体作为请求资源的一个新的从属物。POST提交的实体是请求URI的从属物。
+
+* 已存在的资源的注释。
+* 发布消息给一个布告板，新闻组，邮件列表，或者相似的文章组。
+* 提供一个数据块，如提交一个表单给一个数据处理过程。
+* 通过追加操作来扩展数据库。
+
+PUT: 请求服务器去把请求里的实体存储在请求URI（Request-URI）标识下。如果一个新的资源被创建了，源服务器必须能向用户代理发送201（已创建）响应；如果已存在的资源被更新了，那么源服务器应该发送200（OK）或者204（无内容）响应。
+DELETE: 请求源服务器删除请求URI指定的资源。如果响应里包含描述成功的实体，响应应该是200（OK）；如果DELETE动作没有通过，应该以202（已接受）响应；如果DELETE方法请求已经通过了，但响应不包含实体，那么应该以204（无内容）响应。
+TRACE: 用于激发一个远程的，应用层的请求消息回路。
+CONNECT: 为了能用于能动态切换到隧道的代理服务器。
+
+Request-URI
+`Request-URI   ="*" | absoluteURI | abs_path | authotity`
+Request-URI大多数情况是被用于指定一个源服务器或网关（gateway）上的资源。这种情况下，URI的绝对路径（abs_path）必须被用作Request-URI，并且此URI（authority）的网络位置必须在Host头域里指出。
+
+请求资源：请求里资源的精确定位是由请求里的Request-URI和Host头域决定的。
+
+1. 如果Request-URI是绝对地址（absoluteURI），这时请求里的主机存在于Request-URI里。任何出现在请求里Host头域值应当被忽略。
+1. 假如Request-URI不是绝对地址（absoluteURI），并且请求包括一个Host头域，则主机由该Host头域值决定．
+1. 假如由规则１或规则２定义的主机是一个无效的主机，则应当以一个400（错误请求）错误消息返回。
+
+### 响应
+状态行：`Status-Line = HTTP-Version SP Status-Code SP Reason-Phrase CRLF`
+
+状态码与原因短语
+
+* 1xx 报告的：接收到请求，继续进程
+    * 100 继续
+    * 101 转换协议
+* 2xx 成功：步骤成功接收，被理解，并被接受
+    * 200 OK
+    * 201 创建
+    * 202 接受
+    * 203 非权威信息
+    * 204 无内容
+* 3xx 重发：为了完成请求,必须采取进一步措施
+    * 300 多样选择
+    * 301 永久移动
+    * 302 创建
+* 4xx 客户端出错：请求包括错的顺序或不能完成
+    * 400 坏请求
+    * 401 未授权的
+    * 402 必要的支付
+    * 403 禁用
+    * 404 没找到
+* 5xx 服务器出错：服务器无法完成显然有效的请求
+    * 500 服务器内部错误
+    * 501 不能实现
+    * 502 坏网关
+    * 503 服务不能实现
+    * 504 网关超时
+    * 505 HTTP版本不支持
+
+### 实体
+实体包括实体头域与实体主体，而有些响应只包括实体头域。
+实体主体只有当消息主体存在时才存在。实体主体从消息主体通过传输译码头域（Transfer-Encoding）解码得到，主体的数据类型由实体头域Content-Type和Content-Encoding决定。
+实体主体长度指的是消息主体在被应用于传输编码（transfer-coding）之前的长度。
+
+
+## 连接
+### 持续连接
+HTTP/1.1 与早期HTTP 版本的一个显著区别在于持续连接(Keep-Alive头)是任何HTTP/1.1连接的缺省方式。
+除非另有指定，客户端总应当假定服务器会保持持续连接，即便在接到服务器的出错响应时也应如此。（对大多数HTTP/1.0的实现，每一个连接要在请求之前被客户端建立，并且在发送响应之后要被服务器关闭。）
+
+持续连接提供了一种可以由客户端或服务器发信号来终止TCP连接的机制。
+利用Connect头域可以产生终止连接信号。一旦出现了终止连接的信号，客户端便不可再向此连接提出任何新请求。
+除非请求的Connect头域中包含了"close"标签，HTTP/1.1服务器总可以假定HTTP/1.1 客户端想要维持持续连接（persistent connection）。如果服务器想在发出响应后立即关闭连接，它应当发送一个含”close”的Connect头域。
+一个HTTP/1.1客户端可能期望保持连接一直开着，但这必须是基于服务器响应里是否包含一个Connect头域并且包含”close”。如果客户端不想为更多的请求维持连接，它应该发送一个值为”close”的Connect头域。
+
+支持持续连接的客户端可以以流水线的方式发送请求（即无须等待响应而发送多个请求）。服务器必须按接收请求的顺序发送响应。
+
+服务器通常有一个时限值，超过一定时间即不再维持处于非活动的连接。
+使用持续连接的客户端应限制与某一服务器同时连接的个数。单用户客户端不应与任一服务器或代理服务器保持两个以上的连接。
+
+### 消息传送要求
+100状态码的目的在于允许客户端在发送此请求消息主体前判定服务器是否愿意接受它（基于请求头域）。
+
+## Reference
+http://tools.ietf.org/html/rfc2616
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
