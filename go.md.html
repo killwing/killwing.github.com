@@ -34,12 +34,10 @@ export PATH=$PATH:$GOPATH/bin
 
 
 ### 开发辅助工具
-用[vim-go](https://github.com/fatih/vim-go)的`:GoInstallBinaries`命令安装或`go get`安装到workspace的bin下
-
 github.com:
 [godef](https://github.com/rogpeppe/godef)
 [gotags](https://github.com/jstemmer/gotags)
-[gocode](https://github.com/nsf/gocode)
+[gocode](https://github.com/nsf/gocode) 在`$GOPATH/pkg/$GOOS_$GOARCH`和`$GOROOT/pkg/$GOOS_$GOARCH`找lib，本地lib必须先install到pkg下
 [errcheck](https://github.com/kisielk/errcheck)
 [golint](https://github.com/golang/lint)
 
@@ -47,6 +45,16 @@ https://go.googlesource.com/tools/
 goimports
 oracle
 gorename
+
+用[vim-go](https://github.com/fatih/vim-go)的`:GoInstallBinaries`命令安装或`go get -u -v`安装到workspace的bin下:
+github.com/nsf/gocode
+github.com/rogpeppe/godef
+github.com/golang/lint/golint
+github.com/kisielk/errcheck
+github.com/jstemmer/gotags
+golang.org/x/tools/cmd/goimports
+golang.org/x/tools/cmd/oracle
+golang.org/x/tools/cmd/gorename
 
 ## Basics
 源文件以UTF8编码。
