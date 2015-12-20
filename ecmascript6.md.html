@@ -3,13 +3,69 @@
 <title>ECMAScript6</title>
 <xmp theme="readable" style="display:none;">
 ## Block Scoping
-`let`可以使变量作用域限制在block`{ }`范围之内。在block内，let声明之前，该变量都不可用（ReferenceError)
+`let`可以使变量作用域限制在block`{ }`范围之内。在block内，let声明之前，该变量都不可用（ReferenceError)，即使有外部同名变量。
 `let`声明的变量不会发生[变量提升](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/var#var_hoisting)现象，字面定义的函数或类属于块级作用域，也不会被提升。
 `let`不允许再用`let`或`var`重复声明一个变量。
 for循环中用`let`声明的的迭代变量只在循环体内可见。
 
 `const`和`let`一样也是块级作用域，不过声明的是常量（只读，但重新赋值不会报错）。
+对于对象，数组，不可变的是引用的地址。
 
+## Classes
+`class`并不是一个新的结构，只是一个语法糖。类和对象的机制还是基于原型链。
+
+```
+class A {
+    constructor(x) {
+        this.x = x;
+    }
+
+    foo() { // A.prototype.foo = ...
+        console.log('this is foo, x = ', this.x);
+    }
+
+    static bar() { // A.bar = ...
+        console.log('this is bar');
+    }
+
+    get x() { return this.x; }
+    set x(a) { this.x = a; }
+    *gen() { ... }
+}
+```
+只能用`new`创建实例对象。
+在类或模块内部不需要显式指定默认就是严格模式。
+如果不写构造函数会默认生成空的构造函数。构造函数默认返回this。
+`A.name`属性返回类名('A')。
+表达式形式定义（类似函数）：`let A = class { ... }`
+静态函数由类名直接调用，在函数里不要引用`this`。[没法定义静态数据成员](http://stackoverflow.com/questions/22528967/es6-class-variable-alternatives)（可以直接`A.xxx`）。
+
+
+### 继承
+```
+class Sub extends Base {
+}
+```
+
+默认构造函数：
+```
+constructor(...args) {
+    super(...args);
+}
+```
+`super`调用父类构造函数，且只能是子类构造函数的第一个语句。
+
+子类对象(s)是子类(Sub)的实例，也是父类(Base)的实例。以下皆为true：
+```
+s instanceof Sub
+s instanceof Base
+Base.prototype instanceof Object
+Base.__proto__ === Function.prototype
+Sub.prototype instanceof Base
+Sub.__proto__ === Base
+s.__proto__ === Sub.prototype
+s.__proto__.__proto__ === Base.prototype
+```
 
 ## Collections
 ### Map
@@ -65,6 +121,27 @@ key的相等性用`===`比较，除了`NaN`与自身相等。
 `add(value)` 加入一个值。
 `delete(value)` 删除一个值。
 `has(value)` 测试是否有值。
+
+## Typed Arrays
+ArrayBuffer代表一段连续的内存（初始为0），通过view(TypedArray和DataView)来根据具体类型操作。
+
+```
+var buf = new ArrayBuffer(10);
+var dataView = new DataView(buf);
+dataView.getUint8(0);
+
+var x1 = new Int32Array(buffer);
+x1[0] = 1;
+```
+
+ArrayBuffer实例方法：
+`byteLength` 分配的内存大小。
+`slice(start, end = this.byteLength)` 复制一段内存到新的实例。
+`isView(arr)` 是否为view的实例。
+
+TypedArray通过ArrayBuffer构造，也可以通过数组构造，自动生成底层的ArrayBuffer（`buffer`属性）。
+类型有：Int8, Uint8, Uint8C(Uint8ClampedArray), Int16, Uint16, Int32, Uint32, Float32, Float64。
+类似数组，可以使用数组的所有方法。
 
 
 ## Iteration
@@ -135,9 +212,22 @@ function *fibonacci(n) {
 };
 ```
 
-## Numeric Literals
+## Binary and Octal Literals
 二进制：`0b010111`, `0B010111`
 八进制：`0o7177`, `0O7177`
+
+## Object Literal Extensions
+对象的字面表示可以直接写变量（变量名作为属性名）和方法，还可以用表达式作为属性名（中括号引用）：
+```
+{
+    x,
+    y,
+    [x+y]: true,
+    foo() { }
+    *gen() { }
+}
+```
+
 
 ## Promises
 Promise表示执行异步操作的结果，遵循[Promises/A+规范](https://promisesaplus.com/)。
@@ -185,17 +275,54 @@ tagfunc`this is ECMAScript ${ver + 1}!`
 // 即使两个变量间没有字符（或在字符串头尾），数组中也会有一个空字符串
 ```
 
-## Object Literal Extensions
-对象的字面表示可以直接写变量（变量名作为属性名）和方法，还可以用表达式作为属性名（中括号引用）：
+## Arrow Functions
+参数 => 返回值
+箭头函数自己没有this，this绑定定义时外部函数的this，call/apply/bind方法也无效。
 ```
-{
-    x,
-    y,
-    [x+y]: true,
-    foo() { }
-    *gen() { }
+f = v => v
+f = () => 3
+f = () => ({x:1, y:2}) // 使用括号返回对象
+add = (a, b) => a + b
+add = (a, b) => { // 多行
+    return a + b
 }
 ```
+
+## new.target
+如果一个函数以new方式调用，那么这个构造函数里的`new.target`属性就是这个函数，否则为undefined。
+在类内部，`new.target`就是当前类，如果子类继承父类时就是子类（包括父类里的方法）。
+
+## Spread Operator
+`...x`
+作为左值将多个值接收为一个数组变量x，作为函数参数或Destructing赋值时只能为最后一个参数(rest参数)。
+作为右值将可迭代的对象x扩展为多个值。
+
+## Destructing
+数组：
+从可迭代类型中提取值，对变量数组进行赋值。赋值根据位置匹配，多余的变量为undefined或空数组，多余的值丢弃。
+变量可以指定默认值，默认值可以是表达式（使用时才求值）或其它已声明的变量。
+可以用于函数参数中。
+```
+let [a, [[b], c]] = [1, [[2], 3]]
+let [a, [b], d] = [1, [2, 3], 4] // a:1, b:2, d:4
+let [a, ...b] = [1, 2, 3, 4]   // b为[2,3,4]
+let [x, y = 'm', z = 'n'] = ['a', undefined, null] // x:'a', y:'m', z:null  只有===undefined才是空位
+let [a,b,c,d,e,f] = 'string'
+```
+
+对象：
+{key:value}: 赋值时根据key值匹配（可以嵌套匹配），然后赋值给对应value变量。
+```
+let {a, b} = {a:1, b:2} // {a:a, b:b} = {a:1, b:2}
+let {a:c, b:d} = {a:1, b:2} // c:1, d:2
+let {a:x=1} = {b:2} // 当右值对象中a===undefined时，x取默认值1
+let {toString: s} = 111; // 111先转为对象
+```
+
+## Default Function Parameters
+`function f(x = 1, y = 2) {}`
+如果默认参数不在最后的位置，必须传入undefined以使用默认参数。
+默认参数可以是变量，优先属于此函数的作用域。或是表达式，在运行时求值。
 
 
 ## Proxies
@@ -237,61 +364,7 @@ console.log(p.a, p.b, p.c); // 1, undefined, 42
 `construct()` 代理构造函数调用`new proxy()`
 
 
-## Classes
-`class`并不是一个新的结构，只是一个语法糖。类和对象的机制还是基于原型链。
-
-```
-class A {
-    constructor(x) {
-        this.x = x;
-    }
-
-    foo() { // A.prototype.foo = ...
-        console.log('this is foo, x = ', this.x);
-    }
-
-    static bar() { // A.bar = ...
-        console.log('this is bar');
-    }
-
-    get x() { return this.x; }
-    set x(a) { this.x = a; }
-    *gen() { ... }
-}
-```
-只能用`new`创建实例对象。
-在类或模块内部不需要显式指定默认就是严格模式。
-如果不写构造函数会默认生成空的构造函数。构造函数默认返回this。
-`A.name`属性返回类名('A')。
-表达式形式定义（类似函数）：`let A = class { ... }`
-静态函数由类名直接调用，在函数里不要引用`this`。[没法定义静态数据成员](http://stackoverflow.com/questions/22528967/es6-class-variable-alternatives)（可以直接`A.xxx`）。
-
-
-### 继承
-```
-class Sub extends Base {
-}
-```
-
-默认构造函数：
-```
-constructor(...args) {
-    super(...args);
-}
-```
-`super`调用父类构造函数，且只能是子类构造函数的第一个语句。
-
-子类对象(s)是子类(Sub)的实例，也是父类(Base)的实例。以下皆为true：
-```
-s instanceof Sub
-s instanceof Base
-Base.prototype instanceof Object
-Base.__proto__ === Function.prototype
-Sub.prototype instanceof Base
-Sub.__proto__ === Base
-s.__proto__ === Sub.prototype
-s.__proto__.__proto__ === Base.prototype
-```
+## Reflect
 
 ## Module
 
@@ -312,6 +385,7 @@ Unicode增强都是为了能够更好地兼容UTF16，因为JavaScript使用UCS2
 `Number.parseFloat(n)` 字符串转浮点型。
 `Number.isInteger(n)` 检查一个值是否为整型，`1.0`也是整型。[关于浮点数](http://floating-point-gui.de/)
 `Number.isSafeInteger(n)` 检查一个值是否是在`[Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]`(`[-2^53,2^53]`)之内的安全整数。
+`Number.EPSILON` 一个很小的常量，用于接受浮点误差。
 
 ### Math
 `Math.trunc(x)` 取出整数部分。
@@ -355,6 +429,16 @@ Unicode增强都是为了能够更好地兼容UTF16，因为JavaScript使用UCS2
 ### Array
 `Array.from(arrayish)` 从一个类似数组的对象构造一个数组，这些对象可以索引访问且有length属性。
 `Array.of([elem1], [elem2], ...)` 从一些值构造数组，避免直接用构造函数的一些陷阱。
+
+实例方法：
+`copyWithin(target, start = 0, end = this.length)` 数组内部元素复制，覆盖原有元素。
+`find(f, [, thisArg])` 找到第一个符合条件的元素，找不到返回undefined。判断函数的参数为当前的值、当前的索引和原数组。
+`findIndex(f, [, thisArg])` 找到第一个符合条件的元素的索引，找不到返回-1。
+`fill(value, start = 0, end = this.length)` 填充数组。
+`keys()` 返回键名(索引)迭代器。
+`values()` 返回键值迭代器。
+`entries()` 返回`[key, value]`迭代器(默认迭代器)。
+`includes(value, start = 0)` (ES7) 是否包含一个值。
 
 ### RegExp
 `sticky` 粘连属性，表示带有头`^`匹配的全局`g`匹配，`/string/y`每次剩余匹配都要从头开始匹配。
