@@ -139,16 +139,52 @@ ArrayBuffer实例方法：
 `slice(start, end = this.byteLength)` 复制一段内存到新的实例。
 `isView(arr)` 是否为view的实例。
 
-TypedArray通过ArrayBuffer构造，也可以通过数组构造，自动生成底层的ArrayBuffer（`buffer`属性）。
+### TypedArray
+类似数组，可以使用数组的所有方法（包括静态的of/from，但没有concat）。
 类型有：Int8, Uint8, Uint8C(Uint8ClampedArray), Int16, Uint16, Int32, Uint32, Float32, Float64。
-类似数组，可以使用数组的所有方法。
+Uint8C与其它类型处理溢出的方式不同，一般都是根据余数处理溢出，而它则是根据满值处理（即变为255或0）。
+不同类型共享内存时要注意字节序问题。
 
+构造函数：
+`TypedArray(buffer, byteOffset=0, length)` 通过ArrayBuffer构造，length默认到buffer结尾。
+`TypedArray(arrayish)` 通过数组构造，自动生成底层的ArrayBuffer。
+`TypedArray(length)` 直接指定长度（非字节数）。
+`TypedArray(typedArray)` 通过另一个TypedArray构造，复制其内容。
+
+实例方法／属性：
+`buffer` 可以取得底层ArrayBuffer。
+`byteLength` 字节大小的长度。
+`byteOffset` 从底层数组的起始偏移。
+`length` 元素个数。
+`set(arrayish, start=0)` 复制数组。
+`subarray(start, end=this.length)` 对于数组的部分新建一个view。
+`slice(start, end=this.length)` 对于数组的部分新建一个实例（复制）。
+
+### DataView
+`DataView(buffer, byteOffset=0, length)` 构造函数。属性buffer/byteLength/byteOffset与TypedArray类似。
+
+`getType(i, smallendian=false)` 读取数据，参数i为字节偏移。Type和TypedArray的类型名称一样（除了Uint8C）。两个或以上字节时可以指定字节序。
+`setType(i, v, smallendian=false)` 写入数据。
+
+### Usage
+XHR2中可以把返回类型为ArrayBuffer：`xhr.responseType = 'arraybuffer'`
+canvas中图像数据返回的是Uint8ClampedArray类型：`var uint8ClampedArray = ctx.getImageData(0, 0, canvas.width, canvas.height).data`
+websocket可以通过ArrayBuffer收发数据：`socket.binaryType = 'arraybuffer'`
+File API中`FileReader`可以直接读取：`reader.readAsArrayBuffer(file)`
+Fetch API中返回类型可以读取：`response.arrayBuffer()`
 
 ## Iteration
 一个迭代器(iterator)是一个有`next()`方法的对象，并返回`{value, done}`，done表示迭代是否结束。
-一个可迭代的对象有一个特殊的方法`prototype[Symbol.iterator]`，这个方法返回其迭代器。原生可迭代的类型：Array, String, Map, Set, Generator 以及类似数组的类型如arguments, DOM NodeList等。
-用`for-of`来迭代一个迭代器或可迭代的对象(`for-in`枚举对象的属性)。
+一个可迭代的对象有一个特殊的方法`prototype[Symbol.iterator]`，这个方法返回其迭代器。原生可迭代的类型：Array, String, Map, Set, Generator 以及类似数组的类型如arguments, DOM NodeList等。一个迭代器也须有这个方法并返回它自己(为了可以`for-of`)。
+用`for-of`来迭代一个可迭代的对象(`for-in`枚举对象的属性)，当done为true时循环结束且不包含该返回对象。
+迭代器还有一个可选方法：`return()` 当`for-of`循环提前退出时被调用。必须返回一个对象。
 
+```
+let it = {
+  [Symbol.iterator]: function() { return this; },
+  next: function() {...}
+};
+```
 
 ## Generators
 > First-class coroutines, represented as objects encapsulating suspended execution contexts.
@@ -189,7 +225,7 @@ for (let c of countIter) {
 ```
 
 
-成员方法`next(param)`可以传入参数作为**上次**yield表达式的返回值：
+成员方法`next(param)`可以传入参数作为**上次**yield表达式(如果在另一个表达式中要加上括号)的返回值：
 ```
 function *pow() {
     let ret = Math.pow(yield "x", yield "y");
@@ -202,9 +238,12 @@ console.log(p.next(2).value); // "y"
 console.log(p.next(10).value); // 1024
 ```
 
-成员方法`throw(error)`可以在yield处抛出异常。如果没有在generator函数内捕获，则会抛到外面来。一旦抛出异常，generator就无法继续执行下去，`next`会一直返回发生异常前的那个值。
+成员方法`throw(error)`可以在yield处抛出异常。如果没有在generator函数内捕获，则会抛到调用外面来。一旦抛出异常，generator就无法继续执行下去，`next`会返回上次返回的值，然后如果再继续调用则返回`{value: undefined, done: true}`。
+
+成员方法`return(v)`返回给定的值`{value: v, done: true}`，并结束遍历generator。
 
 Delegating yield `yield*`: 委派给另一个generator（或一个迭代器），直到其全部yield完成，自己再继续，`yield*`表达式返回由委派的generator最后return的值，`yield*`本身并不是一次迭代返回。
+`yield* it`就相当于`for (let v of it) { yield v; }`。
 可用来递归：
 ```
 function *fibonacci(n) {
@@ -219,12 +258,13 @@ function *fibonacci(n) {
 ## Object Literal Extensions
 对象的字面表示可以直接写变量（变量名作为属性名）和方法，还可以用表达式作为属性名（中括号引用）：
 ```
+x=1;y=2
 {
-    x,
-    y,
-    [x+y]: true,
-    foo() { }
-    *gen() { }
+    x,  // "x": 1
+    y,  // "y": 2
+    [x+y]: true, // "3": true
+    foo() { }  // foo: function() { }
+    *gen() { } // gen: function* () { }
 }
 ```
 
