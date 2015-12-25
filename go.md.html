@@ -768,7 +768,7 @@ import (
 ## Testing ([pkg](http://golang.org/pkg/testing/))
 ### Test
 * 命令: `go test`, 运行所有测试文件。
-* 文件名: `*_test.go`
+* 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
 * 测试工具包: `import "testing"`, 支持logging, error reporting...
 * 重写`TestMain`以进行初始化/清理工作。

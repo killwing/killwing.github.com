@@ -189,7 +189,8 @@ let it = {
 ## Generators
 > First-class coroutines, represented as objects encapsulating suspended execution contexts.
 
-generator函数产生一个特殊的迭代器(generator)，每运行到`yield`返回为一次迭代（返回对象属性done为false，value为yield的值），并保留context，下次迭代从上次`yield`处继续往下运行，如果运行到函数结束而没有由`yield`返回则迭代结束（返回对象属性done变为true，value为return的值）。
+generator函数产生一个特殊的迭代器(generator)，它也是generator函数的实例，继承了generator函数的prototype对象上的方法。用new调用时也返回迭代器，而不是this。
+每运行到`yield`返回为一次迭代（返回对象属性done为false，value为yield的值），并保留context，下次迭代从上次`yield`处继续往下运行，如果运行到函数结束而没有由`yield`返回则迭代结束（返回对象属性done变为true，value为return的值）。
 声明一个generator函数 `function *foo(){ }`。
 
 ```
