@@ -4,7 +4,7 @@
 <xmp theme="readable" style="display:none;">
 http://natureofcode.com/book/
 
-## 0. Introduction
+## 0 Introduction
 ### [均匀分布](http://zh.wikipedia.org/wiki/%E7%A6%BB%E6%95%A3%E5%9E%8B%E5%9D%87%E5%8C%80%E5%88%86%E5%B8%83)
 
 **Example 0.1: Traditional random walk**
@@ -30,7 +30,7 @@ http://natureofcode.com/book/
 **Example 0.6: 2D Perlin noise**
 <canvas id="example_0_6"></canvas>
 
-## 1. Vectors
+## 1 Vectors
 既有方向(direction)又有大小(magnitude)的量叫做[向量](http://zh.wikipedia.org/wiki/%E7%9F%A2%E9%87%8F)。
 位置，方向，速度，加速度，力都可以用向量来表示。
 
@@ -75,7 +75,7 @@ http://natureofcode.com/book/
 **Example 1.11: Array of movers accelerating towards the mouse**
 <canvas id="example_1_11"></canvas>
 
-## 2. Forces
+## 2 Forces
 [牛顿运动定律](http://zh.wikipedia.org/wiki/%E7%89%9B%E9%A1%BF%E8%BF%90%E5%8A%A8%E5%AE%9A%E5%BE%8B)
 \`F = ma\` 牛顿第二运动定律
 对于单位质量（比如一个像素），加速度就等于力：`F = a`
@@ -115,6 +115,50 @@ http://natureofcode.com/book/
 
 **Example 2.8: Mutual attraction**
 <canvas id="example_2_8"></canvas>
+
+## 3 Oscillation
+### 角速度及加速度
+对于每帧（单位时间），新角度就等于现在的角度加上角速度：`ang2 = ang1 + angv`
+对于每帧（单位时间），新角速度就等于现在的角速度加上角加速度：`angv2 = angv1 + anga`
+
+**Example 3.1: Angular motion using rotate()**
+<canvas id="example_3_1"></canvas>
+
+**Example 3.2: Forces with (arbitrary) angular motion**
+<canvas id="example_3_2"></canvas>
+
+**Example 3.3: Pointing in the direction of motion**
+<canvas id="example_3_3"></canvas>
+
+**Example 3.4: Polar to Cartesian**
+<canvas id="example_3_4"></canvas>
+
+### [简谐运动](https://zh.wikipedia.org/wiki/简谐运动)
+`位置 ＝ 振幅 * sin(2PI * 时间 / 周期)` 时间用当前帧数表示。也可以用线性增长的如速度来表示。
+**Example 3.5: Simple Harmonic Motion**
+<canvas id="example_3_5"></canvas>
+
+**Example 3.6: Simple Harmonic Motion II**
+<canvas id="example_3_6"></canvas>
+
+**Example 3.7: Oscillator objects**
+<canvas id="example_3_7"></canvas>
+
+**Example 3.8: Static wave drawn as a continuous line**
+<canvas id="example_3_8"></canvas>
+
+**Example 3.9: The Wave**
+<canvas id="example_3_9"></canvas>
+
+### [单摆运动](https://zh.wikipedia.org/wiki/%E6%93%BA)
+角加速度\`＝ gsintheta/L\`
+**Example 3.10: Swinging pendulum**
+<canvas id="example_3_10"></canvas>
+
+### 弹力
+\`F_s = -kx\`
+**Example 3.11: A Spring connection**
+<canvas id="example_3_11"></canvas>
 
 </xmp>
 <script src="js/strapdown.js"></script>

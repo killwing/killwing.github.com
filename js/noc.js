@@ -1,5 +1,7 @@
-var WIDTH = 640;
-var HEIGHT = 360;
+'use strict';
+
+const WIDTH = 640;
+const HEIGHT = 360;
 function EgWidget(id, draw, update, reset) {
     this.canvas = document.getElementById(id);
     this.canvas.width = WIDTH;
@@ -11,6 +13,7 @@ function EgWidget(id, draw, update, reset) {
     this.update = update;
     this.reset = reset;
     this.pause = false;
+    this.frameCnt = 0;
 
     this.mouse = new Vector(0, 0);
     this.canvas.onmousemove = this.onMousemove.bind(this);
@@ -32,6 +35,7 @@ EgWidget.prototype.run = function() {
         return;
     }
 
+    this.frameCnt++;
     if (this.update) {
         requestAnimationFrame(this.run.bind(this));
         this.update();
@@ -70,7 +74,7 @@ EgWidget.prototype.onMousemove = function(e) {
 EgWidget.prototype.clear = function() {
     //this.canvas.width = this.canvas.width;
     this.context.save();
-    this.context.translate(0, 0);
+    this.context.setTransform(1, 0, 0, 1, 0, 0);
     this.context.clearRect(0, 0, this.width, this.height);
     this.context.restore();
 }
@@ -100,7 +104,7 @@ Random.gauss = function(mu, sigma) {
     } else {
         var u, v, s;
         do {
-            u = Math.random() * 2 - 1;  // [-1, 1)
+            u = Math.random() * 2 - 1; // [-1, 1)
             v = Math.random() * 2 - 1;
             s = u * u + v * v;
         } while (s >= 1 || s == 0);
@@ -111,23 +115,23 @@ Random.gauss = function(mu, sigma) {
 };
 
 // translate from http://mrl.nyu.edu/~perlin/noise/
-var permutation = [151,160,137,91,90,15,
-    131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,
-    190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,
-    88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,
-    77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,
-    102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208, 89,18,169,200,196,
-    135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,
-    5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,
-    223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,
-    129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,
-    251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,
-    49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,
-    138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+var permutation = [151, 160, 137, 91, 90, 15,
+    131, 13, 201, 95, 96, 53, 194, 233, 7, 225, 140, 36, 103, 30, 69, 142, 8, 99, 37, 240, 21, 10, 23,
+    190, 6, 148, 247, 120, 234, 75, 0, 26, 197, 62, 94, 252, 219, 203, 117, 35, 11, 32, 57, 177, 33,
+    88, 237, 149, 56, 87, 174, 20, 125, 136, 171, 168, 68, 175, 74, 165, 71, 134, 139, 48, 27, 166,
+    77, 146, 158, 231, 83, 111, 229, 122, 60, 211, 133, 230, 220, 105, 92, 41, 55, 46, 245, 40, 244,
+    102, 143, 54, 65, 25, 63, 161, 1, 216, 80, 73, 209, 76, 132, 187, 208, 89, 18, 169, 200, 196,
+    135, 130, 116, 188, 159, 86, 164, 100, 109, 198, 173, 186, 3, 64, 52, 217, 226, 250, 124, 123,
+    5, 202, 38, 147, 118, 126, 255, 82, 85, 212, 207, 206, 59, 227, 47, 16, 58, 17, 182, 189, 28, 42,
+    223, 183, 170, 213, 119, 248, 152, 2, 44, 154, 163, 70, 221, 153, 101, 155, 167, 43, 172, 9,
+    129, 22, 39, 253, 19, 98, 108, 110, 79, 113, 224, 232, 178, 185, 112, 104, 218, 246, 97, 228,
+    251, 34, 242, 193, 238, 210, 144, 12, 191, 179, 162, 241, 81, 51, 145, 235, 249, 14, 239, 107,
+    49, 192, 214, 31, 181, 199, 106, 157, 184, 84, 204, 176, 115, 121, 50, 45, 127, 4, 150, 254,
+    138, 236, 205, 93, 222, 114, 67, 29, 24, 72, 243, 141, 128, 195, 78, 66, 215, 61, 156, 180];
 
 var p = [];
-for (var i = 0; i < 256 ; i++) {
-    p[256+i] = p[i] = permutation[i];
+for (var i = 0; i < 256; i++) {
+    p[256 + i] = p[i] = permutation[i];
 }
 
 var fade = function(t) {
@@ -159,39 +163,65 @@ Random.noise = function(x, y, z) {
     var v = fade(y);
     var w = fade(z);
 
-    var A = p[X  ]+Y, AA = p[A]+Z, AB = p[A+1]+Z;
-    var B = p[X+1]+Y, BA = p[B]+Z, BB = p[B+1]+Z;
+    var A = p[X] + Y,
+        AA = p[A] + Z,
+        AB = p[A + 1] + Z;
+    var B = p[X + 1] + Y,
+        BA = p[B] + Z,
+        BB = p[B + 1] + Z;
 
-    return lerp(w, lerp(v, lerp(u, grad(p[AA  ], x  , y  , z   ),
-                                   grad(p[BA  ], x-1, y  , z   )),
-                           lerp(u, grad(p[AB  ], x  , y-1, z   ),
-                                   grad(p[BB  ], x-1, y-1, z   ))),
-                   lerp(v, lerp(u, grad(p[AA+1], x  , y  , z-1 ),
-                                   grad(p[BA+1], x-1, y  , z-1 )),
-                           lerp(u, grad(p[AB+1], x  , y-1, z-1 ),
-                                   grad(p[BB+1], x-1, y-1, z-1 ))))
-            * 0.5 + 0.5; // from 0.0 to 1.0, rather than -1.0 to 1.0
+    return lerp(w, lerp(v, lerp(u, grad(p[AA], x, y, z),
+            grad(p[BA], x - 1, y, z)),
+            lerp(u, grad(p[AB], x, y - 1, z),
+                grad(p[BB], x - 1, y - 1, z))),
+            lerp(v, lerp(u, grad(p[AA + 1], x, y, z - 1),
+                grad(p[BA + 1], x - 1, y, z - 1)),
+                lerp(u, grad(p[AB + 1], x, y - 1, z - 1),
+                    grad(p[BB + 1], x - 1, y - 1, z - 1))))
+        * 0.5 + 0.5; // from 0.0 to 1.0, rather than -1.0 to 1.0
 };
 
 
-var Util = {};
-Util.map = function(v, min1, max1, min2, max2) {
-    return ((v - min1) / (max1 - min1)) * (max2 - min2) + min2;
-};
-Util.constrain = function(v, min, max) {
-    if (v < min) {
-        return min;
-    } else if (v > max) {
-        return max;
-    } else {
-        return v;
+class Util {
+    static map(v, min1, max1, min2, max2) {
+        return ((v - min1) / (max1 - min1)) * (max2 - min2) + min2;
     }
-};
 
+    static constrain(v, min, max) {
+        if (v < min) {
+            return min;
+        } else if (v > max) {
+            return max;
+        } else {
+            return v;
+        }
+    }
+}
+
+class Shape {
+    static circle(ctx, x, y, r) {
+        ctx.beginPath();
+        ctx.arc(x, y, 20, 0, 2 * Math.PI, false);
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.stroke();
+    }
+
+    static rect(ctx, x, y, w, h) {
+        ctx.beginPath();
+        ctx.rect(x - w / 2, y - h / 2, w, h)
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.stroke();
+    }
+}
 
 function Vector(x, y) {
     this.set(x, y);
-};
+}
+;
 Vector.random2D = function() {
     var r = Math.random() * 2 * Math.PI;
     return new Vector(Math.cos(r), Math.sin(r));
@@ -259,103 +289,274 @@ Vector.prototype.heading = function() {
     return Math.atan2(this.y, this.x);
 };
 
+class Mover {
+    constructor(location, velocity, acceleration, mass) {
+        this.location = location || new Vector(0, 0);
+        this.velocity = velocity || new Vector(0, 0);
+        this.acceleration = acceleration || new Vector(0, 0);
+        this.mass = mass || 5;
+        this.topSpeed = 0;
+    }
 
-function Mover(location, velocity, acceleration, mass) {
-    this.location = location || new Vector(0, 0);
-    this.velocity = velocity || new Vector(0, 0);
-    this.acceleration = acceleration || new Vector(0, 0);
-    this.topSpeed = 0;
-    this.mass = mass || 5;
+    update() {
+        this.velocity.add(this.acceleration);
+        if (this.topSpeed != 0) {
+            this.velocity.limit(this.topSpeed);
+        }
+        this.location.add(this.velocity);
+    }
+
+    display(ctx, noclear) {
+        if (!noclear) {
+            ctx.canvas.width = ctx.canvas.width;
+        }
+        Shape.circle(ctx, this.location.x, this.location.y, this.mass * 32 / 5);
+    }
+
+    limitSpeed(s) {
+        this.topSpeed = s;
+    }
+
+    checkEdges(width, height) {
+        if (this.location.x > width) {
+            this.location.x = 0;
+        } else if (this.location.x < 0) {
+            this.location.x = width;
+        }
+
+        if (this.location.y > height) {
+            this.location.y = 0;
+        } else if (this.location.y < 0) {
+            this.location.y = height;
+        }
+    }
+
+    checkWalls(width, height) {
+        if (this.location.x > width) {
+            this.location.x = width;
+            this.velocity.x *= -1;
+        } else if (this.location.x < 0) {
+            this.location.x = 0;
+            this.velocity.x *= -1;
+        }
+
+        if (this.location.y > height) {
+            this.location.y = height;
+            this.velocity.y *= -1;
+        } else if (this.location.y < 0) {
+            this.location.y = 0;
+            this.velocity.y *= -1;
+        }
+    }
+
+    applyForce(force) {
+        let f = Vector.div(force, this.mass);
+        this.acceleration.add(f);
+    }
+
+    applyGravity() {
+        let g = 9.8 * 0.01;
+        this.acceleration.add(new Vector(0, g));
+    }
+
+    applyFriction(c) {
+        let friction = Vector.mult(this.velocity, -1);
+        friction.normalize();
+        let normal = 1;
+        friction.mult(c * normal);
+
+        this.applyForce(friction);
+    }
+
+    applyFluidResistance(c) {
+        let density = 1;
+        let area = 1;
+        let speed = this.velocity.mag();
+        let drag = Vector.mult(this.velocity, -1);
+        drag.normalize();
+        drag.mult(speed * speed * c * density * area * 0.5);
+
+        this.applyForce(drag);
+    }
+
+    applyUniversalG(m) {
+        let force = Vector.sub(m.location, this.location);
+        let distance = force.mag();
+        distance = Util.constrain(distance, 10, 25);
+
+        let G = 4;
+        force.normalize();
+        let strength = (G * this.mass * m.mass) / (distance * distance);
+        force.mult(strength);
+
+        this.applyForce(force);
+    }
+
+    reset() {
+        this.location.set(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT));
+        this.velocity.reset();
+        this.acceleration.reset();
+    }
 }
-Mover.prototype.update = function() {
-    this.velocity.add(this.acceleration);
-    if (this.topSpeed != 0) {
-        this.velocity.limit(this.topSpeed);
-    }
-    this.location.add(this.velocity);
-};
-Mover.prototype.display = function(ctx, noclear) {
-    if (!noclear) {
-        ctx.canvas.width = ctx.canvas.width;
-    }
-    ctx.beginPath();
-    ctx.arc(this.location.x, this.location.y, this.mass * 32/5, 0, 2 * Math.PI, false);
-    ctx.globalAlpha = 0.3;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.stroke();
-};
-Mover.prototype.limitSpeed = function(s) {
-    this.topSpeed = s;
-};
-Mover.prototype.checkEdges = function(width, height) {
-    if (this.location.x > width) {
-        this.location.x = 0;
-    } else if (this.location.x < 0) {
-        this.location.x = width;
+
+class RotateMover extends Mover {
+    constructor(location, velocity, acceleration, mass) {
+        super(location, velocity, acceleration, mass);
+        this.angle = 0;
+        this.aVelocity = 0;
+        this.aAcceleration = 0;
     }
 
-    if (this.location.y > height) {
-        this.location.y = 0;
-    } else if (this.location.y < 0) {
-        this.location.y = height;
-    }
-};
-Mover.prototype.checkWalls = function(width, height) {
-    if (this.location.x > width) {
-        this.location.x = width;
-        this.velocity.x *= -1;
-    } else if (this.location.x < 0) {
-        this.location.x = 0;
-        this.velocity.x *= -1;
+    update() {
+        super.update();
+        this.aAcceleration = (this.location.x - WIDTH / 2) / 10000;
+        this.aVelocity += this.aAcceleration;
+        this.aVelocity = Util.constrain(this.aVelocity, -0.1, 0.1)
+        this.angle += this.aVelocity;
     }
 
-    if (this.location.y > height) {
-        this.location.y = height;
-        this.velocity.y *= -1;
-    } else if (this.location.y < 0) {
-        this.location.y = 0;
-        this.velocity.y *= -1;
+    display(ctx, noclear) {
+        if (!noclear) {
+            ctx.canvas.width = ctx.canvas.width;
+        }
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(this.location.x, this.location.y)
+        ctx.rotate(this.angle);
+        Shape.rect(ctx, 0, 0, this.mass * 8, this.mass * 8);
+        ctx.restore();
     }
-};
-Mover.prototype.applyForce = function(force) {
-    var f = Vector.div(force, this.mass);
-    this.acceleration.add(f);
-};
-Mover.prototype.applyGravity = function() {
-    var g = 9.8 * 0.01;
-    this.acceleration.add(new Vector(0, g));
-};
-Mover.prototype.applyFriction = function(c) {
-    var friction = Vector.mult(this.velocity, -1);
-    friction.normalize();
-    var normal = 1;
-    friction.mult(c * normal);
 
-    this.applyForce(friction);
-};
-Mover.prototype.applyFluidResistance = function(c) {
-    var density = 1;
-    var area = 1;
-    var speed = this.velocity.mag();
-    var drag = Vector.mult(this.velocity, -1);
-    drag.normalize();
-    drag.mult(speed * speed * c * density * area * 0.5);
+    reset() {
+        super.reset();
+        this.angle = 0;
+        this.aVelocity = 0;
+        this.aAcceleration = 0;
+    }
+}
 
-    this.applyForce(drag);
-};
-Mover.prototype.applyUniversalG = function(m) {
-    var force = Vector.sub(m.location, this.location);
-    var distance = force.mag();
-    distance = Util.constrain(distance, 10, 25);
+class Attractor {
+    constructor() {
+        this.location = new Vector(WIDTH / 2, HEIGHT / 2);
+        this.mass = 20;
+    }
 
-    var G = 4;
-    force.normalize();
-    var strength = (G * this.mass * m.mass) / (distance * distance);
-    force.mult(strength);
+    display(ctx) {
+        Shape.circle(ctx, this.location.x, this.location.y, this.mass * 1.5);
+    }
+}
 
-    this.applyForce(force);
-};
+class Oscillator {
+    constructor() {
+        this.reset();
+    }
+
+    update() {
+        this.angle.add(this.velocity);
+    }
+
+    display(ctx) {
+        let x = Math.sin(this.angle.x) * this.amplitude.x;
+        let y = Math.sin(this.angle.y) * this.amplitude.y;
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(WIDTH / 2, HEIGHT / 2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        Shape.circle(ctx, x, y, 20);
+    }
+
+    reset() {
+        this.angle = new Vector(0, 0);
+        this.velocity = new Vector(Random.arbitrary(-0.05, 0.05), Random.arbitrary(-0.05, 0.05));
+        this.amplitude = new Vector(Random.arbitrary(0, WIDTH / 2), Random.arbitrary(0, HEIGHT / 2));
+    }
+}
+
+class Pendulum {
+    constructor(origin, r) {
+        this.origin = origin;
+        this.location = new Vector(0, 0);
+        this.r = r;
+        this.angle = Math.PI / 4;
+        this.aVelocity = 0;
+        this.aAcceleration = 0;
+        this.damping = 0.999;
+    }
+
+    update() {
+        let g = 9.8 * 0.01;
+        // aAcceleration changes direction when angle passed zero
+        this.aAcceleration = -1 * g * Math.sin(this.angle) / this.r;
+        this.aVelocity += this.aAcceleration;
+        this.angle += this.aVelocity;
+        this.aVelocity *= this.damping;
+
+        this.location.set(this.origin);
+        this.location.add(new Vector(this.r * Math.sin(this.angle), this.r * Math.cos(this.angle)));
+    }
+
+    display(ctx, noclear) {
+        if (!noclear) {
+            ctx.canvas.width = ctx.canvas.width;
+        }
+        ctx.beginPath();
+        ctx.moveTo(this.origin.x, this.origin.y);
+        ctx.lineTo(this.location.x, this.location.y);
+        ctx.stroke();
+        Shape.circle(ctx, this.location.x, this.location.y, 20);
+    }
+
+    reset() {
+        this.angle = Math.PI / 4;
+        this.aVelocity = 0;
+        this.aAcceleration = 0;
+    }
+}
+
+class SpringBall {
+    constructor(x, y, l) {
+        this.anchor = new Vector(x, y);
+        this.len = l;
+        this.bob = new Mover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT)));
+        this.damping = 0.995;
+    }
+
+    connect() {
+        let k = 0.01;
+        let f = Vector.sub(this.bob.location, this.anchor);
+        let stretch = f.mag() - this.len;
+        f.normalize();
+        f.mult(-1 * k * stretch);
+        this.bob.applyForce(f);
+    }
+
+    update() {
+        this.bob.acceleration.reset();
+        this.bob.velocity.mult(this.damping);
+        this.connect();
+        this.bob.applyGravity();
+        this.bob.update();
+    }
+
+    display(ctx, noclear) {
+        if (!noclear) {
+            ctx.canvas.width = ctx.canvas.width;
+        }
+        ctx.beginPath();
+        ctx.moveTo(this.anchor.x, this.anchor.y);
+        ctx.lineTo(this.bob.location.x, this.bob.location.y);
+        ctx.stroke();
+        this.bob.display(ctx, true);
+    }
+
+    reset() {
+        this.bob = new Mover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT)));
+    }
+}
+
 
 (function example_0_1() {
     function Walker(x, y) {
@@ -368,20 +569,20 @@ Mover.prototype.applyUniversalG = function(m) {
     Walker.prototype.step = function(reset) {
         var choice = Random.uniform(0, 3);
         if (choice == 0) {
-          this.x++;
+            this.x++;
         } else if (choice == 1) {
-          this.x--;
+            this.x--;
         } else if (choice == 2) {
-          this.y++;
+            this.y++;
         } else {
-          this.y--;
+            this.y--;
         }
     };
 
-    var w = new Walker(WIDTH/2, HEIGHT/2);
+    var w = new Walker(WIDTH / 2, HEIGHT / 2);
     var ew = new EgWidget('example_0_1', w.display.bind(w), w.step.bind(w), function() {
-        w.x = ew.width/2;
-        w.y = ew.height/2;
+        w.x = ew.width / 2;
+        w.y = ew.height / 2;
     });
     ew.run();
 })();
@@ -420,20 +621,20 @@ Mover.prototype.applyUniversalG = function(m) {
     Walker.prototype.step = function() {
         var r = Math.random();
         if (r < 0.4) {
-          this.x++;
+            this.x++;
         } else if (r < 0.6) {
-          this.x--;
+            this.x--;
         } else if (r < 0.8) {
-          this.y++;
+            this.y++;
         } else {
-          this.y--;
+            this.y--;
         }
     };
 
-    var w = new Walker(WIDTH/2, HEIGHT/2);
+    var w = new Walker(WIDTH / 2, HEIGHT / 2);
     var ew = new EgWidget('example_0_3', w.display.bind(w), w.step.bind(w), function() {
-        w.x = ew.width/2;
-        w.y = ew.height/2;
+        w.x = ew.width / 2;
+        w.y = ew.height / 2;
     });
     ew.run();
 })();
@@ -555,9 +756,9 @@ Mover.prototype.applyUniversalG = function(m) {
 
 
 (function example_1_3() {
-    var center = new Vector(WIDTH/2, HEIGHT/2);
+    var center = new Vector(WIDTH / 2, HEIGHT / 2);
     var ew = new EgWidget('example_1_3', function(ctx) {
-        ctx.clearRect(-ew.width/2, -ew.height/2, ew.width, ew.height);
+        ctx.clearRect(-ew.width / 2, -ew.height / 2, ew.width, ew.height);
 
         var dir = Vector.sub(ew.mouse, center);
         ctx.beginPath();
@@ -570,9 +771,9 @@ Mover.prototype.applyUniversalG = function(m) {
 })();
 
 (function example_1_4() {
-    var center = new Vector(WIDTH/2, HEIGHT/2);
+    var center = new Vector(WIDTH / 2, HEIGHT / 2);
     var ew = new EgWidget('example_1_4', function(ctx) {
-        ctx.clearRect(-ew.width/2, -ew.height/2, ew.width, ew.height);
+        ctx.clearRect(-ew.width / 2, -ew.height / 2, ew.width, ew.height);
 
         var dir = Vector.sub(ew.mouse, center);
         dir.mult(0.5);
@@ -586,7 +787,7 @@ Mover.prototype.applyUniversalG = function(m) {
 })();
 
 (function example_1_5() {
-    var center = new Vector(WIDTH/2, HEIGHT/2);
+    var center = new Vector(WIDTH / 2, HEIGHT / 2);
     var ew = new EgWidget('example_1_5', function(ctx) {
         ctx.clearRect(0, 0, ew.width, ew.height);
 
@@ -605,9 +806,9 @@ Mover.prototype.applyUniversalG = function(m) {
 })();
 
 (function example_1_6() {
-    var center = new Vector(WIDTH/2, HEIGHT/2);
+    var center = new Vector(WIDTH / 2, HEIGHT / 2);
     var ew = new EgWidget('example_1_6', function(ctx) {
-        ctx.clearRect(-ew.width/2, -ew.height/2, ew.width, ew.height);
+        ctx.clearRect(-ew.width / 2, -ew.height / 2, ew.width, ew.height);
 
         var dir = Vector.sub(ew.mouse, center);
         dir.normalize();
@@ -623,7 +824,7 @@ Mover.prototype.applyUniversalG = function(m) {
 
 (function example_1_7() {
     var m = new Mover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT)),
-                      new Vector(Random.arbitrary(-2, 2), Random.arbitrary(-2, 2)));
+        new Vector(Random.arbitrary(-2, 2), Random.arbitrary(-2, 2)));
     var ew = new EgWidget('example_1_7', m.display.bind(m), function() {
         m.update();
         m.checkEdges(ew.width, ew.height);
@@ -635,21 +836,21 @@ Mover.prototype.applyUniversalG = function(m) {
 })();
 
 (function example_1_8() {
-    var m = new Mover(new Vector(WIDTH/2, HEIGHT/2), new Vector(0, 0), new Vector(-0.001, 0.01));
+    var m = new Mover(new Vector(WIDTH / 2, HEIGHT / 2), new Vector(0, 0), new Vector(-0.001, 0.01));
     m.limitSpeed(10);
     var ew = new EgWidget('example_1_8', m.display.bind(m), function() {
         m.update();
         m.checkEdges(ew.width, ew.height);
     }, function() {
-        m.location.set(WIDTH/2, HEIGHT/2);
+        m.location.set(WIDTH / 2, HEIGHT / 2);
         m.velocity.set(0, 0);
-        m.acceleration.set(-0.001,0.01);
+        m.acceleration.set(-0.001, 0.01);
     });
     ew.run();
 })();
 
 (function example_1_9() {
-    var m = new Mover(new Vector(WIDTH/2, HEIGHT/2));
+    var m = new Mover(new Vector(WIDTH / 2, HEIGHT / 2));
     m.limitSpeed(5);
     var ew = new EgWidget('example_1_9', m.display.bind(m), function() {
         m.acceleration = Vector.random2D();
@@ -657,7 +858,7 @@ Mover.prototype.applyUniversalG = function(m) {
         m.update();
         m.checkEdges(ew.width, ew.height);
     }, function() {
-        m.location.set(WIDTH/2, HEIGHT/2);
+        m.location.set(WIDTH / 2, HEIGHT / 2);
         m.velocity.set(0, 0);
         m.acceleration.set(0, 0);
     });
@@ -665,7 +866,7 @@ Mover.prototype.applyUniversalG = function(m) {
 })();
 
 (function example_1_10() {
-    var m = new Mover(new Vector(WIDTH/2, HEIGHT/2));
+    var m = new Mover(new Vector(WIDTH / 2, HEIGHT / 2));
     m.limitSpeed(5);
     var ew = new EgWidget('example_1_10', m.display.bind(m), function() {
         var dir = Vector.sub(ew.mouse, m.location);
@@ -674,7 +875,7 @@ Mover.prototype.applyUniversalG = function(m) {
         m.acceleration = dir;
         m.update();
     }, function() {
-        m.location.set(WIDTH/2, HEIGHT/2);
+        m.location.set(WIDTH / 2, HEIGHT / 2);
         m.velocity.set(0, 0);
         m.acceleration.set(0, 0);
     });
@@ -830,11 +1031,11 @@ Mover.prototype.applyUniversalG = function(m) {
         });
         // draw fluid
         ctx.globalAlpha = 0.5;
-        ctx.fillRect(0, ew.height/2, ew.width, ew.height/2);
+        ctx.fillRect(0, ew.height / 2, ew.width, ew.height / 2);
     }, function() {
         movers.forEach(function(m) {
             m.acceleration.reset();
-            if (m.location.y > ew.height/2) {
+            if (m.location.y > ew.height / 2) {
                 m.applyFluidResistance(0.1);
             }
             m.applyGravity();
@@ -852,21 +1053,8 @@ Mover.prototype.applyUniversalG = function(m) {
 })();
 
 (function example_2_6() {
-    function Attractor() {
-        this.location = new Vector(WIDTH/2, HEIGHT/2);
-        this.mass = 20;
-    }
-    Attractor.prototype.display = function(ctx) {
-        ctx.beginPath();
-        ctx.arc(this.location.x, this.location.y, this.mass * 1.5, 0, 2 * Math.PI, false);
-        ctx.globalAlpha = 0.3;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.stroke();
-    }
-
     var a = new Attractor;
-    var m = new Mover(new Vector(WIDTH/3, HEIGHT/3), new Vector(0, 3), null, 2);
+    var m = new Mover(new Vector(WIDTH / 3, HEIGHT / 3), new Vector(0, 3), null, 2);
     var ew = new EgWidget('example_2_6', function(ctx) {
         ew.clear();
         a.display(ctx);
@@ -876,7 +1064,7 @@ Mover.prototype.applyUniversalG = function(m) {
         m.applyUniversalG(a);
         m.update();
     }, function() {
-        m.location.set(WIDTH/3, HEIGHT/3);
+        m.location.set(WIDTH / 3, HEIGHT / 3);
         m.velocity.set(0, 1);
         m.acceleration.reset();
     });
@@ -884,19 +1072,6 @@ Mover.prototype.applyUniversalG = function(m) {
 })();
 
 (function example_2_7() {
-    function Attractor() {
-        this.location = new Vector(WIDTH/2, HEIGHT/2);
-        this.mass = 20;
-    }
-    Attractor.prototype.display = function(ctx) {
-        ctx.beginPath();
-        ctx.arc(this.location.x, this.location.y, this.mass * 1.5, 0, 2 * Math.PI, false);
-        ctx.globalAlpha = 0.3;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.stroke();
-    }
-
     var a = new Attractor;
     var movers = [];
     for (var i = 0; i < 10; i++) {
@@ -916,9 +1091,7 @@ Mover.prototype.applyUniversalG = function(m) {
         });
     }, function() {
         movers.forEach(function(m) {
-            m.location.set(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT));
-            m.velocity.reset();
-            m.acceleration.reset();
+            m.reset();
         });
     });
     ew.run();
@@ -944,10 +1117,222 @@ Mover.prototype.applyUniversalG = function(m) {
         });
     }, function() {
         movers.forEach(function(m) {
-            m.location.set(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT));
-            m.velocity.reset();
-            m.acceleration.reset();
+            m.reset();
         });
     });
+    ew.run();
+})();
+
+
+(function example_3_1() {
+    let angle = 0;
+    let av = 0;
+    let aa = 0.0001;
+    let ew = new EgWidget('example_3_1', (ctx) => {
+        ew.clear();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(WIDTH / 2, HEIGHT / 2);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(-100, 0);
+        ctx.lineTo(100, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-100, 0, 8, 0, 2 * Math.PI, false);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(100, 0, 8, 0, 2 * Math.PI, false);
+        ctx.fill();
+    }, () => {
+        av += aa;
+        angle += av;
+    }, () => {
+        angle = 0;
+        av = 0;
+        aa = 0.0001;
+    });
+    ew.run();
+})();
+
+(function example_3_2() {
+    let a = new Attractor;
+    let movers = [];
+    for (let i = 0; i < 10; i++) {
+        movers.push(new RotateMover(new Vector(Random.arbitrary(0, WIDTH), Random.arbitrary(0, HEIGHT)), null, null, Random.arbitrary(1, 5)));
+    }
+    let ew = new EgWidget('example_3_2', (ctx) => {
+        ew.clear();
+        movers.forEach(function(m) {
+            m.display(ctx, true);
+        });
+        a.display(ctx);
+    }, () => {
+        movers.forEach((m) => {
+            m.acceleration.reset();
+            m.applyUniversalG(a);
+            m.update();
+        });
+    }, () => {
+        movers.forEach((m) => {
+            m.reset();
+        });
+    });
+    ew.run();
+})();
+
+(function example_3_3() {
+    let m = new RotateMover(new Vector(WIDTH / 2, HEIGHT / 2));
+    m.limitSpeed(5);
+    let ew = new EgWidget('example_3_3', m.display.bind(m), () => {
+        let dir = Vector.sub(ew.mouse, m.location);
+        dir.normalize();
+        dir.mult(0.5);
+        m.acceleration = dir;
+        m.update();
+        // reset angle after update
+        m.angle = m.velocity.heading();
+    }, () => {
+        m.reset();
+    });
+    ew.run();
+})();
+
+(function example_3_4() {
+    let r = 100;
+    let angle = 0;
+    let ew = new EgWidget('example_3_4', (ctx) => {
+        ew.clear();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(WIDTH / 2, HEIGHT / 2);
+        let x = r * Math.cos(angle);
+        let y = r * Math.sin(angle);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        Shape.circle(ctx, x, y, 20);
+    }, () => {
+        angle += 0.02;
+    }, () => {
+        angle = 0;
+    });
+    ew.run();
+})();
+
+(function example_3_5() {
+    let period = 120;
+    let amp = 150;
+    let periods = 0;
+    let ew = new EgWidget('example_3_5', (ctx) => {
+        ew.clear();
+        let x = amp * Math.sin(2 * Math.PI * periods);
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(WIDTH / 2, HEIGHT / 2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(x, 0);
+        ctx.stroke();
+        Shape.circle(ctx, x, 0, 20);
+    }, () => {
+        periods = ew.frameCnt / period;
+    }, () => {
+        ew.frameCnt = 0;
+    });
+    ew.run();
+})();
+
+(function example_3_6() {
+    let angle = 0;
+    let amp = 150;
+    let aVelocity = 0.05;
+    let ew = new EgWidget('example_3_6', (ctx) => {
+        ew.clear();
+        let x = amp * Math.sin(angle);
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(WIDTH / 2, HEIGHT / 2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(x, 0);
+        ctx.stroke();
+        Shape.circle(ctx, x, 0, 20);
+    }, () => {
+        angle += aVelocity;
+    }, () => {
+        angle = 0;
+    });
+    ew.run();
+})();
+
+(function example_3_7() {
+    let oscillators = []
+    for (let i = 0; i < 10; i++) {
+        oscillators.push(new Oscillator());
+    }
+    let ew = new EgWidget('example_3_7', (ctx) => {
+        ew.clear();
+        oscillators.forEach((o) => {
+            o.display(ctx);
+        });
+    }, () => {
+        oscillators.forEach((o) => {
+            o.update();
+        });
+    }, () => {
+        oscillators.forEach((o) => {
+            o.reset();
+        });
+    });
+    ew.run();
+})();
+
+(function example_3_8() {
+    let angle = 0;
+    let aVelocity = 0.2;
+    let amplitude = 100;
+    let ew = new EgWidget('example_3_8', (ctx) => {
+        ctx.beginPath();
+        for (let x = 0; x <= WIDTH; x += 5) {
+            let y = Util.map(Math.sin(angle), -1, 1, 0, HEIGHT);
+            ctx.lineTo(x, y);
+            angle += aVelocity;
+        }
+        ctx.stroke();
+    });
+    ew.run();
+})();
+
+(function example_3_9() {
+    let angle = 0;
+    let start = 0;
+    let aVelocity = 0.2;
+    let ew = new EgWidget('example_3_9', (ctx) => {
+        ew.clear();
+        ctx.beginPath();
+        for (let x = 0; x <= WIDTH; x += 20) {
+            let y = Util.map(Math.sin(angle), -1, 1, 0, HEIGHT);
+            Shape.circle(ctx, x, y, 20);
+            angle += aVelocity;
+        }
+        ctx.stroke();
+    }, () => {
+        start += 0.01;
+        angle = start;
+    }, () => {
+        start = 0;
+    });
+    ew.run();
+})();
+
+(function example_3_10() {
+    let p = new Pendulum(new Vector(WIDTH / 2, 0), 200);
+    let ew = new EgWidget('example_3_10', p.display.bind(p), p.update.bind(p), p.reset.bind(p));
+    ew.run();
+})();
+
+(function example_3_11() {
+    let p = new SpringBall(WIDTH / 2, 0, 200);
+    let ew = new EgWidget('example_3_11', p.display.bind(p), p.update.bind(p), p.reset.bind(p));
     ew.run();
 })();

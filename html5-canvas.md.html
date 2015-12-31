@@ -87,7 +87,7 @@ context有个当前绘制状态，全局地对（之后绘制）整个canvas起�
 方法：
 
 * beginPath()：开始路径或重置当前路径
-* closePath()：闭合路径
+* closePath()：闭合路径(lineTo起始点)
 * fill(): 填充
 * stroke()：描边
 * clip(): 创建裁剪区域
@@ -152,7 +152,7 @@ context有个当前绘制状态，全局地对（之后绘制）整个canvas起�
 * scale(x, y): 缩放, 以座标原点
 * translate(x, y): 改变座标原点的位置
 * transform(m11, m12, m21, m22, dx, dy): 矩阵变换
-* setTransform(m11, m12, m21, m22, dx, dy): 设置变换矩阵，重置值(1, 0, 0, 1, 0, 0)
+* setTransform(m11, m12, m21, m22, dx, dy): 设置变换矩阵，重置值(1, 0, 0, 1, 0, 0)。变换是基于新的状态，要每次以初始状态为基础，就需每次重置。
 
 所有度数以弧度表示，转换：`degree * Math.PI/180`
 

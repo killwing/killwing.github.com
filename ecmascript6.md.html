@@ -4,7 +4,7 @@
 <xmp theme="readable" style="display:none;">
 ## Block Scoping
 `let`可以使变量作用域限制在block`{ }`范围之内。在block内，let声明之前，该变量都不可用（ReferenceError)，即使有外部同名变量。
-`let`声明的变量不会发生[变量提升](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/var#var_hoisting)现象，字面定义的函数或类属于块级作用域，也不会被提升。
+`let`声明的变量[不会发生](http://stackoverflow.com/questions/31219420/are-variables-declared-with-let-or-const-not-hoisted-in-es6)[变量提升](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/var#var_hoisting)现象，字面定义的函数或类属于块级作用域，也不会被提升。
 `let`不允许再用`let`或`var`重复声明一个变量。
 for循环中用`let`声明的的迭代变量只在循环体内可见。
 
@@ -31,10 +31,12 @@ class A {
     get x() { return this.x; }
     set x(a) { this.x = a; }
     *gen() { ... }
+    [x+y]() { ... } // 表达式方法名
 }
 ```
 只能用`new`创建实例对象。
 在类或模块内部不需要显式指定默认就是严格模式。
+和prototype定义不同，类的内部所有定义的方法，都是不可枚举的。
 如果不写构造函数会默认生成空的构造函数。构造函数默认返回this。
 `A.name`属性返回类名('A')。
 表达式形式定义（类似函数）：`let A = class { ... }`
@@ -53,7 +55,7 @@ constructor(...args) {
     super(...args);
 }
 ```
-`super`调用父类构造函数，且只能是子类构造函数的第一个语句。
+`super()`调用父类构造函数，且只能是子类构造函数的第一个语句，之后才能使用this。`super.xxx`使用父类的函数或属性。
 
 子类对象(s)是子类(Sub)的实例，也是父类(Base)的实例。以下皆为true：
 ```
