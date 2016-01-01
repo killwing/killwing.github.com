@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<title>Canvas 3D</title>
+<xmp theme="readable" style="display:none;">
+## 原理
+利用平行[透视](https://zh.wikipedia.org/zh/透视)原理，进大远小，近实远虚的规律，达到在2D平面中显示3D的效果。
+z轴正方向往画面外，设定一个焦距f（原点到消失点的距离，消失点与原点在xy方向上重合），则缩放比例为：`scale = (f + z) / f`，当z为0时显示为实际大小。
+
+## 点的旋转
+一个点在三维坐标系中旋转，可由[三维旋转矩阵](https://zh.wikipedia.org/zh/%E6%97%8B%E8%BD%AC%E7%9F%A9%E9%98%B5#.E6.97.8B.E8.BD.AC)完成。
+旋转方向为右手螺旋的反方向：`x->y->z->x`。
+绕x轴旋转：
+\`x' = x\`
+\`y' = ycosalpha - zsinalpha\`
+\`z' = ysinalpha + zcosalpha\`
+
+绕y轴旋转：
+\`x' = zsinbeta + xcosbeta\`
+\`y' = y\`
+\`z' = zcosbeta - xsinbeta\`
+
+绕z轴旋转：
+\`x' = xcosgamma - ysingamma\`
+\`y' = xsingamma + ycosgamma\`
+\`z' = z\`
+
+<canvas id="dot_rotation"></canvas>
+
+## 平面
+两点决定线，三点决定平面。
+
+### 立方体
+设定好8个顶点的坐标，将缩放后的坐标(x, y)用线连接起来。
+<canvas id="cube"></canvas>
+
+## Camera
+原物体位置的移动，改变参照（如和背景一起运动）即可看作原物体不动，视角(camera)的反向运动。
+<canvas id="camera"></canvas>
+
+</xmp>
+<script src="js/strapdown.js"></script>
+<script src="js/c3d.js"></script>
+<script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=AM_HTMLorMML-full"></script>
+<style> canvas {border:thin solid black; display:block;} button {margin: 5px;}</style>
+</html>
