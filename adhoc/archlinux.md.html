@@ -2,6 +2,8 @@
 <html>
 <title>Archlinux</title>
 <xmp theme="united" style="display:none;">
+https://www.archlinux.org/
+
 ## 安装
 在Virtualbox里最简方式安装：
 
@@ -42,7 +44,7 @@ chroot后设置新系统：`arch-chroot /mnt`
 ## 初始配置
 启动dhcp：`systemctl enable dhcpcd`
 
-启动ssh服务器：`pacman -S openssh`, `systemctl enable sshd` （反注释`/etc/ssh/sshd_config`的端口和地址）
+启动ssh服务器：`pacman -S openssh`, `systemctl enable sshd` （反注释`/etc/ssh/sshd_config`的端口和地址, `PermitRootLogin`为yes）
 
 安装必备工具：net-tools, dnsutils, inetutils, iproute2, vim, git
 

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<title>docker</title>
+<xmp theme="readable" style="display:none;">
+http://www.docker.com/
+
+## Install
+ubuntu: `$ wget -qO- https://get.docker.com/ | sh` (`$ wget -qO- https://get.docker.com/gpg | sudo apt-key add -`)
+arch: `pacman -S docker`; `systemctl restart docker`
+
+## Image
+从仓库获取一个镜像：`docker pull [OPTIONS] [Registry/]NAME[:TAG|@DIGEST]`
+默认使用官方Registry: registry.hub.docker.com，国内的有：dl.dockerpool.com:5000
+TAG默认为`latest`。
+上传镜像：`docker push`
+
+列出镜像：`docker images`。
+修改镜像：`docker commit CONTAINER`，基于容器对其镜像作修改，需要指定容器的ID。
+创建镜像：`docker build PATH -t="NAMESPACE/IMAGE-NAME:TAG"`，基于Dockerfile创建镜像。
+修改镜像标签：`docker tag`
+保存／载入镜像：`docker save/load` 保存镜像及其元信息到本地文件。
+删除镜像：`docker rmi` 要先删除基于这个镜像的所有容器。
+
+### Dockerfile
+每条指令都创建镜像的一层（都创建了新的容器并commit），不能超过127层。
+`#` 注释
+`FROM` 使用作为基础的镜像
+`MAINTAINER` 维护者信息
+`RUN` 创建过程中运行的命令，比如安装软件包
+`ADD` 复制本地文件
+`EXPOSE` 向外部开放端口
+`CMD` 容器启动后运行的程序
+
+## Container
+容器是镜像的运行实例。
+当容器中运行的程序结束时，容器终止。
+
+启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行。
+启动已终止的容器：`docker start`
+重启容器：`docker restart`
+查看容器的输出：`docker logs`
+查看容器状态：`docker ps`，`-a`查看包括已终止的所有容器。
+连接到容器：`docker attach`
+导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
+删除容器：`docker rm`
+
+## Data Volume
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
