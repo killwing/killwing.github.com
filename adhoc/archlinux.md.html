@@ -39,20 +39,30 @@ chroot后设置新系统：`arch-chroot /mnt`
 * `-a`设置boot标志对于GPT可能出错，需要手动：先安装gdisk `pacman -S gdisk`，设置boot标志到sda的`/boot`分区（第一个分区）：`sgdisk /dev/sda --attributes=1:set:2`
 * 更改`/boot/syslinux/syslinux.cfg`文件配置的启动分区：`LABEL arch`标签下面`APPEND root=/dev/sda1 vga=775 ro`。（vga设为1280*1024，可省略）
 
+安装网络工具：net-tools, dnsutils, inetutils, iproute2
+
 安装完成，重启（更改启动顺序从硬盘启动）。
 
 ## 初始配置
-启动dhcp：`systemctl enable dhcpcd`
+启动dhcp：`systemctl enable dhcpcd` （静态配置：使用[netctl](https://wiki.archlinux.org/index.php/Network_configuration#netctl_2)）
 
 启动ssh服务器：`pacman -S openssh`, `systemctl enable sshd` （反注释`/etc/ssh/sshd_config`的端口和地址, `PermitRootLogin`为yes）
 
-安装必备工具：net-tools, dnsutils, inetutils, iproute2, vim, git
+安装其它工具：vim, git
 
 ## Pacman
 `pacman -Sy` 同步数据库
+`pacman -Syu` 升级系统
 `pacman -S <pkg>` 安装/升级包
 `pacman -Rs <pkg>` 删除包及无用的依赖
 `pacman -Q <pkg>` 查询本地数据库
+
+## [Systemd](https://wiki.archlinux.org/index.php/Systemd)
+unit可以是`services (.service)`, `mount points (.mount)`, `devices (.device)`, `sockets (.socket)` 不指定后缀一般认为是service。
+unit文件在`/usr/lib/systemd/system/`和`/etc/systemd/system/`下面，`systemctl list-unit-files`查看。
+常用命令：`systemctl start/stop/restart/status/reload/is-enabled/enable/disable/mask/unmask unit`
+
+`enable`使unit变为自启动，创建一个软链接`/etc/systemd/system/multi-user.target.wants/xxx.service` 指向`/usr/lib/systemd/system/xxx.service`。
 
 ## Reference
 [Installation guide](https://wiki.archlinux.org/index.php/Installation_guide_%28%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87%29)
