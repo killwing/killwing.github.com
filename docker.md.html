@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html>
-<title>docker</title>
+<title>Docker</title>
 <xmp theme="readable" style="display:none;">
 http://www.docker.com/
 
 ## Install
 ubuntu: `$ wget -qO- https://get.docker.com/ | sh` (`$ wget -qO- https://get.docker.com/gpg | sudo apt-key add -`)
 arch: `pacman -S docker`; `systemctl restart docker`
+查看版本及状态：`docker version/info`
 
 ## Image
 从仓库获取一个镜像：`docker pull [OPTIONS] [Registry/]NAME[:TAG|@DIGEST]`
@@ -16,35 +17,55 @@ TAG默认为`latest`。
 
 列出镜像：`docker images`。
 修改镜像：`docker commit CONTAINER`，基于容器对其镜像作修改，需要指定容器的ID。
-创建镜像：`docker build PATH -t="NAMESPACE/IMAGE-NAME:TAG"`，基于Dockerfile创建镜像。
+创建镜像：`docker build PATH -t="NAMESPACE/IMAGE-NAME:TAG"`，基于Dockerfile创建镜像。`--no-cache=true`禁用cache。
 修改镜像标签：`docker tag`
 保存／载入镜像：`docker save/load` 保存镜像及其元信息到本地文件。
 删除镜像：`docker rmi` 要先删除基于这个镜像的所有容器。
+查看镜像配置：`docker inspect`
 
 ### Dockerfile
 每条指令都创建镜像的一层（都创建了新的容器并commit），不能超过127层。
 `#` 注释
-`FROM` 使用作为基础的镜像
+`FROM` 使用作为基础的镜像，最小镜像`scratch`
 `MAINTAINER` 维护者信息
 `RUN` 创建过程中运行的命令，比如安装软件包
-`ADD` 复制本地文件
-`EXPOSE` 向外部开放端口
-`CMD` 容器启动后运行的程序
+`ADD` 复制文件，可以是本地，URL，压缩包
+`COPY` 复制本地文件
+`EXPOSE` 向外部开放的端口
+`VOLUME` 挂载数据卷
+`ENV` 指定运行时环境变量
+`USER` 运行容器时的用户名或UID
+`CMD` 容器启动后执行的命令
+`WORKDIR` 为其它RUN，CMD，ENTRYPOINT指定工作目录
+`ENTRYPOINT` 容器启动后执行的命令，默认`/bin/sh -c`
+`ONBUILD` 作为其它新建镜像的基础镜像时执行的指令
 
 ## Container
 容器是镜像的运行实例。
 当容器中运行的程序结束时，容器终止。
 
-启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行。
+启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行；`--rm`退出时删除容器, `--name`命名。
 启动已终止的容器：`docker start`
 重启容器：`docker restart`
+终止容器：`docker stop`
+杀死容器：`docker kill`
 查看容器的输出：`docker logs`
 查看容器状态：`docker ps`，`-a`查看包括已终止的所有容器。
-连接到容器：`docker attach`
+查看容器设置：`docker inspect`
+连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
 删除容器：`docker rm`
 
 ## Data Volume
+`docker run -v [PATH:]CONTAINER-PATH[:ATTR]`: 挂载目录给容器共享使用。本地路径默认`/var/lib/docker/volumes/`随机临时目录，属性：`rw`, `ro`
+查看：`docker inspect`下面`Mounts`
+
+`docker run --volumes-from CONTAINER`：挂载其它容器（不需要运行状态）的数据卷。
+
+## Port Mapping
+`docker run -P`：随机映射容器内部端口到49000-49900。
+`docker run -p [IP:]hostPort:containerPort/[IP:]containerPort`：映射指定端口。默认tcp，加上`/udp`指定udp。
+`docker port`：查看端口配置。
 
 </xmp>
 <script src="js/strapdown.js"></script>

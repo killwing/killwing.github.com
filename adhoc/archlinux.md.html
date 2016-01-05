@@ -60,9 +60,10 @@ chroot后设置新系统：`arch-chroot /mnt`
 ## [Systemd](https://wiki.archlinux.org/index.php/Systemd)
 unit可以是`services (.service)`, `mount points (.mount)`, `devices (.device)`, `sockets (.socket)` 不指定后缀一般认为是service。
 unit文件在`/usr/lib/systemd/system/`和`/etc/systemd/system/`下面，`systemctl list-unit-files`查看。
-常用命令：`systemctl start/stop/restart/status/reload/is-enabled/enable/disable/mask/unmask unit`
+常用命令：`systemctl start/stop/restart/status/show/reload/daemon-reload/is-enabled/enable/disable/mask/unmask unit`
 
 `enable`使unit变为自启动，创建一个软链接`/etc/systemd/system/multi-user.target.wants/xxx.service` 指向`/usr/lib/systemd/system/xxx.service`。
+查看log：`journalctl -u unit`
 
 ## Reference
 [Installation guide](https://wiki.archlinux.org/index.php/Installation_guide_%28%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87%29)
