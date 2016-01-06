@@ -871,6 +871,81 @@ for i := 0; i < s.NumField(); i++ {
 * `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
 * 未导出的结构体的字段将不会被（json、xml、gob等）编码。
 
+## [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
+用`CGO_ENABLED`环境变量启用／禁用。
+
+### preamble
+preamble以注释的形式在`import "C"`前面，会在编译这个包的时候一起编译。
+
+* 直接代码。
+* `#include`: 包含头文件，可以以`C.xxx`的方式使用里面的类型，函数，变量等（不论大小写，但静态变量不可引用）。（实现文件如果在包内目录会一起参与编译）
+* `#cgo`: 传递CFLAGS, CPPFLAGS, CXXFLAGS和LDFLAG编译参数(`CGO_XXX`)给编译器。也可以用`#cgo pkg-config`指定CPPFLAGS和LDFLAGS参数。`${SRCDIR}`会被扩展成包源文件所在目录。
+
+
+```
+// #cgo CFLAGS: -DPNG_DEBUG=1
+// #cgo amd64 386 CFLAGS: -DX86=1
+// #cgo LDFLAGS: -lpng
+// #cgo pkg-config: png cairo
+// #cgo LDFLAGS: -L${SRCDIR}/libs -lfoo
+// #include <stdlib.h>
+import "C"
+
+func Random() int {
+    return int(C.random())
+}
+
+func Seed(i int) {
+    C.srandom(C.uint(i))
+}
+```
+
+### C->Go
+所有C/C++类型对应在Go里都是非导出的。
+不能在Go里直接调用C函数指针。但可以存在变量里传递。
+
+类型
+
+Go|C/C++
+-|-
+`C.char, C.uint, etc.`|`char, unsigned int, etc.`
+`C.size_t`|`size_t`
+`unsafe.Pointer`|`void*`
+`x._type` (reserved keyword)|`x.type`
+`C.sturct_S`|`struct S`
+`C.enum_E`|`enum E`
+`C.union_U`|`union U`
+`n, err := C.sqrt(-1)`|`n = sqrt(-1); err = errno`
+`C.f(&C.x[0])` (array arg)|`f(x)`
+`nil`|`NULL`
+
+一些转string换函数(复制数据)，注意使用完调用`C.free(unsafe.Pointer(p))`(stdlib.h)释放内存。
+```
+// Go string to C string
+func C.CString(string) *C.char
+
+// C string to Go string
+func C.GoString(*C.char) string
+
+// C string, length to Go string
+func C.GoStringN(*C.char, C.int) string
+
+// C pointer, length to Go []byte
+func C.GoBytes(unsafe.Pointer, C.int) []byte
+```
+
+### Go->C
+使用`export`导出函数。
+
+```
+// export MyFunction
+func MyFunction(arg1, arg2 int, arg3 string) int64 {...}
+```
+-> 在`_cgo_export.h`头文件中：
+```
+extern int64 MyFunction(int arg1, int arg2, GoString arg3);
+```
+
 ## Reference
 https://golang.org/ref/spec
 http://godoc.org/
