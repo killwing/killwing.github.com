@@ -52,12 +52,13 @@ TAG默认为`latest`。
 查看容器的输出：`docker logs`
 查看容器状态：`docker ps`，`-a`查看包括已终止的所有容器。
 查看容器设置：`docker inspect`
+查看容器进程：`docker top`
 连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
 删除容器：`docker rm`
 
 ## Data Volume
-`docker run -v [PATH:]CONTAINER-PATH[:ATTR]`: 挂载目录给容器共享使用。本地路径默认`/var/lib/docker/volumes/`随机临时目录，属性：`rw`, `ro`
+`docker run -v [PATH/NAME:]CONTAINER-PATH[:ATTR]`: 挂载目录给容器共享使用。本地路径PATH默认`/var/lib/docker/volumes/`随机临时目录（或由NAME指定），属性：`rw`, `ro`
 查看：`docker inspect`下面`Mounts`
 
 `docker run --volumes-from CONTAINER`：挂载其它容器（不需要运行状态）的数据卷。
@@ -66,6 +67,11 @@ TAG默认为`latest`。
 `docker run -P`：随机映射容器内部端口到49000-49900。
 `docker run -p [IP:]hostPort:containerPort/[IP:]containerPort`：映射指定端口。默认tcp，加上`/udp`指定udp。
 `docker port`：查看端口配置。
+
+## Network
+列出所有网络: `docker network ls`
+查看网络：`docker network inspect NAME`
+从网络中移除容器：`docker network disconnect NAME CONTAINER`
 
 </xmp>
 <script src="js/strapdown.js"></script>
