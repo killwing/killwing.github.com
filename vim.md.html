@@ -427,7 +427,7 @@ retab                                                     |把缩进中连续的
 nohls/nohlsearch                                          |去掉当前的高亮显示
 behave xterm/mswin                                        |设置鼠标行为标准
 helptags ~/.vim/doc                                       |生成一个本地化的的tags文件,自动被添加到local-additions小节
-{range}s/substitute/from/to/{flag}                        |替换(可用re)，{flag}=g(一行中所有),p(列印),c(确认),e(没找到也不提示),i(忽略大小写),i(不忽略),可用其他字符代替分隔符'/',默认{range}为本行,normal下"&"重复上次替换,\=计算表达式，e.g: `:%s/:: \(.*\)$/\=substitute(':'.system('echo '.submatch(1)),'\n','','g')/`
+{range}s/substitute/from/to/{flag}                        |替换(可用re)，{flag}=g(一行中所有),p(列印),c(确认),e(没找到也不提示),i(忽略大小写),I(不忽略),可用其他字符代替分隔符'/',默认{range}为本行,normal下"&"重复上次替换,\=计算表达式，e.g: `:%s/:: \(.*\)$/\=substitute(':'.system('echo '.submatch(1)),'\n','','g')/`
 {range}g/global/{pattern}/{cmd}                           |全局命令，默认{range}所有行，{cmd}可以是命令行命令也可以前面加上"norm"表示正常模式命令序列
 {range}v/{pattern}/{cmd}                                  |非{pattern}的全局命令，默认{range}所有行
 {range}move/m {address}                                   |把{range}移到{address}处

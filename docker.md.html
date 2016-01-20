@@ -22,9 +22,11 @@ TAG默认为`latest`。
 保存／载入镜像：`docker save/load` 保存镜像及其元信息到本地文件。
 删除镜像：`docker rmi` 要先删除基于这个镜像的所有容器。
 查看镜像配置：`docker inspect`
+查看镜像的层级：`docker history`
 
 ### Dockerfile
-每条指令都创建镜像的一层（都创建了新的容器并commit），不能超过127层。
+每条指令都创建镜像的一层（都创建了新的容器并commit），不能超过127层。不同的镜像可以共享相同UUID的层级，容器运行时也可以共享镜像中只读的层级。
+能写成一条指令就不要写成多条指令，用`\`多行分隔，以减少镜像的层级。
 `#` 注释
 `FROM` 使用作为基础的镜像，最小镜像`scratch`
 `MAINTAINER` 维护者信息
@@ -39,12 +41,13 @@ TAG默认为`latest`。
 `WORKDIR` 为其它RUN，CMD，ENTRYPOINT指定工作目录
 `ENTRYPOINT` 容器启动后执行的命令，默认`/bin/sh -c`
 `ONBUILD` 作为其它新建镜像的基础镜像时执行的指令
+`LABEL` 以`[<namespace>.]<key>[=<value>]`的形式作为元信息保存
 
 ## Container
-容器是镜像的运行实例。
+容器是镜像的运行实例。容器在镜像最上层创建自己的读写层，当容器被删除时，这层也被丢弃。
 当容器中运行的程序结束时，容器终止。
 
-启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行；`--rm`退出时删除容器, `--name`命名。
+启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行；`--rm`退出时删除容器, `--name`命名，`--net`指定网络。
 启动已终止的容器：`docker start`
 重启容器：`docker restart`
 终止容器：`docker stop`
@@ -56,6 +59,7 @@ TAG默认为`latest`。
 连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
 删除容器：`docker rm`
+在容器中执行命令：`docker exec`
 
 ## Data Volume
 `docker run -v [PATH/NAME:]CONTAINER-PATH[:ATTR]`: 挂载目录给容器共享使用。本地路径PATH默认`/var/lib/docker/volumes/`随机临时目录（或由NAME指定），属性：`rw`, `ro`
@@ -71,7 +75,14 @@ TAG默认为`latest`。
 ## Network
 列出所有网络: `docker network ls`
 查看网络：`docker network inspect NAME`
-从网络中移除容器：`docker network disconnect NAME CONTAINER`
+从网络中加入/移除容器：`docker network connect/disconnect NAME CONTAINER`
+创建网络：`docker network create NAME` `--driver`指定驱动类型
+删除网络：`docker network rm`
+
+在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，那么会更新网络中所有容器的hosts文件，就可以直接通过主机名访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
+如果一个容器连接到两个不同的网络，就有两个网卡并绑定两个网段的IP地址。当容器停止时就从其网络中脱离。
+一个容器可以通过iptables伪装(`iptables -t nat -L -n`)访问外部网络，但外部网络不能访问容器。如果需要访问则需通过端口映射。
+容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
 
 </xmp>
 <script src="js/strapdown.js"></script>
