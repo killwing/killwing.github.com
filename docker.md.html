@@ -79,10 +79,15 @@ TAG默认为`latest`。
 创建网络：`docker network create NAME` `--driver`指定驱动类型
 删除网络：`docker network rm`
 
+默认bridge设备名字`docker0`，每创建一个连接到上面的容器对应host上的网络接口`vethXXX`(`brctl show`)。
 在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，那么会更新网络中所有容器的hosts文件，就可以直接通过主机名访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
 如果一个容器连接到两个不同的网络，就有两个网卡并绑定两个网段的IP地址。当容器停止时就从其网络中脱离。
 一个容器可以通过iptables伪装(`iptables -t nat -L -n`)访问外部网络，但外部网络不能访问容器。如果需要访问则需通过端口映射。
 容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
+
+## Reference
+[docker jumpstart](http://odewahn.github.io/docker-jumpstart)
+[docker practice](https://www.gitbook.io/book/yeasy/docker_practice)
 
 </xmp>
 <script src="js/strapdown.js"></script>

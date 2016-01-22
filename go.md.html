@@ -823,6 +823,13 @@ func TestMain(m *testing.M) {
 
 ## [CodingStyle](http://blog.golang.org/go-fmt-your-code) ([cmd](http://golang.org/cmd/gofmt/))
 
+## Build Constraints([pkg](https://golang.org/pkg/go/build/))
+又称build tag或条件编译。在`go run/build/test`的时候以`-tags`指定。
+指令：在源文件（不一定是go文件）中以`// +build`表示，必须在package之前并以空行隔开。
+条件：`空格：或`，`逗号：与`，`!：非`，多行表示“与”。比如`// +build linux,386 darwin,!cgo`表示`(linux OR darwin) AND 386`
+特殊的tag：操作系统`runtime.GOOS`，架构`runtime.GOARCH`，编译器`gc`/`gccgo`，`cgo`，版本`go1.x`，忽略`ignore`。
+操作系统和架构也可以以文件名的形式说明：`*_GOOS`, `*_GOARCH`, `*_GOOS_GOARCH`，如`source_windows_amd64.go`
+
 ## [Packages](https://golang.org/pkg/)
 ### net/http
 * 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。
