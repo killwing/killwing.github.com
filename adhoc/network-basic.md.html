@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<title>Network Basic</title>
+<xmp theme="united" style="display:none;">
+|协议数据单元（PDU）|层次|标识|设备|
+|-|-|-|-|
+|数据（Data）|应用层|||
+|段（Segment）|传输层|端口||
+|包（Packet）|网络层|IP地址|路由器|
+|帧（Frame）|数据链路层|MAC地址|交换机|
+|比特（Bits）|物理层||集线器|
+
+如果目标(IP)地址和自己不在一个网络，则发往默认网关。
+如果在同一网络，则必须知道对方的物理地址才能发送报文，接收方网卡根据报文中的目标物理地址匹配接收。
+从域名到IP地址，使用DNS解析。从IP地址到MAC地址，使用ARP协议。
+ARP：ARP请求（二层广播），只有符合请求中IP地址的设备才会响应，并在响应中包含自己的MAC地址。
+
+物理设备：
+集线器（Hub）：共享式，每个端口接收到的数据都转发给其他所有的端口。
+交换机（Switch）：也叫交换式集线器，主要对终端设备进行接入。它维护一张动态更新的MAC地址表（MAC－物理端口），根据表中信息转发数据，如果表中找不到则发往其它所有端口(flooding，仅限同一广播域内)。隔离冲突域（每个端口都是一个独立的冲突域），所有端口共享一个广播（二层）域（没有配置VLAN的情况下）。
+路由器（Router）：主要进行IP路由，在网络间转发数据。也可以隔离冲突域和广播域。
+
+二层广播：目标地址FF-FF-FF-FF-FF-FF，交换机转发给所有端口。
+三层广播：目标地址255.255.255.255，三层广播也必是二层广播。
+
+VLAN: 虚拟局域网，同一个网段，同属一个广播域，不同VLAN互相隔离，通信必须通过路由器。
+比如同一个VLAN的终端可以分别在两个连通的交换机下，可以互相访问，同属一个广播域。而一个交换机下的两个VLAN，不能互相访问，属于不同的广播域。
+
+IPv4地址
+
+网络|第一字节|缺省掩码|私有地址
+-|-|-|-
+A类|0～127|255.0.0.0|10.0.0.0～10.255.255.255
+B类|128～191|255.255.0.0|172.16.0.0～172.131.255.255
+C类|192～223|255.255.255.0|192.168.0.0～192.168.255.255
+IP地址 & 网络掩码 ＝ 网络ID
+主机段全0表示网络地址，全1表示广播地址。
+A类0表示所有地址，127表示回环地址，都是保留地址，不进行任何网络传输。
+D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有地址（224.0.0.0-224.0.0.255）用于协议组广播，组播地址（224.0.1.0-238.255.255.255）以及私有地址（239.0.0.0-239.255.255.255）。
+
+## Commands
+ip, ifconfig, arp, route, tcpdump, iptables, ping, netstat
+
+## [iptables](https://wiki.archlinux.org/index.php/iptables)
+命令：`iptables [-t table] command chain [rule-num] rule-spec -j target`
+
+chains: 规则链
+
+* PREROUTING (路由前)
+* INPUT (数据包入口)
+* FORWARD (转发管道)
+* OUTPUT(数据包出口)
+* POSTROUTING（路由后）
+
+```
+                               XXXXXXXXXXXXXXXXXX
+                             XXX     Network    XXX
+                               XXXXXXXXXXXXXXXXXX
+                                       +
+                                       |
+                                       v
+ +-------------+              +------------------+
+ |table: filter| <---+        | table: nat       |
+ |chain: INPUT |     |        | chain: PREROUTING|
+ +-----+-------+     |        +--------+---------+
+       |             |                 |
+       v             |                 v
+ [local process]     |           ****************          +--------------+
+       |             +---------+ Routing decision +------> |table: filter |
+       v                         ****************          |chain: FORWARD|
+****************                                           +------+-------+
+Routing decision                                                  |
+****************                                                  |
+       |                                                          |
+       v                        ****************                  |
++-------------+       +------>  Routing decision  <---------------+
+|table: nat   |       |         ****************
+|chain: OUTPUT|       |               +
++-----+-------+       |               |
+      |               |               v
+      v               |      +-------------------+
++--------------+      |      | table: nat        |
+|table: filter | +----+      | chain: POSTROUTING|
+|chain: OUTPUT |             +--------+----------+
++--------------+                      |
+                                      v
+                               XXXXXXXXXXXXXXXXXX
+                             XXX    Network     XXX
+                               XXXXXXXXXXXXXXXXXX
+```
+
+tables:
+
+* filter: 规定允许还是不允许（默认），应用于INPUT/FORWARD/OUTPUT
+* nat: 定义地址转换，应用于PREROUTING/OUTPUT/POSTROUTING
+* mangle: 修改报文数据，五个链都可以
+
+commands:
+
+* A: append, 增加规则
+* C: check, 检查规则存不存在
+* D: delete, 删除规则
+* R: replace, 替换规则
+* I: insert, 插入规则
+* L: list, 列出规则或链
+* S: 打印规则或链的命令列表
+* F: flush, 清空规则或链
+* P: policy, 设置链的默认策略（不符合条件时）
+* Z: 重置链中默认规则的命中计数器
+* N: new, 新建自定义链
+* X: 删除自定义链
+* E: 重命名自定义链
+
+targets:
+
+* DROP: 丢弃
+* REJECT: 拒绝
+* ACCEPT: 接受
+* DNAT
+* SNAT
+* MASQUERADE：源地址伪装
+* REDIRECT：端口重定向
+* MARK: 打标记
+* RETURN: 返回原规则链
+* chain-name: 转向自定义链
+
+rule-specs:
+
+* s: source, 源地址，IP[/MASK] 可以加上`!`取反
+* d: dest, 目标地址
+* p: protocol, 协议，TCP/UDP/ICMP
+    * sport: 源端口
+    * dport: 目标端口
+    * tcp-flag: tcp标识位
+    * icmp-type: icmp消息类型
+* i: 流入的网络接口，用于INPUT/PREROUTING
+* o: 流出的网络接口，用于OUTPUT/POSTROUTING
+* m: match扩展，[用于FORWARD](https://www.digitalocean.com/community/tutorials/how-to-forward-ports-through-a-linux-gateway-with-iptables)
+    * state: --state NEW/ESTABLISHED/RELATED/INVALID
+    * conntrack: --ctstate NEW/ESTABLISHED/RELATED/INVALID
+
+SNAT(源地址的转换)/MASQUERADE(伪装)
+把内网某个网段的地址在经过时转为外网地址（源端口不变，若有数据发回时从外网地址映射回内网地址UN-SNAT）：
+`iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j SNAT --to-source 142.10.0.1`
+如果外网地址不固定，使用MASQUERADE可以自动从网卡获取外网地址：
+`iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE`
+
+DNAT(目标地址转换)
+访问外网IP时转向内网主机（有数据返回时，从内网地址映射回外网地址UN-DNAT）：
+`iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

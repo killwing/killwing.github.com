@@ -60,10 +60,19 @@ chroot后设置新系统：`arch-chroot /mnt`
 ## [Systemd](https://wiki.archlinux.org/index.php/Systemd)
 unit可以是`services (.service)`, `mount points (.mount)`, `devices (.device)`, `sockets (.socket)` 不指定后缀一般认为是service。
 unit文件在`/usr/lib/systemd/system/`和`/etc/systemd/system/`下面，`systemctl list-unit-files`查看。
-常用命令：`systemctl start/stop/restart/status/show/reload/daemon-reload/is-enabled/enable/disable/mask/unmask unit`
+常用命令：`systemctl start/stop/restart/status/show/reload/daemon-reload/is-enabled/enable/reenable/disable/mask/unmask unit`
 
 `enable`使unit变为自启动，创建一个软链接`/etc/systemd/system/multi-user.target.wants/xxx.service` 指向`/usr/lib/systemd/system/xxx.service`。
 查看log：`journalctl -u unit`
+
+`systemctl edit unit`可以创建一个文件`/etc/systemd/system/unit.d/override.conf`(drop in files)用来自定义unit的启动参数。
+`systemctl edit --full unit`创建`/etc/systemd/system/unit`用来完全覆盖原来的`/usr/lib/systemd/system/unit`文件。
+记得restart/reenable，用edit命令会自动daemon-reload配置。
+
+## [动态扩展分区](http://askubuntu.com/questions/24027/how-can-i-resize-an-ext-root-partition-at-runtime)
+1. 删除原来分区并建立新的分区（fdisk: p,dp,np,w），最好保存之前用`a`命令设置启动标志。
+1. `partprobe /dev/sda`重新载入分区（安装包：parted）
+1. `resize2fs /dev/sda1`调整大小
 
 ## Reference
 [Installation guide](https://wiki.archlinux.org/index.php/Installation_guide_%28%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87%29)

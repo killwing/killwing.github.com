@@ -4,12 +4,15 @@
 <xmp theme="readable" style="display:none;">
 http://www.docker.com/
 
-## Install
+## Engine
+### Install
 ubuntu: `$ wget -qO- https://get.docker.com/ | sh` (`$ wget -qO- https://get.docker.com/gpg | sudo apt-key add -`)
-arch: `pacman -S docker`; `systemctl restart docker`
+arch: `pacman -S docker`; `systemctl enable/restart docker`
 查看版本及状态：`docker version/info`
 
-## Image
+[daemon启动参数设置](https://docs.docker.com/engine/admin/systemd/)：`systemctl edit docker`
+
+### Image
 从仓库获取一个镜像：`docker pull [OPTIONS] [Registry/]NAME[:TAG|@DIGEST]`
 默认使用官方Registry: registry.hub.docker.com，国内的有：dl.dockerpool.com:5000
 TAG默认为`latest`。
@@ -24,7 +27,7 @@ TAG默认为`latest`。
 查看镜像配置：`docker inspect`
 查看镜像的层级：`docker history`
 
-### Dockerfile
+#### Dockerfile
 每条指令都创建镜像的一层（都创建了新的容器并commit），不能超过127层。不同的镜像可以共享相同UUID的层级，容器运行时也可以共享镜像中只读的层级。
 能写成一条指令就不要写成多条指令，用`\`多行分隔，以减少镜像的层级。
 `#` 注释
@@ -43,7 +46,7 @@ TAG默认为`latest`。
 `ONBUILD` 作为其它新建镜像的基础镜像时执行的指令
 `LABEL` 以`[<namespace>.]<key>[=<value>]`的形式作为元信息保存
 
-## Container
+### Container
 容器是镜像的运行实例。容器在镜像最上层创建自己的读写层，当容器被删除时，这层也被丢弃。
 当容器中运行的程序结束时，容器终止。
 
@@ -53,26 +56,27 @@ TAG默认为`latest`。
 终止容器：`docker stop`
 杀死容器：`docker kill`
 查看容器的输出：`docker logs`
-查看容器状态：`docker ps`，`-a`查看包括已终止的所有容器。
+查看容器状态：`docker ps`，`-a`查看包括已终止的所有容器; `-q`仅列出id。
 查看容器设置：`docker inspect`
 查看容器进程：`docker top`
+在运行的容器中执行命令：`docker exec`
 连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
-删除容器：`docker rm`
+删除容器：`docker rm`，加上`-v`同时删除数据卷；`-f`停止并删除。
 在容器中执行命令：`docker exec`
 
-## Data Volume
+### Data Volume
 `docker run -v [PATH/NAME:]CONTAINER-PATH[:ATTR]`: 挂载目录给容器共享使用。本地路径PATH默认`/var/lib/docker/volumes/`随机临时目录（或由NAME指定），属性：`rw`, `ro`
 查看：`docker inspect`下面`Mounts`
 
 `docker run --volumes-from CONTAINER`：挂载其它容器（不需要运行状态）的数据卷。
 
-## Port Mapping
+### Port Mapping
 `docker run -P`：随机映射容器内部端口到49000-49900。
 `docker run -p [IP:]hostPort:containerPort/[IP:]containerPort`：映射指定端口。默认tcp，加上`/udp`指定udp。
 `docker port`：查看端口配置。
 
-## Network
+### Network
 列出所有网络: `docker network ls`
 查看网络：`docker network inspect NAME`
 从网络中加入/移除容器：`docker network connect/disconnect NAME CONTAINER`
@@ -82,8 +86,83 @@ TAG默认为`latest`。
 默认bridge设备名字`docker0`，每创建一个连接到上面的容器对应host上的网络接口`vethXXX`(`brctl show`)。
 在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，那么会更新网络中所有容器的hosts文件，就可以直接通过主机名访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
 如果一个容器连接到两个不同的网络，就有两个网卡并绑定两个网段的IP地址。当容器停止时就从其网络中脱离。
-一个容器可以通过iptables伪装(`iptables -t nat -L -n`)访问外部网络，但外部网络不能访问容器。如果需要访问则需通过端口映射。
 容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
+
+#### Access Control
+容器通过iptables进行访问控制，daemon启动时可以用`--iptables`控制是否修改iptable，用`--icc`设置默认允许还是禁止。
+用`iptables [-t nat] -nvL`查看现有规则，用`iptables [-t nat] -S`查看docker加入规则的命令。
+容器和外网的通信：
+
+* `net.ipv4.conf.all.forwarding`是否打开
+* iptables的FORWOARD(DOCKER chain)规则是否允许
+* 容器访问外部：SNAT/MASQUERADE，外部访问容器：DNAT
+
+容器间的通信：
+
+* 网络拓扑是否连通
+* iptables的FORWOARD规则是否允许
+
+## Swarm
+### Install
+`docker pull swarm`
+
+### Cluster & Discovery
+#### DockerHub（不建议生产环境使用）
+
+1. 创建token（任意host）：`docker run --rm swarm create`
+1. 加入集群（每台host）：`docker run -d swarm join --addr=ip_address:2375 token://token_id`
+1. 启动manager（管理host）：`docker run -d -P swarm manage token://token_id`
+
+如果由于虚拟机clone导致ID冲突，需删除`/etc/docker/key.json`然后重启daemon。
+管理命令（任意host）：`docker run --rm swarm list token://token_id`
+在集群中执行（任意host）：`docker -H manager_ip:port command`，manger地址也可以用环境变量`DOCKER_HOST`，此时命令都在集群环境中执行，比如`info`可以看到集群信息，从`ps`的NAMES可以看到容器运行在哪个node下面。
+
+#### 文件或列表
+集群host不需要join。
+list: `docker run -d -P swarm manage nodes://<node_ip1:2375>,<node_ip2:2375>`
+file: `docker run -d -P -v $(pwd)/cluster:/tmp/cluster swarm manage file:///tmp/cluster` 文件里nodes以行分割
+
+#### KV Store (etcd/consul/zookeeper)
+加入集群：`swarm join --addr=<node_ip:2375> etcd://<etcd_addr1>,<etcd_addr2>/<optional path prefix>`
+启动manager：`swarm manage etcd://<etcd_addr1>,<etcd_addr2>/<optional path prefix>`
+
+### Strategies
+`swarm manage --strategy`, spread/binpack也考虑CPU/MEM因素。
+
+* spread（默认）: 尽可能选择container的数目最少（不管状态如何）的那个node来运行container。
+* binpack: 尽可能把所有容器放在一台node上面运行。
+* random: 随机。
+
+### Filters
+`swarm manage --filter`
+
+#### node filter
+
+* constraint: 指定node运行容器的node条件
+    * lable过滤：`-e constraint:name==node1`，label可以在daemon运行时指定：`--label name=node1`
+    * 默认tags(docker info查看)过滤：`node(ID或Name)/storagedriver/executiondriver/kernelversion/operatingsystem`
+    * 在`docker build`的时候也可以指定（运行时自动应用）：`--build-arg=constraint:storage==disk`。
+* health: 只在`Status: Healthy`的node上运行。
+
+#### container filter (不考虑容器状态)
+
+* affinity: 在指定容器同一node上运行
+    * ID/Name过滤：`-e affinity:container==container_name/id`
+    * 镜像过滤：在具有指定镜像的node上运行，`-e affinity:image=image_name/id`；
+    * 容器label过滤：`-e affinity:name=node1`，lable在容器运行时指定。
+* dependency：根据容器依赖关系在同一node上运行
+    * --volumes-from=container_name (shared volumes)
+    * --link=container_name:alias (links)
+    * --net=container:container_name (shared network stacks)
+* port: 在一个node上如果一个指定的port已经被占用（即使已经stop），就选择另一个node。
+
+#### filter expressions
+`<filter-type>:<key><operator><value>`
+
+* filter-type: affinity/constraint
+* key: container/node/default tags/label
+* operator: `==`/`!=`
+* value: 可以用通配符和正则表达式[/regexp/](https://github.com/google/re2/wiki/Syntax)，value前面加上`~`，则是不严格匹配，找不到符合条件的node就按照strategy来。
 
 ## Reference
 [docker jumpstart](http://odewahn.github.io/docker-jumpstart)
