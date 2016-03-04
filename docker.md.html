@@ -2,7 +2,7 @@
 <html>
 <title>Docker</title>
 <xmp theme="readable" style="display:none;">
-http://www.docker.com/
+http://www.docker.com | v1.10
 
 ## Engine
 ### Install
@@ -23,11 +23,11 @@ TAG默认为`latest`。
 创建镜像：`docker build PATH -t="NAMESPACE/IMAGE-NAME:TAG"`，基于Dockerfile创建镜像。`--no-cache=true`禁用cache。
 修改镜像标签：`docker tag`
 保存／载入镜像：`docker save/load` 保存镜像及其元信息到本地文件。
-删除镜像：`docker rmi` 要先删除基于这个镜像的所有容器。
+删除镜像：`docker rmi` 要先删除基于这个镜像的所有容器。删除untagged镜像：`docker rmi $(docker images | grep "^<none>" | awk '{print $3}')`
 查看镜像配置：`docker inspect`
 查看镜像的层级：`docker history`
 
-#### Dockerfile
+#### [Dockerfile](https://docs.docker.com/engine/reference/builder/)
 每条指令都创建镜像的一层（都创建了新的容器并commit），不能超过127层。不同的镜像可以共享相同UUID的层级，容器运行时也可以共享镜像中只读的层级。
 能写成一条指令就不要写成多条指令，用`\`多行分隔，以减少镜像的层级。
 `#` 注释
@@ -62,7 +62,7 @@ TAG默认为`latest`。
 在运行的容器中执行命令：`docker exec`
 连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
-删除容器：`docker rm`，加上`-v`同时删除数据卷；`-f`停止并删除。
+删除容器：`docker rm`，加上`-v`同时删除数据卷；`-f`停止并删除。删除所有容器：`docker rm $(docker ps -qa)`
 在容器中执行命令：`docker exec`
 
 ### Data Volume
@@ -84,7 +84,7 @@ TAG默认为`latest`。
 删除网络：`docker network rm`
 
 默认bridge设备名字`docker0`，每创建一个连接到上面的容器对应host上的网络接口`vethXXX`(`brctl show`)。
-在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，那么会更新网络中所有容器的hosts文件，就可以直接通过主机名访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
+在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，通过daemon运行的内置的DNS服务器`127.0.0.11`，就能以容器的`name`或`net-alias`访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
 如果一个容器连接到两个不同的网络，就有两个网卡并绑定两个网段的IP地址。当容器停止时就从其网络中脱离。
 容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
 
@@ -163,6 +163,38 @@ file: `docker run -d -P -v $(pwd)/cluster:/tmp/cluster swarm manage file:///tmp/
 * key: container/node/default tags/label
 * operator: `==`/`!=`
 * value: 可以用通配符和正则表达式[/regexp/](https://github.com/google/re2/wiki/Syntax)，value前面加上`~`，则是不严格匹配，找不到符合条件的node就按照strategy来。
+
+## Machine
+### Install
+``curl -L https://github.com/docker/machine/releases/download/v0.6.0/docker-machine-`uname -s`-`uname -m` > /usr/local/bin/docker-machine && chmod +x /usr/local/bin/docker-machine``
+
+### Provision
+使用虚拟机：`docker-machine create --driver virtualbox default` (用装有docker的镜像[boot2docker](https://github.com/boot2docker/boot2docker)创建一个虚拟机)
+使用已有host：`docker-machine create --driver generic --generic-ip-address=192.168.0.1 --generic-ssh-user=root default`
+使用已有装好docker的host：`docker-machine create --url=tcp://50.134.234.20:2376 custombox`
+还可以使用其它云服务：[支持驱动列表](https://docs.docker.com/machine/drivers/)
+使用swarm: [provision with machine](ttps://docs.docker.com/swarm/provision-with-machine/)
+
+设置运行环境： `eval "$(docker-machine env default)"` （使用default作为名字，在`docker-machine`命令中可以省略）
+
+## Compose
+### Install
+``curl -L https://github.com/docker/compose/releases/download/1.6.2/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose``
+
+### Project
+一个project（默认目录名）包含一组服务，每个服务就是一个应用容器，可以运行多个实例。实际运行容器的名字：`project_service_#`，并以`service`为`net-alias`
+
+使用`docker-compose build`根据`docker-compose.yml`构建整个project。
+[yaml配置](https://docs.docker.com/compose/compose-file)：至少包含`build`或`image`指定构建镜像，其它指定服务的运行参数，和`docker run`的参数类似。
+
+创建（删除）相关服务：`docker-compose create/rm`
+运行（停止）相关服务：`docker-compose start/stop`
+启动（卸载）整个project：`docker-compose up` = build + create + start / `docker-compose down` = stop + rm
+
+运行一个服务并执行命令：`docker-compose run`，也会运行相关服务除非加上`--no-deps`。
+扩展（或收缩）服务的容器实例：`docker-compose scale SERVICE=NUM`
+
+
 
 ## Reference
 [docker jumpstart](http://odewahn.github.io/docker-jumpstart)
