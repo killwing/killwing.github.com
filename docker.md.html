@@ -182,17 +182,32 @@ file: `docker run -d -P -v $(pwd)/cluster:/tmp/cluster swarm manage file:///tmp/
 ``curl -L https://github.com/docker/compose/releases/download/1.6.2/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose``
 
 ### Project
-一个project（默认目录名）包含一组服务，每个服务就是一个应用容器，可以运行多个实例。实际运行容器的名字：`project_service_#`，并以`service`为`net-alias`
+一个project（默认目录名）包含一组服务，每个服务就是一个应用容器，可以运行多个实例。
+实际运行容器的名字：`project_service_#`，并以`service`为`net-alias`，创建并使用`project_default`网络。
 
 使用`docker-compose build`根据`docker-compose.yml`构建整个project。
-[yaml配置](https://docs.docker.com/compose/compose-file)：至少包含`build`或`image`指定构建镜像，其它指定服务的运行参数，和`docker run`的参数类似。
-
 创建（删除）相关服务：`docker-compose create/rm`
 运行（停止）相关服务：`docker-compose start/stop`
 启动（卸载）整个project：`docker-compose up` = build + create + start / `docker-compose down` = stop + rm
 
 运行一个服务并执行命令：`docker-compose run`，也会运行相关服务除非加上`--no-deps`。
 扩展（或收缩）服务的容器实例：`docker-compose scale SERVICE=NUM`
+
+### [Compose File](https://docs.docker.com/compose/compose-file) v2
+`docker-compose.yml`是yaml配置文件：至少包含`build`或`image`指定构建镜像，其它指定服务的运行参数，和`docker run`的参数类似。
+`docker-compose.override.yml`可以覆盖默认配置文件里的相应值，如果是其它名字或多个覆盖文件则需要用`-f`参数一起加入进来并按加入的指定顺序覆盖（单值覆盖，多值合并覆盖）。
+
+继承(extends)：
+```
+web:
+  extends:
+    file: common-services.yml
+    service: webapp
+
+important_web:
+  extends: web
+  cpu_shares: 10
+```
 
 
 
