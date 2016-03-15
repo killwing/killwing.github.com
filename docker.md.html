@@ -50,6 +50,7 @@ TAG默认为`latest`。
 容器是镜像的运行实例。容器在镜像最上层创建自己的读写层，当容器被删除时，这层也被丢弃。
 当容器中运行的程序结束时，容器终止。
 
+创建容器：`docker create`
 启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行；`--rm`退出时删除容器, `--name`命名，`--net`指定网络。
 启动已终止的容器：`docker start`
 重启容器：`docker restart`
@@ -83,9 +84,22 @@ TAG默认为`latest`。
 创建网络：`docker network create NAME` `--driver`指定驱动类型
 删除网络：`docker network rm`
 
-默认bridge设备名字`docker0`，每创建一个连接到上面的容器对应host上的网络接口`vethXXX`(`brctl show`)。
-在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，通过daemon运行的内置的DNS服务器`127.0.0.11`，就能以容器的`name`或`net-alias`访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。（host网络指直接使用本机网络。）
+#### Host
+直接使用host网络。
+
+#### Bridge
+默认虚拟网桥(bridge)设备名字`docker0`（新建`br-xxx`），每创建一个连接到上面的容器`eth0`连接到host上的网络接口`vethXXX`(`brctl show`)。
+在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，通过daemon运行的内置的DNS服务器`127.0.0.11`，就能以容器的`name`或`net-alias`访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
 如果一个容器连接到两个不同的网络，就有两个网卡并绑定两个网段的IP地址。当容器停止时就从其网络中脱离。
+
+#### Overlay
+加入overlay网络的host daemon启动时必须指定kv store：`--cluster-store=etcd://addr:8500`和`--cluster-advertise=eth0:2375`，指定选项`--cluster-store-opt`
+可以在任意一台连到store的host上创建：`docker network create --driver overlay --subnet=10.0.9.0/24 my-net` 指定子网避免和现有网络冲突。
+当有一个容器连接到overlay网络时，会在其host上自动创建一个`docker_gwbridge`网桥（即使有多个overlay网络，也只会有一个这个网桥，但每个host都是独立的），并且容器的第一个网络接口`eth0`连接到overlay网络，第二个接口`eth1`连接到这个网桥。这样外部网络可以通过这个网桥连通进来。
+
+overlay网络使用vxlan技术，端口：数据udp4789，控制tcp/udp7946。
+
+#### DNS
 容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
 
 #### Access Control
@@ -101,6 +115,29 @@ TAG默认为`latest`。
 
 * 网络拓扑是否连通
 * iptables的FORWOARD规则是否允许
+
+### TLS
+docker engine普通/TLS端口：2375/2376
+swarm manager普通/TLS端口：3375/3376
+
+#### CA
+创建私钥：`openssl genrsa -out ca-priv-key.pem 2048` 查看：`openssl rsa -in ca-priv-key.pem -noout -text`
+创建公钥：`openssl req -config /usr/lib/ssl/openssl.cnf -new -key ca-priv-key.pem -x509 -days 1825 -out ca.pem` 查看：`openssl x509 -in ca.pem -noout -text`
+
+#### Node
+创建私钥：`openssl genrsa -out key.pem 2048`
+创建CSR(Certificate Signing Request)：`openssl req -subj "/CN=node" -new -key key.pem -out node.csr`
+签发证书（将node的公钥由CA的私钥加密，防止篡改）：`openssl x509 -req -days 1825 -in node.csr -CA ca.pem -CAkey ca-priv-key.pem -CAcreateserial -out cert.pem -extensions v3_req -extfile /usr/lib/ssl/openssl.cnf`
+
+#### Install
+安装目录：`~/.certs`
+安装文件：CA的公钥`ca.pem`，node的私钥`key.pem`及证书`cert.pem`。
+
+#### Config
+engine: 加入daemon选项` -H tcp://0.0.0.0:2376 --tlsverify --tlscacert=/home/ubuntu/.certs/ca.pem --tlscert=/home/ubuntu/.certs/cert.pem --tlskey=/home/ubuntu/.certs/key.pem`
+swarm manager: `docker run -d -p 3376:3376 -v /home/ubuntu/.certs:/certs:ro swarm manage --tlsverify --tlscacert=/certs/ca.pem --tlscert=/certs/cert.pem --tlskey=/certs/key.pem --host=0.0.0.0:3376 token://$TOKEN`
+client: `docker --tlsverify --tlscacert=/home/ubuntu/.certs/ca.pem --tlscert=/home/ubuntu/.certs/cert.pem --tlskey=/home/ubuntu/.certs/key.pem -H swarm:3376 version` 亦可以设置环境变量`DOCKER_TLS_VERIFY=1`及`DOCKER_CERT_PATH=/home/ubuntu/.certs`
+
 
 ## Swarm
 ### Install
@@ -173,9 +210,12 @@ file: `docker run -d -P -v $(pwd)/cluster:/tmp/cluster swarm manage file:///tmp/
 使用已有host：`docker-machine create --driver generic --generic-ip-address=192.168.0.1 --generic-ssh-user=root default`
 使用已有装好docker的host：`docker-machine create --drive none --url=tcp://50.134.234.20:2376 custombox` ([broken](https://github.com/docker/machine/issues/2667))
 还可以使用其它云服务：[支持驱动列表](https://docs.docker.com/machine/drivers/)
-使用swarm: [provision with machine](ttps://docs.docker.com/swarm/provision-with-machine/)
 
-设置运行环境： `eval "$(docker-machine env default)"` （使用default作为名字，在`docker-machine`命令中可以省略）
+使用swarm: [provision with machine](https://docs.docker.com/swarm/provision-with-machine/)
+master: `docker-machine create -d virtualbox --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-advertise=eth0:2376" sw-master`
+host: `docker-machine create -d virtualbox --swarm --swarm-discovery="consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-advertise=eth0:2376" host1`
+
+设置运行环境： `eval "$(docker-machine env default)"` （使用default作为名字，在`docker-machine`命令中可以省略），加上`env --swarm`设置swarm manager环境。
 
 ## Compose
 ### Install
