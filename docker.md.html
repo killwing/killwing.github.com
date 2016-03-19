@@ -6,11 +6,12 @@ http://www.docker.com | v1.10
 
 ## Engine
 ### Install
-ubuntu: `$ wget -qO- https://get.docker.com/ | sh` (`$ wget -qO- https://get.docker.com/gpg | sudo apt-key add -`)
+ubuntu: `curl -fsSL https://get.docker.com/ | sh` (`curl -fsSL https://get.docker.com/gpg | sudo apt-key add -`)
 arch: `pacman -S docker`; `systemctl enable/restart docker`
 查看版本及状态：`docker version/info`
 
 [daemon启动参数设置](https://docs.docker.com/engine/admin/systemd/)：`systemctl edit docker`
+[设置最大task限制](http://unix.stackexchange.com/questions/253903/creating-threads-fails-with-resource-temporarily-unavailable-with-4-3-kernel/255603#)
 
 ### Image
 从仓库获取一个镜像：`docker pull [OPTIONS] [Registry/]NAME[:TAG|@DIGEST]`
@@ -63,7 +64,7 @@ TAG默认为`latest`。
 在运行的容器中执行命令：`docker exec`
 连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
-删除容器：`docker rm`，加上`-v`同时删除数据卷；`-f`停止并删除。删除所有容器：`docker rm $(docker ps -qa)`
+删除容器：`docker rm`，加上`-v`同时删除数据卷（只会删除匿名的卷）；`-f`停止并删除。删除所有容器：`docker rm $(docker ps -qa)`
 在容器中执行命令：`docker exec`
 
 ### Data Volume
