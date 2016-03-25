@@ -139,6 +139,74 @@ engine: 加入daemon选项` -H tcp://0.0.0.0:2376 --tlsverify --tlscacert=/home/
 swarm manager: `docker run -d -p 3376:3376 -v /home/ubuntu/.certs:/certs:ro swarm manage --tlsverify --tlscacert=/certs/ca.pem --tlscert=/certs/cert.pem --tlskey=/certs/key.pem --host=0.0.0.0:3376 token://$TOKEN`
 client: `docker --tlsverify --tlscacert=/home/ubuntu/.certs/ca.pem --tlscert=/home/ubuntu/.certs/cert.pem --tlskey=/home/ubuntu/.certs/key.pem -H swarm:3376 version` 亦可以设置环境变量`DOCKER_TLS_VERIFY=1`及`DOCKER_CERT_PATH=/home/ubuntu/.certs`
 
+### Plugins
+plugin是host上的一个独立进程，作为服务器提供一组HTTP API (RPC-style JSON over HTTP)给docker daemon使用。所有从docker daemon发起的请求都是POST。
+docker daemon可以有几种方式加载激活plugin（lazy，第一次使用时，通过handshake请求），文件名就作为plugin的名字：
+
+* `.sock`文件，plugin服务监听sock，安装在`/run/docker/plugins`目录下。（优先）
+* `.spec`文件，包含sock地址如`unix:///my-plugin.sock`，安装在`/etc/docker/plugins`或`/usr/lib/docker/plugins`目录。
+* `.json`文件，包含plugin的详细spec信息。`TLSConfig`可选。
+```
+{
+  "Name": "plugin-example",
+  "Addr": "https://example.com/docker/plugin",
+  "TLSConfig": {
+    "InsecureSkipVerify": false,
+    "CAFile": "/usr/shared/docker/certs/example-ca.pem",
+    "CertFile": "/usr/shared/docker/certs/example-cert.pem",
+    "KeyFile": "/usr/shared/docker/certs/example-key.pem",
+  }
+}
+```
+
+handshake:
+`/Plugin.Activate`: response `{ "Implements": ["VolumeDriver"] }`，类型可以是`authz`, `VolumeDriver`, `NetworkDriver`
+
+helpers:
+https://github.com/docker/engine-api
+https://github.com/docker/go-plugins-helpers
+
+#### Volume
+创建：`docker volume create -d DRIVER --name VOL-NAME`（默认driver: local）。
+功能：提供一个可读写的路径给docker容器使用。
+例子：https://github.com/CWSpear/local-persist
+
+API: `/VolumeDriver.Create/Remove/Mount/Path/Unmount/Get/List`
+```
+type Driver interface {
+	Create(Request) Response
+	List(Request) Response
+	Get(Request) Response
+	Remove(Request) Response
+	Path(Request) Response
+	Mount(Request) Response
+	Unmount(Request) Response
+}
+```
+
+#### Network
+创建：`docker network create -d DRIVER NETWORK-NAME`（默认driver: bridge）。
+功能：提供诸如VXLAN, IPVLAN, MACVLAN等网络技术给docker的部署提供扩展。
+
+API: https://github.com/docker/libnetwork/blob/master/docs/remote.md
+```
+type Driver interface {
+	GetCapabilities() (*CapabilitiesResponse, error)
+	CreateNetwork(*CreateNetworkRequest) error
+	DeleteNetwork(*DeleteNetworkRequest) error
+	CreateEndpoint(*CreateEndpointRequest) (*CreateEndpointResponse, error)
+	DeleteEndpoint(*DeleteEndpointRequest) error
+	EndpointInfo(*InfoRequest) (*InfoResponse, error)
+	Join(*JoinRequest) (*JoinResponse, error)
+	Leave(*LeaveRequest) error
+	DiscoverNew(*DiscoveryNotification) error
+	DiscoverDelete(*DiscoveryNotification) error
+	ProgramExternalConnectivity(*ProgramExternalConnectivityRequest) error
+	RevokeExternalConnectivity(*RevokeExternalConnectivityRequest) error
+}
+```
+
+#### authz
 
 ## Swarm
 ### Install
