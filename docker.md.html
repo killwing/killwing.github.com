@@ -101,7 +101,7 @@ TAG默认为`latest`。
 overlay网络使用vxlan技术，端口：数据udp4789，控制tcp/udp7946。
 
 #### DNS
-容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
+容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是`/var/lib/docker/containers/{id}/`虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
 
 #### Access Control
 容器通过iptables进行访问控制，daemon启动时可以用`--iptables`控制是否修改iptable，用`--icc`设置默认允许还是禁止。
