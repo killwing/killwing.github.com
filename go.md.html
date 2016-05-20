@@ -306,7 +306,7 @@ for key, value := range m { ... } // 迭代，顺序不固定，其中可以有�
 
 ### Struct
 Struct是值类型，声明: `var p struct { x, y float32 }`
-可用`-`表示占位字段。成员可以是自身类型的指针。
+可用`_`表示占位字段。成员可以是自身类型的指针。
 `var pp *Point = new(Point); pp.x = 1; pp.y = 2 // 没有"->"，统一用"."访问成员，或(*pp).x`
 初始化，赋值:
 ```
@@ -315,7 +315,7 @@ p = Point{ 7.2, 8.4 } // 顺序初始化必须包括所有成员，或者都不�
 p = Point{ y:8.4, x:7.2 }
 pp := &Point{ 23.4, -1 }   // idiomatic
 ```
-可以为字段定义一个标签（属于类型的一部分），用于反射读取。`var x struct {pos int "position"}`
+可以为字段定义一个字面字符串标签（struct tag, 属于类型的一部分），用于反射读取。`var x struct {pos int "position"}`
 如果一个struct成员开头大写，则表示对包外可见。
 匿名域：如果一个struct包含一个没有命名的变量，则用它的类型名字命名（同时用匿名类型及其指针类型会同名）。`type B struct {string}; fmt.Println(b.string);`
 如果成员是个匿名struct或其指针，则还可以平展开，就像自己有这样的成员（该类型的所有方法会变成外部类型的方法，但被调用时其接收的参数仍是内部类型），但外面的名字会具有高优先级。同级不能有相同名字的成员。（类似继承）
@@ -823,6 +823,8 @@ func TestMain(m *testing.M) {
 * 注释的第一句话应该为一条概括，并且使用被声明的名字作为开头。`// FuncName does ...`
 
 ## [CodingStyle](http://blog.golang.org/go-fmt-your-code) ([cmd](http://golang.org/cmd/gofmt/))
+[Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+[What's in a name?](https://talks.golang.org/2014/names.slide#1)
 
 ## Build Constraints([pkg](https://golang.org/pkg/go/build/))
 又称build tag或条件编译。在`go run/build/test`的时候以`-tags`指定。
@@ -874,6 +876,46 @@ for i := 0; i < s.NumField(); i++ {
 // 0: A int = 23
 // 1: B string = skidoo
 ```
+
+### [encoding/json](https://blog.golang.org/json-and-go)
+#### encoding/marshal
+* 对于map类型必须以string为key
+* channel, complex, function类型不能被encode
+* 循环数据结构不能被encode
+* 指针类型会被encode成其指向的值
+* 只有导出的字段会被encode
+* 数据流使用`NewEncoder`
+
+Go|Json
+-|-
+bool|boolean
+int, float...|numbers
+string|string
+array,slice|array
+map[string]T|object
+[]byte|base64 string
+struct|object
+nil|null
+
+#### decoding/unmarshal
+* decode匹配字段struct tag > 字段名 > 不区分大小写字段名，找不到匹配的则忽略
+* 对于指针，slice，map类型若没预先分配则会自动分配内存，如果没有匹配字段则为nil
+* 数据流使用`NewDecoder`
+
+Json|Go
+-|-
+boolean|bool
+number|float64
+string|string
+null|nil
+array|[]interface{}
+object|map[string]interface{}
+
+#### struct tag
+`json:"-"` 忽略这个字段
+`json:"myName"` 在json里key为myName
+`json:"myName,omitempty"` 如果字段为空值则忽略
+`json:",string"` 数值，布尔类型在json里转为string编码
 
 ### misc
 * `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
