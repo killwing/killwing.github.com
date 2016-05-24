@@ -85,20 +85,41 @@ TAG默认为`latest`。
 创建网络：`docker network create NAME` `--driver`指定驱动类型
 删除网络：`docker network rm`
 
-#### Host
+#### host
 直接使用host网络。
 
-#### Bridge
-默认虚拟网桥(bridge)设备名字`docker0`（新建`br-xxx`），每创建一个连接到上面的容器`eth0`连接到host上的网络接口`vethXXX`(`brctl show`)。
+#### bridge
+默认虚拟网桥(bridge)设备名字`docker0`（新建`br-xxx`），每创建一个连接到上面的容器`eth0`连接到host上的网络接口`vethX`(`brctl show`), 这就是一对veth pair(用`ethtool -S`查看对应序号)。
 在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，通过daemon运行的内置的DNS服务器`127.0.0.11`，就能以容器的`name`或`net-alias`访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
 如果一个容器连接到两个不同的网络，就有两个网卡并绑定两个网段的IP地址。当容器停止时就从其网络中脱离。
 
-#### Overlay
+`[container](eth0)----(vethX)[docker0@host]`
+
+#### overlay
+overlay网络使用[vxlan](https://datatracker.ietf.org/doc/rfc7348/)技术，端口：数据udp4789，控制tcp/udp7946。
+每个容器和overlay网络都有自己的网络namespace(`ip netns`，首先`ln -s /var/run/docker/netns /var/run/netns`)。
+
 加入overlay网络的host daemon启动时必须指定kv store：`--cluster-store=etcd://addr:8500`和`--cluster-advertise=eth0:2375`，指定选项`--cluster-store-opt`
 可以在任意一台连到store的host上创建：`docker network create --driver overlay --subnet=10.0.9.0/24 my-net` 指定子网避免和现有网络冲突。
-当有一个容器连接到overlay网络时，会在其host上自动创建一个`docker_gwbridge`网桥（即使有多个overlay网络，也只会有一个这个网桥，但每个host都是独立的），并且容器的第一个网络接口`eth0`连接到overlay网络，第二个接口`eth1`连接到这个网桥。这样外部网络可以通过这个网桥连通进来。
+当有一个容器连接到overlay网络时，会在其host上自动创建一个`docker_gwbridge`网桥（代替docker0的作用，即使有多个overlay网络，也只会有一个这个网桥，但每个host都是独立的），并且容器的第一个网络接口`eth0`连接到overlay网络的网桥br0上，第二个接口`eth1`连接到这个网桥。br0上有个VTEP(vxlan1)通过host的外部网络接口连接出去。
 
-overlay网络使用vxlan技术，端口：数据udp4789，控制tcp/udp7946。
+`[container](eth1)----(vethX)[docker_gwbridge@host]`
+`[container](eth0)----(vethY)[br0@host](vxlan1)----(eth0)[host]`
+
+#### none
+不配置任何网络。
+手动配置：
+
+1. `docker inspect -f '{{.State.Pid}}' cid` 启动一个`--net=none`的容器并取得其pid
+1. `mkdir -p /var/run/netns && ln -s /proc/$pid/ns/net /var/run/netns/$pid` 让`ip netns`可以取得容器创建的namespace，若要创建新的`ip netns add`
+1. `ip link add vethXYZ type veth peer name eth100` 创建一对veth pair，名字要唯一
+1. `brctl addif docker0 vethXYZ` 将一个加入默认网桥
+1. `ip link set vethXYZ up` 启动
+1. `ip link set eth100 netns $pid` 将另一个加入namespace, vethXYZ在root namespace下面
+1. `ip netns exec $pid ip link set dev eth100 name eth0` 改为通用名
+1. `ip netns exec $pid ip link set eth0 up` 启动
+1. `ip netns exec $pid ip addr add 172.17.0.99/16 dev eth0` 配置子网范围
+1. `ip netns exec $pid ip route add default via 172.17.0.1` 配置默认网关
 
 #### DNS
 容器的DNS配置和host上一致(/etc/hosts, /etc/hostname, /etc/resolv.conf是`/var/lib/docker/containers/{id}/`虚拟文件不在镜像中)，并随host上自动更新（需重启）。也可以运行时用参数`--hostname`, `--dns`, `--dns-search`指定。
@@ -110,7 +131,7 @@ overlay网络使用vxlan技术，端口：数据udp4789，控制tcp/udp7946。
 
 * `net.ipv4.conf.all.forwarding`是否打开
 * iptables的FORWOARD(DOCKER chain)规则是否允许
-* 容器访问外部：SNAT/MASQUERADE，外部访问容器：DNAT
+* 容器访问外部：SNAT/MASQUERADE，外部访问容器：DNAT（端口映射）
 
 容器间的通信：
 
@@ -118,11 +139,10 @@ overlay网络使用vxlan技术，端口：数据udp4789，控制tcp/udp7946。
 * iptables的FORWOARD规则是否允许
 
 #### iptables
+作为host转发，一般判断流程：`nat-Prerouting -> filter-Forward -> nat-Postrouting`
+
 docker0 filter:
 ```
--P INPUT ACCEPT
--P FORWARD ACCEPT
--P OUTPUT ACCEPT
 -N DOCKER
 -N DOCKER-ISOLATION
 -A FORWARD -j DOCKER-ISOLATION
@@ -139,22 +159,21 @@ docker0 filter:
 接受从非docker0进入的，且从docker0出去访问9000端口的包。（外部连接容器，数据进入时）
 接受从docker0出去的连接状态的包。（容器连接外部，数据返回时）
 接受从docker0进入的包。（容器互连）
-拒绝其它情况。
 
-docker0 nat:
+docker0 nat (--userland-proxy=false, [true by default](https://github.com/docker/docker/issues/14856)):
 ```
--P PREROUTING ACCEPT
--P INPUT ACCEPT
--P OUTPUT ACCEPT
--P POSTROUTING ACCEPT
 -N DOCKER
 -A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
--A OUTPUT ! -d 127.0.0.0/8 -m addrtype --dst-type LOCAL -j DOCKER
+-A OUTPUT -m addrtype --dst-type LOCAL -j DOCKER
+-A POSTROUTING -o docker0 -m addrtype --src-type LOCAL -j MASQUERADE
 -A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
 -A POSTROUTING -s 172.17.0.2/32 -d 172.17.0.2/32 -p tcp -m tcp --dport 9000 -j MASQUERADE
--A DOCKER -i docker0 -j RETURN
--A DOCKER ! -i docker0 -p tcp -m tcp --dport 9000 -j DNAT --to-destination 172.17.0.2:9000
+-A DOCKER -p tcp -m tcp --dport 9000 -j DNAT --to-destination 172.17.0.2:9000
 ```
+从172.17.0.0/16网段出来的，且不从docker0出去的，做MASQUERADE(SNAT，伪装成出口网卡地址)。
+从host发出，docker0出去的，做MASQUERADE（伪装成docker0网关地址）。
+容器访问自己的端口，做MASQUERADE。
+访问host 9000端口做DNAT发到172.17.0.2:9000。
 
 ### TLS
 docker engine普通/TLS端口：2375/2376
@@ -366,6 +385,8 @@ important_web:
 ## Reference
 [docker jumpstart](http://odewahn.github.io/docker-jumpstart)
 [docker practice](https://www.gitbook.io/book/yeasy/docker_practice)
+[boycott docker](http://www.boycottdocker.org/)
+
 
 </xmp>
 <script src="js/strapdown.js"></script>

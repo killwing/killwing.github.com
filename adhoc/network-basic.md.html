@@ -39,7 +39,7 @@ A类0表示所有地址，127表示回环地址，都是保留地址，不进行
 D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有地址（224.0.0.0-224.0.0.255）用于协议组广播，组播地址（224.0.1.0-238.255.255.255）以及私有地址（239.0.0.0-239.255.255.255）。
 
 ## Commands
-ip, ifconfig, arp, route, tcpdump, iptables, ping, netstat
+[iproute2](https://en.wikipedia.org/wiki/Iproute2)(ifconfig, route, arp, netstat), tcpdump, iptables, ping
 
 ## [iptables](https://wiki.archlinux.org/index.php/iptables)
 命令：`iptables [-t table] command chain [rule-num] rule-spec -j target`
@@ -125,6 +125,7 @@ targets:
 * chain-name: 转向自定义链
 
 rule-specs:
+在一个chain中自上而下匹配，匹配到执行targets并返回。
 
 * s: source, 源地址，IP[/MASK] 可以加上`!`取反
 * d: dest, 目标地址
@@ -148,6 +149,8 @@ SNAT(源地址的转换)/MASQUERADE(伪装)
 DNAT(目标地址转换)
 访问外网IP时转向内网主机（有数据返回时，从内网地址映射回外网地址UN-DNAT）：
 `iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
+
+同一个流上的包只会被iptables NAT判断一次，以后的包自动NAT。
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>
