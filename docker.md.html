@@ -97,7 +97,7 @@ TAG默认为`latest`。
 
 #### overlay
 overlay网络使用[vxlan](https://datatracker.ietf.org/doc/rfc7348/)技术，端口：数据udp4789，控制tcp/udp7946。
-每个容器和overlay网络都有自己的网络namespace(`ip netns`，首先`ln -s /var/run/docker/netns /var/run/netns`)。
+每个容器和overlay网络都有自己的网络namespace。
 
 加入overlay网络的host daemon启动时必须指定kv store：`--cluster-store=etcd://addr:8500`和`--cluster-advertise=eth0:2375`，指定选项`--cluster-store-opt`
 可以在任意一台连到store的host上创建：`docker network create --driver overlay --subnet=10.0.9.0/24 my-net` 指定子网避免和现有网络冲突。

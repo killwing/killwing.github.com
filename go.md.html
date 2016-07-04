@@ -132,7 +132,7 @@ var (
 )
 ```
 
-`const`(常量): 必须有编译期确定初始化表达式，类型说明可省。
+`const`(常量): 必须有编译期确定初始化表达式，只可以是数字，字符，布尔类型，类型说明可省。
 ```
 // 枚举（只可以此类型自己或常量匹配）
 type Weekday int
@@ -230,7 +230,7 @@ for i, c := range s { // 对于string，按照rune类型迭代
 for range s {  } // iterate only
 ```
 range会复制一份对象出来迭代，循环里引用的是复制过的对象，尽量使用引用或指针类型。
-迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind)。
+迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
 
 `switch`: 任意类型，除非以`fallthrough`语句结束并进入下一个分支，否则分支会自动终止，一个case可以带多个值
 ```
@@ -242,7 +242,8 @@ case a > b:  return 1
 }
 ```
 
-`break`(可用于for/switch/select), `continue`(可用于for): 后面可以接一个label(也可以用`goto`)
+`break`(可用于for/switch/select), `continue`(可用于for): 后面可以接一个标识循环(for)的label，表示这个continue/break是针对这个循环的（一般是内层循环使用，label标识外层循环，label为函数scope）。
+label也可以在`goto`中使用。
 
 ## 复杂类型
 ### Array
@@ -534,7 +535,7 @@ func suck(ch chan int) {
 }
 ```
 
-关闭channel: `close()`, 一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞），而从一个已经关闭（如果有buffer数据会先读完）的channel接收数据为0/nil和false: `v, ok = <-c`。
+关闭channel: `close()`, 一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞，如果先阻塞再关闭则会永久阻塞，应使用timeout解决），而从一个已经关闭（如果有buffer数据会先读完）的channel接收数据为0/nil和false: `v, ok = <-c`。
 默认channel是双向的，也可以转换为指定的方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
 
 `select`
@@ -596,7 +597,7 @@ func Query(conns []Conn, query string) Result {
 }
 ```
 带有空default的select：非阻塞，保证ch满（其它case阻塞）时也能正常退出，释放goroutine资源。
-带有buffer的channel：保证还未开始接收时，也能存放结果，否则（不带缓存）发送全部失败，接收永远阻塞。
+带有buffer的channel：保证还未开始接收时，也能存放结果，否则（不带缓存）发送全部失败(default退出)，接收永远阻塞。
 
 ### [Pipelines and cancellation](http://blog.golang.org/pipelines)
 fan-out: 多个函数从同一个channel里面读直至关闭。
