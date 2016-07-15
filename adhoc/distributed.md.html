@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<title>Distributed</title>
+<xmp theme="united" style="display:none;">
+## Consistency
+https://en.wikipedia.org/wiki/Consistency_model
+
+当向分布式系统里的一个node/partition写入一个更新后
+
+* week: 这个值在其它node副本上可能读出也可能读不出来。
+* strong: 所有node副本上都能立即读出来（或从统一接口读出最新值）。(Paxos/[Raft](https://raft.github.io/))
+* eventually: 一定有限时间之后，所有node副本上都能读出来。(gossip)
+
+## NWR
+N：副本总数。
+W：至少写W个副本才算写成功。
+R：至少读R个副本才算读成功。
+
+当`W+R>N`：`R>N-W`保证至少能读到一份新数据。[提供强一致性](http://www.planetcassandra.org/blog/consistency-cassandra/)。
+
+* W=1(ONE), R=N(ALL): 写性能高，读性能低
+* R=1(ONE), W=N(ALL): 读性能高，写性能低
+* QUORUM: W和R至少`(N/2)+1`个，读写性能平均。
+
+仍需数据版本，矢量时钟等机制保证数据不冲突，若发现冲突（脑裂Split-Brain）则交给用户处理。
+
+## CAP
+https://en.wikipedia.org/wiki/CAP_theorem
+
+* Consistency: 数据一致性。
+* Availability: 每个向系统的请求都能得到响应，不管成功还是失败。
+* Partition tolerance: 由于网络原因导致node分区不能互相通信，对外仍可提供服务。
+
+## Reference
+http://coolshell.cn/articles/10910.html
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
