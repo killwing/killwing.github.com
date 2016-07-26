@@ -93,7 +93,7 @@ TAG默认为`latest`。
 在同一个bridge网络里的容器在同一网段可以互相内部通信（如果容器运行时指定了名字且不在默认的bridge网络上，通过daemon运行的内置的DNS服务器`127.0.0.11`，就能以容器的`name`或`net-alias`访问），但必须运行在同一host上。如果要运行在不同host上就必须利用overlay网络。
 如果一个容器连接到两个不同的网络，就有两个网卡并绑定两个网段的IP地址。当容器停止时就从其网络中脱离。
 
-`[container](eth0)----(vethX)[docker0@host]`
+`[container](eth0 172.17.0.3)----(vethX)[docker0@host 172.17.0.1]`
 
 #### overlay
 overlay网络使用[vxlan](https://datatracker.ietf.org/doc/rfc7348/)技术，端口：数据udp4789，控制tcp/udp7946。
@@ -103,8 +103,13 @@ overlay网络使用[vxlan](https://datatracker.ietf.org/doc/rfc7348/)技术，�
 可以在任意一台连到store的host上创建：`docker network create --driver overlay --subnet=10.0.9.0/24 my-net` 指定子网避免和现有网络冲突。
 当有一个容器连接到overlay网络时，会在其host上自动创建一个`docker_gwbridge`网桥（代替docker0的作用，即使有多个overlay网络，也只会有一个这个网桥，但每个host都是独立的），并且容器的第一个网络接口`eth0`连接到overlay网络的网桥br0上，第二个接口`eth1`连接到这个网桥。br0上有个VTEP(vxlan1)通过host的外部网络接口连接出去。
 
-`[container](eth1)----(vethX)[docker_gwbridge@host]`
-`[container](eth0)----(vethY)[br0@host](vxlan1)----(eth0)[host]`
+`[container](eth1 172.18.0.3)----(vethX)[docker_gwbridge@host 172.18.0.1]` (local)
+`[container](eth0 10.0.0.3)----(vethY)[br0@host 10.0.0.1](vxlan1)----(eth0 192.168.0.100)[host]` (overlay)
+(不同host上的br0有相同的地址10.0.0.1，但各个容器endpoint地址不同)
+
+netns:
+`ip netns`可以在某个namespace环境下执行命令。
+设置docker：`ln -s /var/run/docker/netns /var/run/netns`，ID对于容器来说是`.NetworkSettings.SandboxKey`，对于overlay网络来说是`Num-NetworkID`
 
 #### none
 不配置任何网络。
@@ -265,6 +270,61 @@ type Driver interface {
 ```
 
 #### authz
+
+### Swarm Mode
+node:
+
+* manager node分派任务给worker，worker接受并执行任务。manager也可以执行任务。
+* 一个swarm cluster可以有多个manager，各个manager之间通过raft共享状态保持一致（属于同一个raft一致性组）。
+* 一个worker只能连到一个manager，并受它分配任务。同一个overlay网络（默认：ingress）的所有worker通过gossip通信。
+
+task:
+
+* 任务即容器运行的实例，是被调度的最小单位。
+* 一旦任务被调度到某个node上执行成功，则不能再被移动到另一个node上。
+* 自我修复:如果有异常退出或容器被停止删除，则会自动重启重建。
+* 自我组织:如果node host下线，则上面所有task会被重新调度到active的node上面，以保持scale不变。
+
+service: 一组任务的集合。
+
+* 对于冗余服务（默认），可以指定任务的实例数量。
+* 对于全局服务，在每个可用的node上执行一个任务。
+
+LB:
+
+* ingress/external: 服务通过`-p`参数的`PublishedPort`暴露给外面(eth0)，可以访问任意一个node（可以是外部LB）的这个端口（通过ingress-sbox内部容器）无论它是否正在运行任务(Routing mesh, 请求会被路由到正在运行的实例上，实际不一定访问到这个node)。
+* internal: cluster容器内部各服务之间通过内置DNS(服务名->VirtualIPs, service inspect查看，`nslookup tasks.<service-name>`)访问并LB到相应的node上。
+
+port:
+
+* TCP 2377: cluster管理通信
+* TCP & UDP 7946: node之间的通信
+* TCP & UDP 4789: overlay network traffic
+
+创建swarm：在manager host上`docker swarm init --listen-addr <MANAGER-IP>:<PORT>` port一般为2377
+加入swarm：在worker host上`docker swarm join --secret <SECRET> <MANAGER-IP>:<PORT> --ca-hash <HASH>` secret由init时随机生成，hash在manager上`docker info`查看。`--manager`以manager身份加入。
+
+在manager上：
+`docker node` 管理node
+`docker service` 管理service
+
+* 创建服务：`docker service create --replicas <N> --name <NAME> <IMAGE> <COMMAND>`，`--constraint`限制具有某些条件的node才会被分配任务。
+* 查看任务：`docker service tasks`
+* 扩大规模：`docker service scale <SERVICE-ID>=N`
+* 升级服务：
+
+    1. `service create`时候指定`--update-delay`和`--update-parallelism`
+    1. pull新版本的镜像。
+    1. `docker service update --image <IMAGE> <SERVICE-ID>`
+
+`docker node update --availability drain <NODE-ID>`维护时，改变node状态到drain，上面的task会停止并重新分配到其他node上。
+
+当下列情况时，一个active状态的node可能接收到新task：
+
+* 服务扩大规模时
+* 服务（镜像）升级时
+* 其它node变为drain状态时（或者下线）
+* 一个任务在其它active node执行失败时
 
 ## Swarm
 ### Install

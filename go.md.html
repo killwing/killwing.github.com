@@ -15,7 +15,7 @@ export PATH=$PATH:$GOROOT/bin
 
 ### [环境配置](http://golang.org/doc/code.html)
 工作区：包含src, pkg, bin目录。
-项目一般都是单独git目录在src下，编译`go build`出来的库文件和可执行文件安装`go install`在pkg，bin下。
+项目一般都是单独git目录在src下，编译`go build`出来的库文件和可执行文件安装`go install`在与src同级别的pkg，bin下。参数`./...`表示所有子目录的包。
 设置工作区环境变量：
 ```
 export GOPATH=$HOME/go_ws
@@ -727,6 +727,11 @@ type Context interface {
 `func WithDeadline(parent Context, deadline time.Time) (Context, CancelFunc)` 当某个时间点到达时，ctx得到通知。
 `func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
 
+1.7中移到标准库中：
+使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp.go deprecates `Request.Cancel`
+1.7前使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp_pre17.go
+
+
 ## 错误处理
 ### [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
@@ -885,6 +890,8 @@ http接口：`import _ "net/http/pprof"`
 ### net/http
 * 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。
 * 如果不想http保持连接，在发送请求之前设置`req.Close = true`或者`req.Header.Add("Connection", "close")`。
+* 关于超时：http://www.oschina.net/translate/the-complete-guide-to-golang-net-http-timeouts
+* server mux: http://www.alexedwards.net/blog/a-recap-of-request-handling
 
 ### [reflection](http://blog.golang.org/laws-of-reflection)
 通过reflection可以取得接口里面的类型和值的信息。
