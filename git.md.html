@@ -323,7 +323,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
     url = http://path/to/repos/project.git
 ```
 远程分支不是真正的分支，只是类似标签的引用，如果需要修改得创建新的本地分支：
-`git checkout remote-branch-name`相当于`git checkout -b remote-branch-name origin/remote-branch-name`，创建了同名的本地分支并切换到上面，同时建立了本地分支和远程分支的跟踪。基于本地分支创建则不会自动建立跟踪，可以使用`--track`选项在创建分支时建立跟踪。
+`git checkout remote-branch-name`相当于`git checkout -b remote-branch-name origin/remote-branch-name`，创建了同名的本地分支并切换到上面，同时建立了本地分支和远程分支的跟踪。基于本地分支创建则不会自动建立跟踪，可以使用`--track`选项在创建分支时建立跟踪。`git branch -u upstream/foo foo`创建分支后建立跟踪。
 对应`.git/config`中的配置：
 ```
 [branch "remote-branch-name"]

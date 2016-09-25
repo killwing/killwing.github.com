@@ -438,7 +438,7 @@ se(&p)
 
 ### interface
 一个interface是许多method的集合。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
-interface变量仅在类型和值都为nil时才为nil: `val==nil`。如果只是值为nil，那么也会打印出`<nil>`。
+interface变量仅在实际类型和值都为nil时才为nil: `val==nil`。如果只是值为nil，那么也会打印出`<nil>`。
 ```
 func foo() *int {
     return nil
@@ -451,7 +451,14 @@ if v, ok := a.(*int); ok {
     }
 }
 // output: <nil>, <nil>, false
+
+type causer interface {
+	Cause() error
+}
+var b causer
+b == nil // true
 ```
+
 如果你的类型实现了一个和众所周知的类型具有相同含义的方法，那么就使用相同的名字和签名；如Read，Write，Close，Flush，String等。
 定义:
 ```
@@ -548,7 +555,7 @@ func suck(ch chan int) {
 }
 ```
 
-关闭channel: `close()`, 一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞，如果先阻塞再关闭则会永久阻塞，应使用timeout解决），而从一个已经关闭（如果有buffer数据会先读完）的channel接收数据为0/nil和false: `v, ok = <-c`。
+关闭channel: `close()`, 一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞，如果发送先阻塞，再channel被关闭，一样panic），而从一个已经关闭（如果有buffer数据会先读完）的channel接收数据为0/nil和false: `v, ok = <-c`。
 默认channel是双向的，也可以转换为指定的方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
 
 `select`
@@ -852,7 +859,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 * debug: 禁止内联和优化 `-gcflags "-N -l"`。
 * release: 删除调试信息和符号表 `-ldflags "-w -s"`。
 
-## Coverage ([cmd](http://golang.org/cmd/cover/))
+## [Coverage](https://blog.golang.org/cover) ([cmd](http://golang.org/cmd/cover/))
 生成：`go test -coverprofile=cover.out`
 查看：`go tool cover -html=cover.out`
 
@@ -970,7 +977,7 @@ object|map[string]interface{}
 `json:"-"` 忽略这个字段
 `json:"myName"` 在json里key为myName
 `json:"myName,omitempty"` 如果字段为空值则忽略
-`json:",string"` 数值，布尔类型在json里转为string编码
+`json:",string"` 数值，布尔类型在json里转为string编码，如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)进而转为数值类型。
 
 ### misc
 * `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
