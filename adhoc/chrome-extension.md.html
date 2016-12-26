@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<title>Chrome Extension</title>
+<xmp theme="united" style="display:none;">
+## UI
+两种形式：最多一个
+所有扩展里的UI页面（popup.html，设置页面，`tab.create`和`window.open`打开的页面）都称为view。
+
+### browser action
+总是激活，和当前页面无关（或和所有页面都相关）。
+
+manifest:
+```
+{
+        "name": "My extension",
+        ...
+        "browser_action": {
+          "default_icon": {                    // optional
+            "16": "images/icon16.png",           // optional
+            "24": "images/icon24.png",           // optional
+            "32": "images/icon32.png"            // optional
+          },
+          "default_title": "Google Mail",      // optional; shown in tooltip
+          "default_popup": "popup.html"        // optional
+        },
+        ...
+}
+```
+
+UI组成：都可以用`browserAction.*`API动态设置。
+icon: `default_icon`, 可以静态图片还可以是canvas元素。大小默认使用适合设备的16像素。建议PNG格式。
+tooltip: `default_title`, 标题提示信息。
+badge: 动态显示在图标上的信息，4个字符以内。只能用API设置。
+popup: `default_popup`, 弹出窗口页面。
+
+### page action
+是否激活取决于当前页面。
+
+manifest: 和browser action一样。
+UI组成：和browser一样，但没有badge。使用`pageAction.show`和`pageAction.hide`激活和禁用（灰色）。
+
+## Files
+一个扩展至少有一个manifest文件和一个HTML文件，以及其它脚本和资源文件。
+crx发布: 将扩展目录打包成zip格式，并改后缀为crx。
+文件引用：使用相对路径或`chrome-extension://<extensionID>/<pathToFile>`，可以用`@@extension_id`变量表示ID。
+
+## Backgroud Pages
+### 持久后台页面
+生存周期和扩展一样，只要加载就一直存在，不可见只有一个实例。
+
+manifest: 可以只有js（后台页面自动生成）
+```
+{
+  "name": "My extension",
+  ...
+  "background": {
+    "scripts": ["background.js"],   // or "page": "background.html"
+    "persistent": false // event page
+  },
+  ...
+}
+```
+
+### 事件页面
+按需自动加载，不用空闲时卸载释放资源。
+
+manifest:
+```
+{
+  "name": "My extension",
+  ...
+  "background": {
+    "scripts": ["eventPage.js"],
+    "persistent": false
+  },
+  ...
+}
+```
+
+会触发加载的事件：
+
+* 扩展刚安装和升级时
+* 在监听一个事件（chrome会记住哪些扩展在监听哪些事件，不需要是加载状态，但重新加载时仍需要重新装上监听器以处理事件），事件触发时
+* 一个content script或其它扩展发送一个消息时
+* 扩展里的其它页面调用了`runtime.getBackgroundPage`
+
+idle状态：
+
+* 没有在调用API及发送网络请求
+* 所有可视的view关闭
+* 所有消息端口关闭
+
+在idle状态持续几秒钟，会收到`runtime.onSuspend`事件，有几秒钟可以处理然后就会被强制卸载（如果触发加载事件则会终止卸载）。
+当页面卸载时所有DOM定时器及HTML5的异步调用都会失效，可以使用chrome的alarms和notifications机制替代。
+`runtime.getBackgroundPage`（异步）替代`extension.getBackgroundPage`（同步）可以保证加载页面后再返回。
+[其它注意点](https://developer.chrome.com/extensions/event_pages#best-practices)
+
+
+## Content scripts
+注入当前已加载页面的脚本，作为当前页面的一部分（可以操作DOM等）而不是扩展的一部分（仅能够通过消息进行通信）。
+
+
+## 通信
+一个扩展里的所有页面（backgroud.html, popup.html等）都可以互相引用，调用函数以及操作DOM。
+`extension.getViews`获得所有活动页面的window对象，`extension.getBackgroundPage`获得后台页面的window对象。
+
+## Reference
+https://developer.chrome.com/extensions
+http://open.chrome.360.cn/extension_dev/overview.html
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

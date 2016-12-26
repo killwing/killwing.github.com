@@ -30,7 +30,7 @@ URL里只能包含：
 JS里的编码函数及安全字符：
 `escape`: 对path进行编码，不常使用，`*/@+-._0-9a-zA-Z`
 `encodeURI`: 对整个URI进行编码，不常使用，`!#$&'()*+,/:;=?@-._~0-9a-zA-Z`
-`encodeURIComponent`: 对component进行编码，`!'()*-._~0-9a-zA-Z`，此安全字符集和RFC3986并不兼容。
+`encodeURIComponent`: 对component进行编码，`!'()*-._~0-9a-zA-Z`，此安全字符集和RFC3986（安全字符仅unreserved）并不兼容。
 
 和RFC3986兼容的`encodeURIComponent`:
 ```
@@ -47,11 +47,11 @@ function fixedEncodeURIComponent(str) {
 u := url.URL{}
 u.Scheme = "https"
 u.Host = "google.com"
-u.Path = "/hello,world"
+u.Path = "/hello,world?"
 q := u.Query()
 q.Set("q", "go,lang")
-u.RawQuery = q.Encode()
-fmt.Println(u.String()) // https://google.com/hello,world?q=go%2Clang
+u.RawQuery = q.Encode() // 安全字符：unreserved
+fmt.Println(u.String()) // https://google.com/hello,world%3F?q=go%2Clang
 ```
 
 ## 编码表

@@ -280,7 +280,7 @@ Promise构造时异步操作就开始执行，调用`then`时如果没有执行�
 ![promises](https://mdn.mozillademos.org/files/8633/promises.png)
 
 实例方法：
-`then(onResolved, onRejected)` onResolved对应resolve的结果，onRejected对应reject的结果或抛出的异常。返回一个新的Promise对象，可以链式调用，onResolved/onReject的return的结果会作为其resolve的参数。
+`then(onResolved, onRejected)` onResolved对应resolve的结果，onRejected对应reject的结果或抛出的异常。返回一个新的Promise对象，可以链式调用，onResolved/onReject的return的结果会作为这个新的promise onResolved的参数传入。如果return的是一个promise对象，then返回的promise对象状态由其决定（可以理解为同一个promise）。
 
 `catch(onRejected)` 相当于`then(null, onRejected)`，在resolve/reject后抛出的异常不会被捕获。如果异常没有被then处理，则会带到返回的Promise中由后面的then或catch处理。Promise对象中没有被捕获的异常不会传到外层代码。
 
@@ -290,6 +290,17 @@ Promise构造时异步操作就开始执行，调用`then`时如果没有执行�
 `Promise.resolve(obj)` 将一个thenable对象转为Promise对象。如果此对象不thenable，直接转为一个resolved的Promise对象。
 `Promise.reject(obj)` 转为一个rejected的Promise对象。
 
+将读文件的异步操作封装成promise对象：
+```
+var readFile = function (fileName){
+  return new Promise(function (resolve, reject){
+    fs.readFile(fileName, function(error, data){
+      if (error) return reject(error);
+      resolve(data);
+    });
+  });
+};
+```
 
 ## Symbols
 `Symbol([name])`产生唯一的ID，可以作为对象的唯一属性名。
@@ -486,6 +497,34 @@ Unicode增强都是为了能够更好地兼容UTF16，因为JavaScript使用UCS2
 ### RegExp
 `sticky` 粘连属性，表示带有头`^`匹配的全局`g`匹配，`/string/y`每次剩余匹配都要从头开始匹配。
 
+
+## ES7 async/await
+generator加异步调用（返回Promise）的问题：不能自动执行，需要不停调用next并将将上一步的结果传入。
+```
+var g = gen();
+g.next().value.then(function(data){
+  g.next(data).value.then(function(data){
+    g.next(data);
+  });
+});
+```
+
+async函数可以看作多个异步操作，包装成的一个 Promise 对象，而await就是内部then的语法糖。Generator函数和自动执行的封装。
+```
+async function op(){
+  var r1 = await f1();
+  var r2 = await f2();
+  ...
+};
+op.then().catch()
+```
+
+* async函数返回一个Promise对象，return返回值（异步操作全部执行完毕）作为onResolved参数传入。
+* async函数内部抛出的错误，作为返回Promise对象的onRejected参数传入(catch)。
+* await后面可以不是Promise，则相当于同步执行。
+* 只要一个await语句后面的Promise变为reject，那么整个async函数都会中断执行，并且reject的参数作为错误抛出。(仅是Promise对象是不会抛出错误的)
+* 同时触发异步操作：`let [foo, bar] = await Promise.all([getFoo(), getBar()]);`
+* await只能用在async函数之中。
 
 ## Reference
 [ECMAScript 6入门](http://es6.ruanyifeng.com/)

@@ -296,7 +296,7 @@ var m1 map[string]float32 = m // m1 and m now refer to same map
 访问元素
 ```
 one   := m["1"] // 取值，会复制一份出来
-crash := m["not present"]  // 0
+null := m["not present"]  // 0，如果没有key则取出空值（即使是nil map也可以，但nil map在未make之前不能直接赋值），不会报错，注意：如果是slice越界会panic
 m["2"] = 2
 v, ok := m[x] // the "comma ok" form, 测试是否有值
 m[x].name = "abc" // 如果没有值则error
@@ -318,7 +318,7 @@ pp := &Point{ 23.4, -1 }   // idiomatic
 ```
 可以为字段定义一个字面字符串标签（struct tag, 属于类型的一部分），用于反射读取。`var x struct {pos int "position"}`
 如果一个struct成员开头大写，则表示对包外可见。
-匿名域：如果一个struct包含一个没有命名的变量，则用它的类型名字命名（同时用匿名类型及其指针类型会同名）。`type B struct {string}; fmt.Println(b.string);`
+匿名域：如果一个struct包含一个没有命名的变量，则用它的类型名字命名（同时用匿名类型及其指针类型会同名）。`type B struct {string}; fmt.Println(b.string);` `type B struct {*string}; fmt.Println(b.string); // 注意panic, b.string是*string类型`
 如果成员是个匿名struct或其指针，则还可以平展开，就像自己有这样的成员（该类型的所有方法会变成外部类型的方法，但被调用时其接收的参数仍是内部类型），但外面的名字会具有高优先级。同级不能有相同名字的成员。（类似继承）
 ```
 type B struct{ a, b int }
@@ -978,6 +978,22 @@ object|map[string]interface{}
 `json:"myName"` 在json里key为myName
 `json:"myName,omitempty"` 如果字段为空值则忽略
 `json:",string"` 数值，布尔类型在json里转为string编码，如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)进而转为数值类型。
+
+### text/template
+Action: 以`{{...}}`表示，进行求值或组成控制结构。`{{- ...`和`... -}}`可以trim左边和右边的空白。
+data: 模版执行的上下文数据，叫dot用`.`表示。
+Variables: `$var := pipeline`, `range $index, $element := pipeline`，变量作用域为控制结构结束或到模版结束。
+Argument: 字面常量，模版变量`$var`，data成员（成员必须大写导出，或map的key，或成员函数调用）`.Field`，变量成员（或map的key，或成员函数调用）`$x.Field`，函数调用`fun`。
+pipeline: command序列，以`|`隔开，前一个command的结果作为后一个command的最后一个参数。
+command: 一个简单的值或一个（带有参数的）函数调用，结果是一个值或一个值带有一个错误。`Argument`, `.Method [Argument...]`, `fun [Argument...]`。
+function: 预定义的全局函数。
+
+```
+`{{.Count}} items are made of {{.Material}}` // "17 items are made of wool"
+`{{23 -}} < {{- 45}}` // "23<45"
+`{{"put" | printf "%s%s" "out" | printf "%q"}}` // "output"
+`{{with "output"}}{{printf "%q" .}}{{end}}` // "output"
+```
 
 ### misc
 * `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
