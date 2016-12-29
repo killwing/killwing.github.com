@@ -55,7 +55,6 @@ manifest: 可以只有js（后台页面自动生成）
   ...
   "background": {
     "scripts": ["background.js"],   // or "page": "background.html"
-    "persistent": false // event page
   },
   ...
 }
@@ -97,12 +96,136 @@ idle状态：
 
 
 ## Content scripts
-注入当前已加载页面的脚本，作为当前页面的一部分（可以操作DOM等）而不是扩展的一部分（仅能够通过消息进行通信）。
+注入当前已加载页面的script，和浏览页面共享DOM，而不是扩展的一部分（仅能够通过消息进行通信）。
+
+不能使用除了以下的`chrome.*`API：
+
+* extension ( getURL , inIncognitoContext , lastError , onRequest , sendRequest )
+* i18n
+* runtime ( connect , getManifest , getURL , id , onConnect , onMessage , sendMessage )
+* storage
+
+### 静态注入
+manifest:
+```
+{
+  "name": "My extension",
+  ...
+  "content_scripts": [
+    {
+      "matches": ["http://www.google.com/*"],
+      "css": ["mystyles.css"],
+      "js": ["jquery.js", "myscript.js"]
+    }
+  ],
+  ...
+}
+```
+
+* matches: 只对符合条件[pattern](https://developer.chrome.com/extensions/match_patterns)的URL进行注入
+* exclude_matches: 排除的URL
+* match_about_blank: 对about:blank 和 about:srcdoc页面注入，默认false
+* css: 要注入的css
+* js: 要注入的js
+* all_frames: 对页面上所有frame注入，默认false
+* include_globs: matches同时符合此通配的URL注入，使用通配符
+* exclude_globs: exclude_matches同时排除此通配
+* run_at: 注入的时机
+ * document_start: 在加载css文件之后，在加载任何js之前，DOM构造之前
+ * document_end": DOM完全构造之后，加载外部资源如图像和frame之前
+ * document_idle: 默认，在document_end之后，window.onload事件（页面完整加载）发出后时间点之前（不保证收到onload事件）
+
+### 动态注入
+必须有对浏览页面的跨域权限，有使用chrome.tabs模块的权限。（一般直接使用`activeTab`权限）
+
+manifest:
+```
+{
+    ...
+    "permissions": [
+      "activeTab"
+    ],
+    ...
+}
+```
+[activeTab](https://developer.chrome.com/extensions/activeTab): 只访问活动页面时代替`<all_urls>`，同时具有`tabs`权限。用`<all_urls>`有安全隐患。
+
+使用tabs.executeScript和tabs.insertCSS进行注入:
+```
+chrome.browserAction.onClicked.addListener(function(tab) {
+  chrome.tabs.executeScript({
+    code: 'document.body.style.backgroundColor="red"'
+  });
+});
+```
+或从文件加载：`chrome.tabs.executeScript(null, {file: "content_script.js"});`
+
+### 共享DOM
+每个script在独立的隔离环境中运行，不能使用扩展的其他页面上，浏览页面上以及其他Content script里面定义的变量和函数。其他页面也不能使用这个script的变量和函数。
+共享DOM是和浏览页面通信的唯一方式。
+window对象也是共享的（比如可以改变location）。但不能通过在window对象中定义变量来直接互相通信。
+
+content script:
+```
+var port = chrome.runtime.connect();
+
+window.addEventListener("message", function(event) {
+  // We only accept messages from ourselves
+  if (event.source != window)
+    return;
+
+  if (event.data.type && (event.data.type == "FROM_PAGE")) {
+    console.log("Content script received: " + event.data.text);
+    port.postMessage(event.data.text); // 发送到扩展的其他页面
+  }
+}, false);
+```
+
+浏览的页面：
+```
+document.getElementById("theButton").addEventListener("click", function() {
+  window.postMessage({ type: "FROM_PAGE", text: "Hello from the webpage!" }, "*");
+}, false);
+```
+
+一种利用共享DOM直接互相访问变量的方法：
+```
+chrome.browserAction.onClicked.addListener(function(tab) {
+  chrome.tabs.executeScript({
+    code: 'var s = document.createElement("script"); s.src = chrome.extension.getURL("inject.js"); document.head.appendChild(s);'
+    // 静态注入的话，code就是content_scripts里js的内容
+  });
+});
+```
+浏览页面不能直接访问扩展里面的资源，所以"inject.js"文件需要加入`manifest.web_accessible_resources`。（content_scripts本身不需要加入）
+这样就真正变为浏览页面的脚本，但缺点是不能进行跨域访问了。
 
 
 ## 通信
 一个扩展里的所有页面（backgroud.html, popup.html等）都可以互相引用，调用函数以及操作DOM。
 `extension.getViews`获得所有活动页面的window对象，`extension.getBackgroundPage`获得后台页面的window对象。
+
+## 跨域请求
+扩展的所有页面以及content scripts都可以进行跨域请求。但必须用hosts或host match声明权限（activeTab不行），同时Content Security Policy没有禁止。
+
+manifest:
+```
+{
+  "name": "My extension",
+  ...
+  "permissions": [
+    "http://www.google.com/"
+  ],
+  ...
+}
+```
+
+和match pattern的不同：
+
+* 忽略path
+* http, https要分开单独声明
+* 所有：`"http://*/"`
+
 
 ## Reference
 https://developer.chrome.com/extensions
