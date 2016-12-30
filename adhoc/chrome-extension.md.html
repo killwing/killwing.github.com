@@ -2,6 +2,8 @@
 <html>
 <title>Chrome Extension</title>
 <xmp theme="united" style="display:none;">
+[manifest v2](https://developer.chrome.com/extensions/manifest)
+
 ## UI
 两种形式：最多一个
 所有扩展里的UI页面（popup.html，设置页面，`tab.create`和`window.open`打开的页面）都称为view。
@@ -94,8 +96,67 @@ idle状态：
 `runtime.getBackgroundPage`（异步）替代`extension.getBackgroundPage`（同步）可以保证加载页面后再返回。
 [其它注意点](https://developer.chrome.com/extensions/event_pages#best-practices)
 
+## Options Page
+manifest:
+```
+{
+  "name": "My extension",
+  ...
+  "options_ui": {
+    // Required.
+    "page": "options.html",
+    // Recommended.
+    "chrome_style": true,
+    // Not recommended; only provided for backwards compatibility,
+    // and will be unsupported in a future version of Chrome (TBD).
+    //"open_in_tab": true
+  },
+  ...
+}
+```
 
-## Content scripts
+使用`storage.sync`来在不同设备上同步配置信息：
+```
+// Saves options to chrome.storage.sync.
+function save_options() {
+  var color = document.getElementById('color').value;
+  var likesColor = document.getElementById('like').checked;
+  chrome.storage.sync.set({
+    favoriteColor: color,
+    likesColor: likesColor
+  }, function() {
+    // Update status to let user know options were saved.
+    var status = document.getElementById('status');
+    status.textContent = 'Options saved.';
+    setTimeout(function() {
+      status.textContent = '';
+    }, 750);
+  });
+}
+
+// Restores select box and checkbox state using the preferences
+// stored in chrome.storage.
+function restore_options() {
+  // Use default value color = 'red' and likesColor = true.
+  chrome.storage.sync.get({
+    favoriteColor: 'red',
+    likesColor: true
+  }, function(items) {
+    document.getElementById('color').value = items.favoriteColor;
+    document.getElementById('like').checked = items.likesColor;
+  });
+}
+document.addEventListener('DOMContentLoaded', restore_options);
+document.getElementById('save').addEventListener('click', save_options);
+```
+
+设置页面是嵌入在`chrome://extensions`，和在tab打开有些不同(`open_in_tab`: false)。
+
+* 打开设置页面：`chrome.runtime.openOptionsPage()`而不是使用`chrome-extension://yourextensionid/youroptionspage.html`
+* Tabs API使用：没有包含设置页面的单独tab。
+* messaging: 使用`runtime.connect`和`runtime.sendMessage`。
+
+## Content Scripts
 注入当前已加载页面的script，和浏览页面共享DOM，而不是扩展的一部分（仅能够通过消息进行通信）。
 
 不能使用除了以下的`chrome.*`API：
@@ -122,7 +183,7 @@ manifest:
 }
 ```
 
-* matches: 只对符合条件[pattern](https://developer.chrome.com/extensions/match_patterns)的URL进行注入
+* matches: 只对符合条件pattern的URL进行注入
 * exclude_matches: 排除的URL
 * match_about_blank: 对about:blank 和 about:srcdoc页面注入，默认false
 * css: 要注入的css
@@ -134,6 +195,15 @@ manifest:
  * document_start: 在加载css文件之后，在加载任何js之前，DOM构造之前
  * document_end": DOM完全构造之后，加载外部资源如图像和frame之前
  * document_idle: 默认，在document_end之后，window.onload事件（页面完整加载）发出后时间点之前（不保证收到onload事件）
+
+[match pattern](https://developer.chrome.com/extensions/match_patterns):
+```
+<url-pattern> := <scheme>://<host><path>
+<scheme> := '*' | 'http' | 'https' | 'file' | 'ftp'
+<host> := '*' | '*.' <any char except '/' and '*'>+
+<path> := '/' <any chars>
+```
+`*`代表0或多个字符，用在host里时只能是第一个字符且后面只能跟`.`或`/`。
 
 ### 动态注入
 必须有对浏览页面的跨域权限，有使用chrome.tabs模块的权限。（一般直接使用`activeTab`权限）
@@ -148,7 +218,7 @@ manifest:
     ...
 }
 ```
-[activeTab](https://developer.chrome.com/extensions/activeTab): 只访问活动页面时代替`<all_urls>`，同时具有`tabs`权限。用`<all_urls>`有安全隐患。
+[activeTab](https://developer.chrome.com/extensions/activeTab): 只访问活动页面时代替`<all_urls>`匹配模式的权限，同时具有`tabs`权限。用`<all_urls>`有安全隐患。
 
 使用tabs.executeScript和tabs.insertCSS进行注入:
 ```
@@ -162,7 +232,7 @@ chrome.browserAction.onClicked.addListener(function(tab) {
 
 ### 共享DOM
 每个script在独立的隔离环境中运行，不能使用扩展的其他页面上，浏览页面上以及其他Content script里面定义的变量和函数。其他页面也不能使用这个script的变量和函数。
-共享DOM是和浏览页面通信的唯一方式。
+共享DOM是和浏览页面通信的一种方式。
 window对象也是共享的（比如可以改变location）。但不能通过在window对象中定义变量来直接互相通信。
 
 content script:
@@ -188,7 +258,7 @@ document.getElementById("theButton").addEventListener("click", function() {
 }, false);
 ```
 
-一种利用共享DOM直接互相访问变量的方法：
+DOM注入：一种利用共享DOM直接互相访问变量的方法，注入时即刻执行。
 ```
 chrome.browserAction.onClicked.addListener(function(tab) {
   chrome.tabs.executeScript({
@@ -198,12 +268,167 @@ chrome.browserAction.onClicked.addListener(function(tab) {
 });
 ```
 浏览页面不能直接访问扩展里面的资源，所以"inject.js"文件需要加入`manifest.web_accessible_resources`。（content_scripts本身不需要加入）
-这样就真正变为浏览页面的脚本，但缺点是不能进行跨域访问了。
+这样就真正变为浏览页面的脚本，但缺点是不能进行跨域访问了，而且可能受浏览页面CSP限制。
 
 
 ## 通信
+### 扩展内部
 一个扩展里的所有页面（backgroud.html, popup.html等）都可以互相引用，调用函数以及操作DOM。
 `extension.getViews`获得所有活动页面的window对象，`extension.getBackgroundPage`获得后台页面的window对象。
+
+### 扩展和content scripts
+#### 简单一次性请求
+content script -> 扩展：
+```
+chrome.runtime.sendMessage({greeting: "hello"}, function(response) {
+  console.log(response.farewell);
+});
+```
+
+扩展 -> content script：需要指明发往哪个tab
+```
+chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+  chrome.tabs.sendMessage(tabs[0].id, {greeting: "hello"}, function(response) {
+    console.log(response.farewell);
+  });
+});
+```
+
+接收端监听消息：扩展和content script一样
+```
+chrome.runtime.onMessage.addListener(
+  function(request, sender, sendResponse) {
+    console.log(sender.tab ?  "from a content script:" + sender.tab.url : "from the extension");
+    if (request.greeting == "hello")
+      sendResponse({farewell: "goodbye"});
+  }
+);
+```
+
+* `sendResponse`是必需用同步调用，如果需要异步调用需要在onMessage处理函数里面返回`return true;`（sendResponse GC的时候触发sendMessage回调响应）
+* 如果有多个页面监听消息，只有第一个发送的响应会成功，其它的会被忽略。
+
+#### 长连接
+content script:
+```
+var port = chrome.runtime.connect({name: "knockknock"});
+port.postMessage({joke: "Knock knock"});
+port.onMessage.addListener(function(msg) {
+  if (msg.question == "Who's there?")
+    port.postMessage({answer: "Madame"});
+  else if (msg.question == "Madame who?")
+    port.postMessage({answer: "Madame... Bovary"});
+});
+```
+
+扩展：
+```
+chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+    var port = chrome.tabs.connect(tabs[0].id, {name: "knockknock"});
+    ...
+});
+```
+
+接收端accept connection：扩展和content script一样
+```
+chrome.runtime.onConnect.addListener(function(port) {
+  console.assert(port.name == "knockknock");
+  port.onMessage.addListener(function(msg) {
+    if (msg.joke == "Knock knock")
+      port.postMessage({question: "Who's there?"});
+    else if (msg.answer == "Madame")
+      port.postMessage({question: "Madame who?"});
+    else if (msg.answer == "Madame... Bovary")
+      port.postMessage({question: "I don't get it."});
+  });
+});
+```
+
+* 如果页面有多个frame，每个都会收到connect事件，建立多条连接。
+* 连接断开时的`runtime.Port.onDisconnect`事件，触发时机：
+ * 没有监听者接受连接
+ * 包含port的tab被卸载
+ * 发起连接的frame被卸载或接受连接的所有frame被卸载
+ * `runtime.Port.disconnect`被对方显式调用
+
+### 跨扩展（扩展间）通信
+接收端：
+```
+// For simple requests:
+chrome.runtime.onMessageExternal.addListener(
+  function(request, sender, sendResponse) {
+    if (sender.id == blacklistedExtension)
+      return;  // don't allow this extension access
+    else if (request.getTargetData)
+      sendResponse({targetData: targetData});
+    else if (request.activateLasers) {
+      var success = activateLasers();
+      sendResponse({activateLasers: success});
+    }
+});
+
+// For long-lived connections:
+chrome.runtime.onConnectExternal.addListener(function(port) {
+  port.onMessage.addListener(function(msg) {
+    // See other examples for sample onMessage handlers.
+  });
+});
+```
+
+发送端：
+```
+// The ID of the extension we want to talk to.
+var laserExtensionId = "abcdefghijklmnoabcdefhijklmnoabc";
+
+// Make a simple request:
+chrome.runtime.sendMessage(laserExtensionId, {getTargetData: true},
+  function(response) {
+    if (targetInRange(response.targetData))
+      chrome.runtime.sendMessage(laserExtensionId, {activateLasers: true});
+  });
+
+// Start a long-running conversation:
+var port = chrome.runtime.connect(laserExtensionId);
+port.postMessage(...);
+```
+
+### 浏览页面和扩展通信
+指明可以通信的url（至少要包含一个二级域名），浏览页面里就可以使用message API。
+manifest:
+```
+"externally_connectable": {
+  "matches": ["*://*.example.com/*"]
+}
+```
+
+页面发送：
+```
+// The ID of the extension we want to talk to.
+var editorExtensionId = "abcdefghijklmnoabcdefhijklmnoabc";
+
+// Make a simple request:
+chrome.runtime.sendMessage(editorExtensionId, {openUrlInEditor: url},
+  function(response) {
+    if (!response.success)
+      handleError(url);
+  });
+```
+
+扩展接收：或`runtime.onConnectExternal`
+```
+chrome.runtime.onMessageExternal.addListener(
+  function(request, sender, sendResponse) {
+    if (sender.url == blacklistedWebsite)
+      return;  // don't allow this web page access
+    if (request.openUrlInEditor)
+      openUrl(request.openUrlInEditor);
+  });
+```
+
+使用方式和扩展间通信类似，不过只有浏览页面才能发起消息／连接。
+
+### [和原生应用通信](https://developer.chrome.com/extensions/nativeMessaging)
+原生应用注册为native messaging host，就可以和扩展互发消息通信（利用原生消息协议）。
 
 ## 跨域请求
 扩展的所有页面以及content scripts都可以进行跨域请求。但必须用hosts或host match声明权限（activeTab不行），同时Content Security Policy没有禁止。
@@ -220,16 +445,41 @@ manifest:
 }
 ```
 
-和match pattern的不同：
+host permission的match pattern：
 
 * 忽略path
 * http, https要分开单独声明
 * 所有：`"http://*/"`
 
+## Content Security Policy
+浏览页面的CSP由HTTP头或meta元素指定。
+
+扩展的CSP由manifest指定:
+```
+{
+  ...,
+  "content_security_policy": "[POLICY STRING GOES HERE]"
+  ...
+}
+```
+默认（强制）：`script-src 'self'; object-src 'self'`:
+
+* 禁用Eval及相关函数。(`script-src 'self' 'unsafe-eval';`)
+* 禁用内联js。（白名单指定源码的hash，而不是通过`'unsafe-inline'`）
+* 只加载本地脚本和对象资源，外部资源要下载放入扩展内。（白名单指定url，通配有限制: `script-src 'self' https://example.com;`)
+
+更严格：`default-src 'self'`全部资源都只能本地加载。
+
+content script既不受扩展的CSP限制，也不受浏览页面的CSP限制，但通过DOM注入的脚本如果不是立即执行的（如事件触发）就要受页面的CSP限制。
+
+## 发布
+https://developer.chrome.com/extensions/hosting
 
 ## Reference
 https://developer.chrome.com/extensions
+https://developer.chrome.com/extensions/devguide
 http://open.chrome.360.cn/extension_dev/overview.html
+
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>
