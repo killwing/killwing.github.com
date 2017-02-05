@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<title>HA</title>
+<xmp theme="united" style="display:none;">
+## HA (High Availability)
+硬件、软件、工程因素
+测量：SLA，服务可用时间／总时间（年），N个9
+
+无状态：集群服务，避免单点，转移状态到存储（一般指数据库）中，变为后者的可用性问题。
+有状态：有一定量的数据持久化在本地磁盘（一般无冗余）或本身就是DB，不同节点间的数据同步的性能问题和数据一致性问题。
+
+availability 可用性
+durability 持久性：指数据持久化。
+reliability 可靠性：指数据冗余程度。
+
+### Consistency
+https://en.wikipedia.org/wiki/Consistency_model
+
+当向分布式系统里的一个node/partition成功写入一个更新后
+
+* week: 这个值可能读出也可能读不出来。比如定期备份。
+* eventually: 一定有限时间之后，能读出更新的值。(gossip)
+* strong: 立即能读出更新的值。(Paxos/Raft)
+
+### CAP
+https://en.wikipedia.org/wiki/CAP_theorem
+
+* Consistency: 数据一致性。
+* Availability: 可用性，每个向系统的请求都能得到响应，不管成功还是失败。
+* Partition tolerance: 分区容忍性，由于网络原因导致节点分成两个或多个部分不能互相通信（脑裂Split-Brain，双主），对外仍可提供服务。
+
+CAP不是绝对的肯定或否定，P一般都要满足，CA是此消彼长的关系。
+
+## Raid (Hardware)
+* raid0: 提高读写性能，无冗余
+* raid1: 同步镜像，冗余度50%
+* raid5: 3+块盘利用奇偶效验恢复，冗余度33%
+
+## 软件模型
+* Master-Slave：强一致：先写主再写从，全部成功才返回成功；写从失败回滚主并返回写失败。
+* Master-Master：两个master都可读写，它们之间进行异步数据同步，是最终一致性。
+* Two/Three Phase Commit：强一致。
+* NWR: 无中心化，`W+R>N`强一致。(Dynamo/Cassandra)
+* Paxos/Raft: 仅leader读写（一主多从），强一致。(etcd/consul/mongo-ark/zab)
+
+## NWR
+N：副本总数。
+W：至少写W个副本才算写成功。
+R：至少读R个副本才算读成功。
+
+当`W+R>N`：`R>N-W`保证至少能读到一份新数据。[提供强一致性](http://www.planetcassandra.org/blog/consistency-cassandra/)。
+
+* W=1(ONE), R=N(ALL): 写性能高，读性能低
+* R=1(ONE), W=N(ALL): 读性能高，写性能低
+* QUORUM: W和R至少`(N/2)+1`个，读写性能平均。
+
+因为任意节点都可以读写，仍需数据版本，矢量时钟等机制保证数据不冲突，若发现冲突则交给用户处理。
+
+## [Raft](https://raft.github.io/)
+https://github.com/maemual/raft-zh_cn/blob/master/raft-zh_cn.md
+一种分布式一致性协议。
+只要一个cluster中多数node可用（一般总数为3或5），就可以就某个值达成一致。
+
+node分为三种状态：
+follower
+candidate
+leader
+
+### Leader Election
+
+* 所有node初始处于follower状态，并启动一个election timeout(150ms-300ms的随机值)，时间到的node变为candidate状态。
+* candidate发起一轮选举(term)：
+    1. 重置election timeout，先投自己一票，然后发送RequestVote消息到其它node。
+    1. 如果收到消息的node本轮还没有投过票则投candidate一票（响应）并重置election timeout。
+    1. 如果candidate收到多数投票(`>N/2`，不用等待收全)，则变为leader状态。
+    1. leader定期(heartbeat timeout)发送AppendEntries消息作为heartbeat到它的followers。
+    1. followers收到AppendEntries后重置election timeout并发送响应。
+    1. 如果一个follower没收到heartbeat导致election timeout，就发起新一轮的选举。
+* 因为多数票机制，每轮选举只会产生一个leader。
+* 如果两个（或多个）follower同时变成candidate，则发生split vote:
+    * 同一轮中，两个candidate都发出RequestVote到其它node。
+    * 一个candidate收到RequestVote不做任何动作。收到heartbeat则变为follower并重置election timeout。
+    * 一个candidate没收到heartbeat导致election timeout，就发起新一轮的选举。
+
+### Log Replication
+读写都通过leader。
+
+1. leader收到client的update请求，先记在log里，并随下一次heartbeat发给followers。
+1. follower收到也先记在log里。
+1. leader一旦收到多数followers的响应(`>N/2`)就commit这个值，然后发送响应给client。
+1. 提交状态随下一次heartbeat通知到followers，followers也同步相应数据。
+
+http://www.cnblogs.com/mindwind/p/5231986.html
+http://www.zenlife.tk/raft-fault-tolerance.md
+
+## Reference
+http://coolshell.cn/articles/10910.html
+http://coolshell.cn/articles/17459.html
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

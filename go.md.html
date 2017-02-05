@@ -2,7 +2,7 @@
 <html>
 <title>Go</title>
 <xmp theme="readable" style="display:none;">
-[http://golang.org](http://golang.org) | v1.5
+[http://golang.org](http://golang.org) | v1.7
 
 ## 准备
 ### [下载安装](http://golang.org/doc/install)
@@ -57,7 +57,7 @@ golang.org/x/tools/cmd/oracle
 golang.org/x/tools/cmd/gorename
 
 ## Basics
-源文件以UTF8编码。
+源文件以UTF-8编码。
 语句以分号结尾，一个语句时通常省略，全局域中以及括号后边也不需要。
 圆括号通常只用在参数列表中。
 花括号的位置在一行末尾。（gofmt工具可以用来格式化代码风格）
@@ -68,14 +68,21 @@ golang.org/x/tools/cmd/gorename
 ## 基本类型
 数字: int, int8/16/32/64, uint, uint8/16/32/64, float32/64, byte(unit8), rune(int32, 代表一个Unicode码), uintptr, complex64/128。支持八进制(0)，十六进制(0x)及科学记数法。
 布尔(bool): true, false (预定义常量)
-字符串(string):
+[字符串(string)](https://blog.golang.org/strings):
 
-* 默认空串(`""`)。不以0结尾。
+* 字面值以UTF-8表示。
+* 默认空串(`""`)。不以0结尾，字符串可以包含任意字节。
 * 可复制但不可修改其中字符，要修改必须先转为`[]byte`, `[]rune`再转回来并会造成复制。下标访问其中的字节/字符（字符可以用`''`表示）。
 * `+`连接字符串。内部是UTF8的字节数组，可以用slice相关的操作。
 * 16进制: `"\xFF"    // 1 byte`
-* Unicode: `"\u00FF"  // 1 unicode char, 2 bytes of UTF-8`
+* Unicode: `"\u2318"  // 1 unicode char, 3 bytes of UTF-8` 亦叫rune。
 * `len`返回字节数。用`utf8.RuneCountInString()`返回实际字符数。
+```
+s:="\u2318"
+len([]byte(s)) // 3 bytes
+len([]int32(s)) // 1 rune == utf8.RuneCountInString()
+len([]int8(s)) // compile error
+```
 * Raw:
 ```
 `\n\.abc\t\` 相当于 "\\n\\.abc\\t\\"
@@ -107,7 +114,7 @@ string(array_of_ints)   // ints -> Unicode/UTF-8
 操作符优先级：`* / % << >> & &^（位清除）^（取反）`，`+ - | ^（异或）`，`== != < <= > >=`，`<-（通信）`，`&&`，`||`。
 
 
-## 变量常量
+## 变量
 var(变量): 必须有类型和初始化表达式之一。
 未初始化的变量自动为0, 指针和引用为nil。
 不用的变量可以使用`_`。
@@ -132,34 +139,7 @@ var (
 )
 ```
 
-`const`(常量): 必须有编译期确定初始化表达式，只可以是数字，字符，布尔类型，类型说明可省。
-```
-// 枚举（只可以此类型自己或常量匹配）
-type Weekday int
-const (
-    Monday Weekday = iota
-    Tuesday
-    Wednesday
-    Thursday
-    Friday
-    Saturday
-    Sunday
-)
-
-const (
-    a = "xyz"
-    b            // 同上
-)
-
-// 使用iota自增长counter
-const (
-    loc0, bit0 uint32 = iota, 1<<iota;  // 0, 1
-    loc1, bit1;                         // 1, 2 重复上一个表达式
-    loc2, bit2;                         // 2, 4
-)
-```
-
-`type`: 给一个匿名类型（一般是复合类型，如`[]int`, `map[int]int`, `struct {}`, `func() {}`）起个名字（命名！简单区别：命名类型只含有标识没有其它符号）或一个命名类型起个别名，类似C里的typedef，但不完全一样：
+`type`: 给一个匿名类型（一般是复合类型，如`[]int`, `[]MyInt`, `map[int]int`, `struct {}`, `func() {}`）起个名字（命名！简单区别：命名类型只含有标识没有其它符号，包括内置基本类型）或一个命名类型起个别名，类似C里的typedef，但不完全一样：
 
 * 如果两个类型的变量都是命名类型，即使底层一样也不能通用（可以强转）。
 * 如果两个类型的变量其中有一个是匿名类型，如果底层一样则可以通用。
@@ -203,6 +183,41 @@ v := new(int)   // v has type *int
 
 `++`/`--` 是语句不是表达式，只能后置使用。
 
+## [常量](https://blog.golang.org/constants)
+必须有编译期确定初始化表达式，只可以是数字，字符，布尔类型，类型说明可省。
+```
+// 枚举（只可以此类型自己或常量匹配）
+type Weekday int
+const (
+    Monday Weekday = iota
+    Tuesday
+    Wednesday
+    Thursday
+    Friday
+    Saturday
+    Sunday
+)
+
+const (
+    a = "xyz"
+    b            // 同上
+)
+
+// 使用iota自增长counter
+const (
+    loc0, bit0 uint32 = iota, 1<<iota;  // 0, 1
+    loc1, bit1;                         // 1, 2 重复上一个表达式
+    loc2, bit2;                         // 2, 4
+)
+```
+
+untyped: 没有指定类型或字面常量，可以赋值给相应适合的类型而不用强转（在类型范围之内，类似隐式转换），遇到`:=`, `interface{}`则使用默认类型。
+
+* 默认类型：整形数值int, 浮点数值float64, 字符rune (int32), 复数complex128。
+* 可以超过uint64的限制表示溢出值`const N = 0xFFFFFFFFFFFFFFFFF`，不能赋值但可参与表达式运算。
+* 表示高精度值`const PI = 3.14159265358979323846264338327950288419716939937510582097494459`，赋值时丢失精度。
+
+
 ## 控制结构
 `if`: 可以有一个简单的语句（初始化变量的作用域仅在语句和if/else内，内部是新的作用域可以定义同名变量），也可以什么也没有表示true(switch同)
 其他类型不能自动转为bool，因此不能直接用于条件语句。
@@ -230,6 +245,14 @@ for i, c := range s { // 对于string，按照rune类型迭代
 for range s {  } // iterate only
 ```
 range会复制一份对象出来迭代，循环里引用的是复制过的对象，尽量使用引用或指针类型。
+```
+a := []int{1, 2, 3}
+for _, v := range a {
+    v = 10
+    a = append(a, v)
+}
+// [1 2 3 10 10 10]
+```
 迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
 
 `switch`: 任意类型，除非以`fallthrough`语句结束并进入下一个分支，否则分支会自动终止，一个case可以带多个值
@@ -299,7 +322,7 @@ one   := m["1"] // 取值，会复制一份出来
 null := m["not present"]  // 0，如果没有key则取出空值（即使是nil map也可以，但nil map在未make之前不能直接赋值），不会报错，注意：如果是slice越界会panic
 m["2"] = 2
 v, ok := m[x] // the "comma ok" form, 测试是否有值
-m[x].name = "abc" // 如果没有值则error
+m[x].name = "abc" // 如果没有值则会空指针panic（值必须是指针类型，如果是struct则会因为无法取地址而编译不通过）
 delete(m, x)   // deletes entry for x，若不存在不会出错
 for key, value := range m { ... } // 迭代，顺序不固定，其中可以有删除操作，删除的元素不会被后续迭代到
 ```
@@ -339,7 +362,7 @@ fmt.Println(d.s)    // xyz
 同一包内的struct可以使用另一个包内struct的域及方法（包内全可见）。
 
 ### 比较
-只有Struct, Array可以进行`==`, `!=`比较，逐个元素比较，成员必须也可以比较。
+除基本内置类型外只有Struct, Array可以进行`==`, `!=`比较，逐个元素比较，成员必须也可以比较。
 Slice, Map, Function都只可以和nil比较。可以用`reflect.DeepEqual()`函数来比较。
 Interface的等同比较包括类型和值都要相同。
 
@@ -703,42 +726,6 @@ func main() {
 ```
 
 
-### [Context](http://blog.golang.org/context)
-Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
-Context本身是线程安全的，它携带的参数也必须是线程安全的。
-Context可以有继承关系，当一个Context被取消，它所有的子Context都会被取消（收到通知）。
-```
-// A Context carries a deadline, cancelation signal, and request-scoped values
-// across API boundaries. Its methods are safe for simultaneous use by multiple
-// goroutines.
-type Context interface {
-    // Done returns a channel that is closed when this Context is canceled
-    // or times out.
-    Done() <-chan struct{}
-
-    // Err indicates why this context was canceled, after the Done channel
-    // is closed.
-    Err() error
-
-    // Deadline returns the time when this Context will be canceled, if any.
-    Deadline() (deadline time.Time, ok bool)
-
-    // Value returns the value associated with key or nil if none.
-    Value(key interface{}) interface{}
-}
-```
-
-`func Background() Context` 返回可以作为所有Context的父Context，它永远不会被取消。
-`func WithCancel(parent Context) (ctx Context, cancel CancelFunc)` 当cancel被调用到时（一般在处理这个请求的handler返回时调用），ctx得到通知（`Done()返回`）。
-`func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)` 当超过某段时间时，ctx得到通知。
-`func WithDeadline(parent Context, deadline time.Time) (Context, CancelFunc)` 当某个时间点到达时，ctx得到通知。
-`func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
-
-1.7中移到标准库中：
-使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp.go deprecates `Request.Cancel`
-1.7前使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp_pre17.go
-
-
 ## 错误处理
 ### [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
@@ -856,7 +843,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 
 [GDB](https://golang.org/doc/gdb): v7.1+
 
-* debug: 禁止内联和优化 `-gcflags "-N -l"`。
+* debug: 禁止内联和优化 `-gcflags "-N -l"`。(查看全部`go tool compile -help`)
 * release: 删除调试信息和符号表 `-ldflags "-w -s"`。
 
 ## [Coverage](https://blog.golang.org/cover) ([cmd](http://golang.org/cmd/cover/))
@@ -895,11 +882,122 @@ http接口：`import _ "net/http/pprof"`
 操作系统和架构也可以以文件名的形式说明：`*_GOOS`, `*_GOARCH`, `*_GOOS_GOARCH`，如`source_windows_amd64.go`
 
 ## [Packages](https://golang.org/pkg/)
+### [context](http://blog.golang.org/context)
+Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
+Context本身是线程安全的，它携带的参数也必须是线程安全的。
+Context可以有继承关系，当一个Context被取消，它所有的子Context都会被取消（收到通知）。
+```
+// A Context carries a deadline, cancelation signal, and request-scoped values
+// across API boundaries. Its methods are safe for simultaneous use by multiple
+// goroutines.
+type Context interface {
+    // Done returns a channel that is closed when this Context is canceled
+    // or times out.
+    Done() <-chan struct{}
+
+    // Err indicates why this context was canceled, after the Done channel
+    // is closed.
+    Err() error
+
+    // Deadline returns the time when this Context will be canceled, if any.
+    Deadline() (deadline time.Time, ok bool)
+
+    // Value returns the value associated with key or nil if none.
+    Value(key interface{}) interface{}
+}
+```
+
+`func Background() Context` 返回可以作为所有Context的父Context，它永远不会被取消。
+`func TODO() Context` 返回一个待用的Context，不确定的时候用。
+`func WithCancel(parent Context) (ctx Context, cancel CancelFunc)` 返回子Context和cancel函数。当cancel被调用到时（一般在处理这个请求的handler返回时调用，并取消子Context和其子孙，删除父Context的引用，停止所有相关联的timer），ctx得到通知（`Done()返回`）。
+`func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)` 当超过某段时间时，ctx得到通知。
+`func WithDeadline(parent Context, deadline time.Time) (Context, CancelFunc)` 当某个时间点到达时，ctx得到通知。
+`func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
+
+http中使用`Request.WithContext`，net中使用`Dialer.DialContext`
+1.7中使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp.go deprecates `Request.Cancel`/`Transport.CancelRequest`
+1.7前使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp_pre17.go
+
 ### net/http
 * 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。
 * 如果不想http保持连接，在发送请求之前设置`req.Close = true`或者`req.Header.Add("Connection", "close")`。
-* 关于超时：http://www.oschina.net/translate/the-complete-guide-to-golang-net-http-timeouts
-* server mux: http://www.alexedwards.net/blog/a-recap-of-request-handling
+
+#### handler
+http://www.alexedwards.net/blog/a-recap-of-request-handling
+
+* `http.ListenAndServe`：新建一个Server并`Server.ListenAndServe`没有设超时等参数，如果handler为nil则使用DefaultServerMux。一般不直接传普通handler给Server，而是传一个mux，否则要自己做路由。
+* `http.Handle/HandleFunc`: 等于在`DefaultServerMux`设置。
+* `http.ServerMux`: 是一个handler，处理路由。`Handle/HandleFunc`设置路由对应的handler。
+* `HandlerFunc`: 将一个函数转为一个handler。（被HandleFunc调用）
+
+```
+http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("hello world!"))
+})
+http.ListenAndServe(":8080", nil)
+```
+等于下面的简写：
+```
+type myHandler struct {
+}
+func (t *myHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("hello world!"))
+}
+func main() {
+    mux := http.NewServeMux()
+    mux.Handle("/", &myHandler{})
+	s := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+	s.ListenAndServe()
+}
+```
+
+#### 超时
+http://www.oschina.net/translate/the-complete-guide-to-golang-net-http-timeouts
+
+* 服务端：对于不需要返回流的服务器，使用http.Server并设置ReadTimeout和WriteTimeout。（http.ListenAndServe无法设置）
+* 客户端：使用http.Client设置超时，从发起连接到接收响应结束。（http.Get等无法设置）
+
+使用timeout transport控制超时：
+```
+type TimeoutTransport struct {
+	rt      http.RoundTripper
+	timeout time.Duration
+}
+
+func NewTimeoutTransport(rt http.RoundTripper, timeout time.Duration) http.RoundTripper {
+	transport := &TimeoutTransport{
+		rt:      rt,
+		timeout: timeout,
+	}
+
+	if rt == nil {
+		transport.rt = http.DefaultTransport
+	}
+	return transport
+}
+
+func (t *TimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
+	if ctx == nil {
+		ctx = context.TODO()
+	}
+	toctx, cancel := context.WithTimeout(ctx, t.timeout)
+	defer cancel()
+	resp, e := t.rt.RoundTrip(req.WithContext(toctx)) // implicit dial
+	if e != nil {
+		select {
+		case <-toctx.Done():
+			e = toctx.Err()
+		default:
+		}
+	}
+	return resp, e
+}
+```
+
 
 ### [reflection](http://blog.golang.org/laws-of-reflection)
 通过reflection可以取得接口里面的类型和值的信息。

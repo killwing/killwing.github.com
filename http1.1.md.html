@@ -155,7 +155,7 @@ HTTP/1.1 与早期HTTP 版本的一个显著区别在于持续连接(Keep-Alive�
 除非请求的Connect头域中包含了"close"标签，HTTP/1.1服务器总可以假定HTTP/1.1 客户端想要维持持续连接（persistent connection）。如果服务器想在发出响应后立即关闭连接，它应当发送一个含”close”的Connect头域。
 一个HTTP/1.1客户端可能期望保持连接一直开着，但这必须是基于服务器响应里是否包含一个Connect头域并且包含”close”。如果客户端不想为更多的请求维持连接，它应该发送一个值为”close”的Connect头域。
 
-支持持续连接的客户端可以以流水线的方式发送请求（即无须等待响应而发送多个请求）。服务器必须按接收请求的顺序发送响应。
+支持持续连接的客户端可以以流水线(pipeline)的方式发送请求（即无须等待响应而发送多个请求）。服务器必须按接收请求的顺序发送响应。
 
 服务器通常有一个时限值，超过一定时间即不再维持处于非活动的连接。
 使用持续连接的客户端应限制与某一服务器同时连接的个数。单用户客户端不应与任一服务器或代理服务器保持两个以上的连接。
@@ -163,8 +163,52 @@ HTTP/1.1 与早期HTTP 版本的一个显著区别在于持续连接(Keep-Alive�
 ### 消息传送要求
 100状态码的目的在于允许客户端在发送此请求消息主体前判定服务器是否愿意接受它（基于请求头域）。
 
+## 缓存
+优先级：Pragma > Cache-Control > Expires
+HTTP 1.0
+Pragma: "no-cache" 禁用缓存
+Expires: 指定过期时间，服务器UTC时间
+
+HTTP 1.1
+Cache-Control
+
+一般用于响应中，用于请求中则表示客户端期望行为
+
+* public 应该缓存该资源
+* no-cache 不管缓存过不过期都要去源服务器效验
+* no-store 不应缓存该资源
+* max-age 过期时间，在此时间内，应使用缓存而不用发起新请求
+* no-transform 缓存时不应改变数据
+* must-revalidate 缓存过期前可以直接使用，过期后要去源服务器效验
+* only-if-cached 客户端只需要缓存的响应
+
+效验：
+标识匹配：服务器在响应中包含ETag头表示资源ID，后面客户端就可以以此值进行效验
+
+* If-None-Match 如果没有匹配，服务端返回200和资源，如果匹配返回304(Not Modified)
+* If-Match 如果没有匹配，返回412(Precondition Failed)，如果匹配返回200和资源
+
+修改时间：服务器在响应中包含Last-Modified: GMT
+
+* If-Modified-Since 如果时间一致返回304(Not Modified)，否则返回200和资源
+* If-Unmodified-Since 如果不一致，返回412(Precondition Failed)，如果一致返回200和资源
+
+## Range
+客户端首次请求：不包含Range，或Range: bytes=0-
+服务端首次响应：Accept-Ranges: "bytes"
+客户端后续请求：Range: bytes=begin-end
+服务端range响应：206(Partial Content)并设置Content-Range: begin-end/total，若无效则返回416(Request Range Not Satisfiable)
+
+bytes=begin-end
+
+* 表示字节的位置(从0开始)，闭区间
+* 可以表示多个范围：bytes=500-600,601-999
+* 省略end表示到最后，省略begin表示最后的end个字节
+* bytes=0-0,-2表示第一个和最后2个字节
+
 ## Reference
 http://tools.ietf.org/html/rfc2616
+https://developer.mozilla.org/en-US/docs/Web/HTTP
 
 </xmp>
 <script src="js/strapdown.js"></script>

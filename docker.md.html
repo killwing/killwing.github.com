@@ -2,7 +2,7 @@
 <html>
 <title>Docker</title>
 <xmp theme="readable" style="display:none;">
-http://www.docker.com | v1.10
+http://www.docker.com | v1.13
 
 ## Engine
 ### Install
@@ -10,21 +10,23 @@ ubuntu: `curl -fsSL https://get.docker.com/ | sh` (`curl -fsSL https://get.docke
 arch: `pacman -S docker`; `systemctl enable/restart docker`
 查看版本及状态：`docker version/info`
 
-[daemon启动参数设置](https://docs.docker.com/engine/admin/systemd/)：`systemctl edit docker`
+`dockerd` [常用参数](https://docs.docker.com/engine/reference/commandline/dockerd/)
+[systemd daemon启动参数设置](https://docs.docker.com/engine/admin/systemd/)：`systemctl edit docker`
+[boot2docker](http://developmentalmadness.com/2016/03/09/docker-configure-insecure-registry-in-boot2docker/)
 [设置最大task限制](http://unix.stackexchange.com/questions/253903/creating-threads-fails-with-resource-temporarily-unavailable-with-4-3-kernel/255603#)
 
-### Image
-从仓库获取一个镜像：`docker pull [OPTIONS] [Registry/]NAME[:TAG|@DIGEST]`
-默认使用官方Registry: registry.hub.docker.com，国内的有：dl.dockerpool.com:5000
-TAG默认为`latest`。
-上传镜像：`docker push`
+`docker system`: 系统管理。
 
+### Image
+top: `docker image`
+从仓库获取一个镜像：`docker pull [OPTIONS] [Registry/]NAME[:TAG|@DIGEST]` TAG默认为`latest`。国内registry [1](http://aad0405c.m.daocloud.io) [2](http://21e50839.m.daocloud.io) [3](http://docker.mirrors.ustc.edu.cn) 。
+上传镜像：`docker push`
 列出镜像：`docker images`。
 修改镜像：`docker commit CONTAINER`，基于容器对其镜像作修改，需要指定容器的ID。
 创建镜像：`docker build PATH -t="NAMESPACE/IMAGE-NAME:TAG"`，基于Dockerfile创建镜像。`--no-cache=true`禁用cache。
 修改镜像标签：`docker tag`
 保存／载入镜像：`docker save/load` 保存镜像及其元信息到本地文件。
-删除镜像：`docker rmi` 要先删除基于这个镜像的所有容器。删除untagged镜像：`docker rmi $(docker images | grep "^<none>" | awk '{print $3}')`
+删除镜像：`docker rmi` 要先删除基于这个镜像的所有容器。删除untagged镜像：`docker rmi $(docker images | grep "^<none>" | awk '{print $3}')`, `docker image prune`
 查看镜像配置：`docker inspect`
 查看镜像的层级：`docker history`
 
@@ -51,6 +53,7 @@ TAG默认为`latest`。
 容器是镜像的运行实例。容器在镜像最上层创建自己的读写层，当容器被删除时，这层也被丢弃。
 当容器中运行的程序结束时，容器终止。
 
+top: `docker container`
 创建容器：`docker create`
 启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行；`--rm`退出时删除容器, `--name`命名，`--net`指定网络。
 启动已终止的容器：`docker start`
@@ -64,10 +67,11 @@ TAG默认为`latest`。
 在运行的容器中执行命令：`docker exec`
 连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
-删除容器：`docker rm`，加上`-v`同时删除数据卷（只会删除匿名的卷）；`-f`停止并删除。删除所有容器：`docker rm $(docker ps -qa)`
+删除容器：`docker rm`，加上`-v`同时删除数据卷（只会删除匿名的卷）；`-f`停止并删除。删除所有容器：`docker rm $(docker ps -qa)`, `docker container prune`
 在容器中执行命令：`docker exec`
 
 ### Data Volume
+top: `docker volume`
 `docker run -v [PATH/NAME:]CONTAINER-PATH[:ATTR]`: 挂载目录给容器共享使用。本地路径PATH默认`/var/lib/docker/volumes/`随机临时目录（或由NAME指定），属性：`rw`, `ro`
 查看：`docker inspect`下面`Mounts`
 
@@ -79,6 +83,7 @@ TAG默认为`latest`。
 `docker port`：查看端口配置。
 
 ### Network
+top: `docker network`
 列出所有网络: `docker network ls`
 查看网络：`docker network inspect NAME`
 从网络中加入/移除容器：`docker network connect/disconnect NAME CONTAINER`
@@ -301,15 +306,16 @@ port:
 * TCP & UDP 7946: node之间的通信
 * TCP & UDP 4789: overlay network traffic
 
-创建swarm：在manager host上`docker swarm init --listen-addr <MANAGER-IP>:<PORT>` port一般为2377
-加入swarm：在worker host上`docker swarm join --secret <SECRET> <MANAGER-IP>:<PORT> --ca-hash <HASH>` secret由init时随机生成，hash在manager上`docker info`查看。`--manager`以manager身份加入。
+创建swarm：在manager host上`docker swarm init --advertise-addr <MANAGER-IP>:<PORT>` port默认为2377。advertise-addr为swarm node之间互连的地址，而listen-addr是swarm管理监听地址。
+加入swarm：在worker host上`docker swarm join --token <TOKEN> <MANAGER-IP>:<PORT>` token由init时随机生成。`--manager`以manager身份加入。
 
 在manager上：
+`docker swarm` 管理swarm
 `docker node` 管理node
 `docker service` 管理service
 
 * 创建服务：`docker service create --replicas <N> --name <NAME> <IMAGE> <COMMAND>`，`--constraint`限制具有某些条件的node才会被分配任务。
-* 查看任务：`docker service tasks`
+* 查看任务：`docker service ps <NAME>`
 * 扩大规模：`docker service scale <SERVICE-ID>=N`
 * 升级服务：
 
@@ -326,91 +332,13 @@ port:
 * 其它node变为drain状态时（或者下线）
 * 一个任务在其它active node执行失败时
 
-## Swarm
-### Install
-`docker pull swarm`
-
-### Cluster & Discovery
-#### DockerHub（不建议生产环境使用）
-
-1. 创建token（任意host）：`docker run --rm swarm create`
-1. 加入集群（每台host）：`docker run -d swarm join --addr=ip_address:2375 token://token_id`
-1. 启动manager（管理host）：`docker run -d -P swarm manage token://token_id`
-
-如果由于虚拟机clone导致ID冲突，需删除`/etc/docker/key.json`然后重启daemon。
-管理命令（任意host）：`docker run --rm swarm list token://token_id`
-在集群中执行（任意host）：`docker -H manager_ip:port command`，manger地址也可以用环境变量`DOCKER_HOST`，此时命令都在集群环境中执行，比如`info`可以看到集群信息，从`ps`的NAMES可以看到容器运行在哪个node下面。
-
-#### 文件或列表
-集群host不需要join。
-list: `docker run -d -P swarm manage nodes://<node_ip1:2375>,<node_ip2:2375>`
-file: `docker run -d -P -v $(pwd)/cluster:/tmp/cluster swarm manage file:///tmp/cluster` 文件里nodes以行分割
-
-#### KV Store (etcd/consul/zookeeper)
-加入集群：`swarm join --addr=<node_ip:2375> etcd://<etcd_addr1>,<etcd_addr2>/<optional path prefix>`
-启动manager：`swarm manage etcd://<etcd_addr1>,<etcd_addr2>/<optional path prefix>`
-
-### Strategies
-`swarm manage --strategy`, spread/binpack也考虑CPU/MEM因素。
-
-* spread（默认）: 尽可能选择container的数目最少（不管状态如何）的那个node来运行container。
-* binpack: 尽可能把所有容器放在一台node上面运行。
-* random: 随机。
-
-### Filters
-`swarm manage --filter`
-
-#### node filter
-
-* constraint: 指定node运行容器的node条件
-    * lable过滤：`-e constraint:name==node1`，label可以在daemon运行时指定：`--label name=node1`
-    * 默认tags(docker info查看)过滤：`node(ID或Name)/storagedriver/executiondriver/kernelversion/operatingsystem`
-    * 在`docker build`的时候也可以指定（运行时自动应用）：`--build-arg=constraint:storage==disk`。
-* health: 只在`Status: Healthy`的node上运行。
-
-#### container filter (不考虑容器状态)
-
-* affinity: 在指定容器同一node上运行
-    * ID/Name过滤：`-e affinity:container==container_name/id`
-    * 镜像过滤：在具有指定镜像的node上运行，`-e affinity:image=image_name/id`；
-    * 容器label过滤：`-e affinity:name=node1`，lable在容器运行时指定。
-* dependency：根据容器依赖关系在同一node上运行
-    * --volumes-from=container_name (shared volumes)
-    * --link=container_name:alias (links)
-    * --net=container:container_name (shared network stacks)
-* port: 在一个node上如果一个指定的port已经被占用（即使已经stop），就选择另一个node。
-
-#### filter expressions
-`<filter-type>:<key><operator><value>`
-
-* filter-type: affinity/constraint
-* key: container/node/default tags/label
-* operator: `==`/`!=`
-* value: 可以用通配符和正则表达式[/regexp/](https://github.com/google/re2/wiki/Syntax)，value前面加上`~`，则是不严格匹配，找不到符合条件的node就按照strategy来。
-
-## Machine
-### Install
-``curl -L https://github.com/docker/machine/releases/download/v0.6.0/docker-machine-`uname -s`-`uname -m` > /usr/local/bin/docker-machine && chmod +x /usr/local/bin/docker-machine``
-
-### Provision
-使用虚拟机：`docker-machine create --driver virtualbox default` (用装有docker的镜像[boot2docker](https://github.com/boot2docker/boot2docker)创建一个虚拟机)
-使用已有host：`docker-machine create --driver generic --generic-ip-address=192.168.0.1 --generic-ssh-user=root default`
-使用已有装好docker的host：`docker-machine create --drive none --url=tcp://50.134.234.20:2376 custombox` ([broken](https://github.com/docker/machine/issues/2667))
-还可以使用其它云服务：[支持驱动列表](https://docs.docker.com/machine/drivers/)
-
-使用swarm: [provision with machine](https://docs.docker.com/swarm/provision-with-machine/)
-master: `docker-machine create -d virtualbox --swarm --swarm-master --swarm-discovery="consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-advertise=eth0:2376" sw-master`
-host: `docker-machine create -d virtualbox --swarm --swarm-discovery="consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-store=consul://$(docker-machine ip keystore):8500" --engine-opt="cluster-advertise=eth0:2376" host1`
-
-设置运行环境： `eval "$(docker-machine env default)"` （使用default作为名字，在`docker-machine`命令中可以省略），加上`env --swarm`设置swarm manager环境。
-
 ## Compose
 ### Install
 ``curl -L https://github.com/docker/compose/releases/download/1.6.2/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose``
 
 ### Project
 一个project（默认目录名）包含一组服务，每个服务就是一个应用容器，可以运行多个实例。
-实际运行容器的名字：`project_service_#`，并以`service`为`net-alias`，创建并使用`project_default`网络。
+实际运行容器的名字：`{project}_{service}_#`，并以`service`为`net-alias`，创建并使用`{project}_{default}`网络。
 
 使用`docker-compose build`根据`docker-compose.yml`构建整个project。
 创建（删除）相关服务：`docker-compose create/rm`
@@ -423,8 +351,13 @@ host: `docker-machine create -d virtualbox --swarm --swarm-discovery="consul://$
 使用`links`配置会在`Networks.Links`下创建相应条目，如果是scale之后的实例，必须要stop/start后才能生效（BUG? restart无效）。
 关于启动顺序：根据依赖顺序depends_on, links等启动，一旦开始运行就启动下一个。如果服务需要依赖连接端口监听就绪，通常做法是将ENTRYPOINT设置一个轮询脚本，而在CMD中设置要运行的命令。
 
-### [Compose File](https://docs.docker.com/compose/compose-file) v2
-`docker-compose.yml`是yaml配置文件：至少包含`build`或`image`指定构建镜像，其它指定服务的运行参数，和`docker run`的参数类似。
+### [Compose File](https://docs.docker.com/compose/compose-file) v3
+`docker-compose.yml`是yaml配置文件，可以用`${VARIABLE}`指代环境变量
+
+* services: 至少包含`build`或`image`指定构建镜像，其它指定服务的运行参数，和`docker run`的参数类似，Dockerfile里面的参数不必重新指定。
+* networks: 和`docker network create`参数类似。
+* volumes: 和`docker volumes create`参数类似。
+
 `docker-compose.override.yml`可以覆盖默认配置文件里的相应值，如果是其它名字或多个覆盖文件则需要用`-f`参数一起加入进来并按加入的指定顺序覆盖（单值覆盖，多值合并覆盖）。
 
 继承(extends)：
@@ -439,14 +372,43 @@ important_web:
   cpu_shares: 10
 ```
 
-## [Kubernetes](http://kubernetes.io/)
+### Stacks & DAB (Distributed Application Bundles)
+bundle: 可分发的一组服务的镜像集。(Dockerfile -> image -> container, Composefile -> DAB -> stack)
+stack: 运行时的一组服务。
 
+compose file v3 services段新增deploy: 和`docker service create`参数类似，`docker deploy`时使用部署到swarm，被compose up/run忽略。
+```
+deploy:
+  replicas: 6
+  update_config:
+    parallelism: 2
+    delay: 10s
+  restart_policy:
+    condition: on-failure
+```
+
+top: `docker stack` 管理stack，单独的service可用`docker service`。
+`docker-compose bundle` 根据Composefile创建一个bundle（dab文件）。
+`docker deploy/docker stack deploy` 创建一个stack，需指定一个dab或Compsefile。必需在swarm manager上执行。服务名`{stack}_{service}`，overlay网络`{stack}_default`
+
+## Machine
+### Install
+``curl -L https://github.com/docker/machine/releases/download/v0.6.0/docker-machine-`uname -s`-`uname -m` > /usr/local/bin/docker-machine && chmod +x /usr/local/bin/docker-machine``
+
+使用的镜像：`~/.docker/machine/cache/boot2docker.iso`
+
+### Provision
+使用虚拟机：`docker-machine create --driver virtualbox default` (用装有docker的镜像[boot2docker](https://github.com/boot2docker/boot2docker)创建一个虚拟机)
+使用已有host：`docker-machine create --driver generic --generic-ip-address=192.168.0.1 --generic-ssh-user=root default`
+使用已有装好docker的host：`docker-machine create --drive none --url=tcp://50.134.234.20:2376 custombox` ([broken](https://github.com/docker/machine/issues/2667))
+还可以使用其它云服务：[支持驱动列表](https://docs.docker.com/machine/drivers/)
+
+设置运行环境： `eval "$(docker-machine env default)"` （使用default作为名字，在`docker-machine`命令中可以省略）。
 
 ## Reference
 [docker jumpstart](http://odewahn.github.io/docker-jumpstart)
 [docker practice](https://www.gitbook.io/book/yeasy/docker_practice)
 [boycott docker](http://www.boycottdocker.org/)
-
 
 </xmp>
 <script src="js/strapdown.js"></script>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<title>Queues</title>
+<xmp theme="united" style="display:none;">
+## Basic
+消息投递可靠性：http://proto.actor/docs/durability
+消息驱动vs事件驱动: http://www.reactivemanifesto.org/glossary#Message-Driven
+
+## [NSQ](http://nsq.io/)
+模型：
+topic -> channel，每个channel都收到一个topic消息的copy (broadcast)
+channel -> consumers, 每个consumers收到一个channel里的一部分消息（处理不同的消息）(load balanced)
+
+
+消息保证：
+
+* 消息可靠性：基于内存，超过阈值之后写入磁盘持久化。
+    * --mem-queue-size can be set to 0 to to ensure that all incoming messages are persisted to disk.
+    * stand up redundant nsqd pairs (on separate hosts) that receive copies of the same portion of messages.
+* 消息多次投递（至少一次）：单nsqd实例通常不会发生，client负责等冪操作或去重。
+* client收消息是无序的（不保证和投递顺序一样）。
+* 消费者最终会找到所有topic的生产者。
+
+消息接收：PUSH模型
+RDY N: 表示可以接收N个消息，服务端然后推送
+FIN/REQ：处理完成／重试（重入队列）
+TOUCH: 重置消息超时（超时会重入队列重试）
+
+Roadmap:
+https://github.com/mreiferson/mreiferson.github.com/blob/nsq_roadmap_1/posts/nsq_roadmap.md
+
+## [SQS](https://aws.amazon.com/cn/documentation/sqs/)
+标准队列：
+
+* 高性能，吞吐
+* 消息顺序：尽可能保证有序
+* 至少一次消息投递
+* 消息接收：short/long polling
+* 可以去重
+
+FIFO:
+
+* 性能有限
+* 先进先出
+* 有且仅有一次消息投递
+* 不去重
+
+![sqs](http://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/images/sqs-tutorials-creating-queue-queue-type-descriptions.png)
+
+消息API:
+SendMessage(Batch)
+ReceiveMessage
+DeleteMessage(Batch)
+ChangeMessageVisibility(Batch)
+
+ReceiptHandle: 每次收到消息的唯一ID（可能是重试的相同的消息），表示了一次接收的上下文（否则同一消息的重试就不能区分），用于后续操作。
+
+## [Kafka](http://kafka.apache.org/)
+流式订阅发布分布式系统。
+
+* 以记录方式存储，以topic分类记录，每个记录包含key, value, timestamp。topic就是记录流。
+* topic以分区log的形式组织，每个记录追加到分区的commit log上，并由seq id(offset)标识。消费者只根据分区级的offset来收取消息。
+* 记录不管有没有消费都一直保持，直到保持时间过期。
+* 每个分区都有一个leader节点负责读写，其它followers节点负责复制记录。一个节点可以同时是一个分区的leader，另一个分区的follower。
+* 生产者决定发布在一个topic的记录如何分区以达到更好的性能。
+* 对于订阅的topic，不同消费者组(即subscriber)消费同一个消息(broadcast)，同一个消费者组里的消费者消费不同的消息(load balanced)。这里LB是分区级别的，即把不同分区固定分配给一个组里的不同消费者，所以同组消费者实例不大于分区数量(实例的增减会导致重新分配)。
+
+## [Disqueue](https://github.com/antirez/disque)
+Disque 只能在内存中操作，使用同步复制作为可靠性保证。
+translate: http://mp.weixin.qq.com/s/gCgz5tfMw13XXQl3nfXkwg
+
+## [Disruptor](https://lmax-exchange.github.io/disruptor/)
+内存队列
+
+## Reference
+http://queues.io/
+http://www.warski.org/blog/2014/07/evaluating-persistent-replicated-message-queues/
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
