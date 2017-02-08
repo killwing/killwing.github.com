@@ -398,9 +398,9 @@ fmt.Print(f(300));
 ```
 闭包以引用的方式使用外部变量。
 
-可变参数：只能有一个，必须放在所有参数最后。类似slice的处理。
+可变参数(variadic parameters)：只能有一个，必须放在所有参数最后。类似slice的处理。
 ```
-func foo(x int, y ...int) {
+func foo(x int, y ...int) { // like y []int
     for i, v := range y {
         x += v
     }
@@ -408,6 +408,8 @@ func foo(x int, y ...int) {
 
 a := []int {1, 2, 3, 4}
 foo(100, a...) // 展开slice
+foo(100, 101, a...) // 参数数目不对，compile error
+foo(100, append([]int{101}, a...)...) // 复制了a的元素，效率低
 ```
 
 ### method
