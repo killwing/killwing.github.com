@@ -113,6 +113,15 @@ string(array_of_ints)   // ints -> Unicode/UTF-8
 
 操作符优先级：`* / % << >> & &^（位清除）^（取反）`，`+ - | ^（异或）`，`== != < <= > >=`，`<-（通信）`，`&&`，`||`。
 
+Bit Hacking:
+```
+ &    AND
+ |    OR
+ ^    XOR（不同为1，相同为0）/NOT
+&^    AND NOT （清除位）
+<<    left shift
+>>    right shift （算术移位，对于有符号数，保留符号位）
+```
 
 ## 变量
 var(变量): 必须有类型和初始化表达式之一。
@@ -153,12 +162,35 @@ type Operator func(a, b int) int
 type ArrayOfIntPointers []*int
 ```
 
-当把一个（非interface）的类型定义为一个新的类型时，可以在新的类型上增加方法，但新的类型不会继承现有类型的方法，而interface类型会保留。可以用匿名内嵌的方式：
+当把一个（非interface）的类型定义为一个新的类型时，可以在新的类型上增加方法，但新的类型不会继承现有类型的方法，而interface类型和组合成员的方法集会保留。
 ```
-type myType struct {
-    AType
+type C struct {
+}
+
+func (t *C) foo() { println("foo in C") }
+
+type A struct {
+	C
+}
+
+func (t *A) foo() { println("foo in A") }
+
+type B A
+
+func main() {
+	b := new(B)
+	b.C = C{}
+	b.foo() // foo in C
 }
 ```
+
+对于以上可以用匿名内嵌的方式：
+```
+type B struct {
+    A
+}
+```
+
 
 赋值，可以多个变量一起
 ```
@@ -238,14 +270,22 @@ for { fmt.Printf("Mine! ") } // endless loop
 for key, value := range m { // m is map, 也可只取key，对于array和slice, 返回index及value，key&value每次迭代都会被重用
     fmt.Printf("key %s, value %g\n", key, value)
 }
+```
+
+`range`
+range表达式只会在开始前计算一次。
+会复制一份对象出来迭代，循环里引用的也是复制过的item，尽量使用引用或指针类型。
+range迭代数组结束时，index不会递增到下一个。
+迭代引用类型时，对其作修改不影响迭代（复制了头结构，没有复制数据）。
+迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
+
+```
 s := "[\u00ff\u754c]";
 for i, c := range s { // 对于string，按照rune类型迭代
     fmt.Printf("%d:%c ", i, c)  // 打印 0:[ 1:ÿ 3:界 6:]
 }
 for range s {  } // iterate only
-```
-range会复制一份对象出来迭代，循环里引用的是复制过的对象，尽量使用引用或指针类型。
-```
+
 a := []int{1, 2, 3}
 for _, v := range a {
     v = 10
@@ -253,7 +293,6 @@ for _, v := range a {
 }
 // [1 2 3 10 10 10]
 ```
-迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
 
 `switch`: 任意类型，除非以`fallthrough`语句结束并进入下一个分支，否则分支会自动终止，一个case可以带多个值
 ```
@@ -360,6 +399,8 @@ fmt.Println(d.C)    // &{xyz}
 fmt.Println(d.s)    // xyz
 ```
 同一包内的struct可以使用另一个包内struct的域及方法（包内全可见）。
+
+转型：具有相同成员组成（成员数量和顺序相同，成员名字和类型都相同（同一个包里，不能是不同包里的同样类型），tag可以不同）的两个struct类型可以互相转换。
 
 ### 比较
 除基本内置类型外只有Struct, Array可以进行`==`, `!=`比较，逐个元素比较，成员必须也可以比较。
@@ -585,10 +626,11 @@ func suck(ch chan int) {
 
 `select`
 
-* select的case必须是channel操作。如果有表达式都会被依次求值。
+* select的case必须是channel操作。如果有表达式都会首先被依次求值再做条件判断(default也不会进入)。
 * 如果每个条件都阻塞，select就会阻塞（如果有default则进入操作）。
 * 如果多个条件满足，则随机选择一个执行。
 * `select {}`阻塞goroutine。
+* break/continue作用于select
 ```
 c1 := make(chan int)
 c2 := make(chan int)
@@ -748,6 +790,26 @@ type error interface {
 * defer性能不高，不要在循环内使用。
 * 如果要在语句块中使用，可以写成lambda代替语句块。
 
+利用defer构造析构：
+```
+func ctor() func() {
+	println("ctor")
+	return func() {
+		println("dtor")
+	}
+}
+
+func main() {
+	defer ctor()()
+	fmt.Println("Hello, playground")
+}
+
+// output:
+// ctor
+// Hello, playground
+// dtor
+```
+
 `panic`: 类似抛出异常，一直向上传递，并终止程序（不能跨越goroutine的边界）。参数类型为`interface{}`，可接受任何参数。一些运行时错误比如数组越界，引用空指针也会引发panic。
 `recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。没有捕获到panic则返回nil。
 
@@ -806,6 +868,8 @@ func TestFoo(t *testing.T) {
     // do teardown
 }
 ```
+
+[Go advanced testing tips & tricks](https://medium.com/@povilasve/go-advanced-tips-tricks-a872503ac859#.smbsuk2mg)
 
 ### Benchmarks
 `go test -bench=. -benchtime=3s -benchmem`
@@ -921,8 +985,16 @@ http中使用`Request.WithContext`，net中使用`Dialer.DialContext`
 1.7前使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp_pre17.go
 
 ### net/http
-* 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。
+#### connection
+client:
+
+* 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。只有body读完并关闭之后才能重用连接。
 * 如果不想http保持连接，在发送请求之前设置`req.Close = true`或者`req.Header.Add("Connection", "close")`。
+* 对于请求发送的body，由client的transport负责关闭。
+
+server:
+
+* server的接收请求的body，由Server负责关闭，handler不必关心。
 
 #### handler
 http://www.alexedwards.net/blog/a-recap-of-request-handling

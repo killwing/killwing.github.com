@@ -147,7 +147,7 @@ Request-URI大多数情况是被用于指定一个源服务器或网关（gatewa
 
 ## 连接
 ### 持续连接
-HTTP/1.1 与早期HTTP 版本的一个显著区别在于持续连接(Keep-Alive头)是任何HTTP/1.1连接的缺省方式。
+HTTP/1.1 与早期HTTP 版本的一个显著区别在于持续连接(Connection: Keep-Alive头)是任何HTTP/1.1连接的缺省方式。
 除非另有指定，客户端总应当假定服务器会保持持续连接，即便在接到服务器的出错响应时也应如此。（对大多数HTTP/1.0的实现，每一个连接要在请求之前被客户端建立，并且在发送响应之后要被服务器关闭。）
 
 持续连接提供了一种可以由客户端或服务器发信号来终止TCP连接的机制。
@@ -205,6 +205,33 @@ bytes=begin-end
 * 可以表示多个范围：bytes=500-600,601-999
 * 省略end表示到最后，省略begin表示最后的end个字节
 * bytes=0-0,-2表示第一个和最后2个字节
+
+If-Range = "If-Range" ":" ( entity-tag | HTTP-date )，必需和Range头连用，否则忽略。如果服务端不支持If-Range，则Range头也应该忽略。
+如果entity没有变化(ETag或Last-Modified)，则按照Range头返回内容(206)，如果发生变化，则返回全部内容(200)。
+
+## Chunked
+没有`Content-Length`，动态生成内容，可以在最后发送消息头比如hash值。
+`"Transfer-Coding": "chunked"`
+
+chunk编码：以一个或多个chunk组成，最后以一个0长度的chunk结束（可以包含footer，即可选头部）。
+```
+Chunked-Body=*chunk
+　　　　　　 "0"CRLF
+  　　　　　 footerCRLF
+
+chunk=chunk-size[chunk-ext]CRLF
+  　　chunk-dataCRLF
+footer=*entity-header
+```
+
+## Pipeline
+指客户端不用等收到上一个请求的响应，而在同一条连接上继续发送下一个请求。
+服务端按请求顺序发送响应。
+
+## Redirection
+301 Moved Permanently: 永久转移，原地址已无效。
+302 Found：临时转移。
+http1.1新增303, 307了，对302的情况细化处理，并不常用。
 
 ## Reference
 http://tools.ietf.org/html/rfc2616
