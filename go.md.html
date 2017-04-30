@@ -31,6 +31,7 @@ export PATH=$PATH:$GOPATH/bin
 
 交叉编译：
 如在mac上：`GOOS=linux GOARCH=amd64 go build`
+[cgo问题](https://inconshreveable.com/04-30-2014/cross-compiling-golang-programs-with-native-libraries/)
 
 
 ### 开发辅助工具
@@ -835,13 +836,13 @@ import (
 在一个包内部，所有全局变量函数等对于包的源文件可见。对于包的使用者来说，只有开头字母大写的可见。
 全局变量的初始化：声明的时候初始化；使用`init()`函数，在包所有全局变量初始化后执行`main.main()`之前执行。初始化总是单线程的，根据包的依赖顺序执行。
 导入一个包时，这个包内除了`*_test.go`每个源文件的`init()`都会被调用，不管有没有用到里面的变量或函数。
+一个包在被不同的包导入后，里面的全局变量只有一个实例, `init()`也只会运行一次。
 一般来说，一个目录一个包，作为一个单元一起编译，忽略测试文件。
 按照惯例，包名使用小写，且为一个单词的名字；不要使用下划线或者混合大小写。
 
-### Vendoring
+### Vendoring ([cmd](https://github.com/golang/dep))
 实验性功能，默认不启用。启用：`GO15VENDOREXPERIMENT=1`
 在src下如果有形如`d/vendor`的目录（一般vendor不直接放在src下），那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
-
 
 ## Testing ([pkg](http://golang.org/pkg/testing/))
 ### Test
@@ -883,7 +884,7 @@ func BenchmarkHello(b *testing.B) {
 ```
 用`b.ResetTimer()`重新计时。
 
-### Example
+### [Examples](https://blog.golang.org/examples)
 示例函数命名(suffix可选)：
 
 * package: Example_suffix
@@ -891,7 +892,8 @@ func BenchmarkHello(b *testing.B) {
 * type: ExampleTypeA_suffix
 * method: ExampleTypeA_MethodA_suffix
 
-通过stdout输出来判断结果。(内置函数`print/println`输出到stderr)
+examples在go doc里可以直接run。
+examples也是测试，通过stdout输出和`Output:`注释比较来判断测试是否通过，如果没有`Output:`则不会执行。(内置函数`print/println`输出到stderr)
 
 ### util packages
 `net/http/httptest`: 测试http
@@ -934,6 +936,8 @@ http接口：`import _ "net/http/pprof"`
 * 每个程序包都应该有一个包注释，一个位于package语句之前的注释（只需要出现在一个文件中）。
 * 每一个被导出的（大写的）名字，都应该有一个注释。
 * 注释的第一句话应该为一条概括，并且使用被声明的名字作为开头。`// FuncName does ...`
+
+本地运行：`godoc -http=:6060 -play`
 
 ## [CodingStyle](http://blog.golang.org/go-fmt-your-code) ([cmd](http://golang.org/cmd/gofmt/))
 [Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)

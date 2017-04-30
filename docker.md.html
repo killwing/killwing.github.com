@@ -58,7 +58,7 @@ top: `docker container`
 启动容器：`docker run IMAGE`，加上`-it`分配伪终端及输入输出；`-d`后台运行；`--rm`退出时删除容器, `--name`命名，`--net`指定网络。
 启动已终止的容器：`docker start`
 重启容器：`docker restart`
-终止容器：`docker stop`
+终止容器：`docker stop` 先发SIGTERM，10秒后再kill
 杀死容器：`docker kill`
 查看容器的输出：`docker logs`
 查看容器状态：`docker ps`，`-a`查看包括已终止的所有容器; `-q`仅列出id。
