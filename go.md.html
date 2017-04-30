@@ -584,7 +584,33 @@ s.String()
 > [Do not communicate by sharing memory; instead, share memory by communicating.](http://blog.golang.org/share-memory-by-communicating)
 
 并发模型：[CSP模型(Communicating Sequential Processes)](https://en.wikipedia.org/wiki/Communicating_sequential_processes)
-内存模型：https://golang.org/ref/mem
+
+### [内存模型](https://golang.org/ref/mem)
+发生顺序（逻辑顺序）：如果事件e1在e2之前发生，那么e2就在e1之后发生；如果e1既不在e2之前发生，也不在e2之后发生，则e1和e2并发。
+在单独的goroutine的内部，发生顺序由程序指定。
+多个goroutine情况下，必需使用同步机制保证不同goroutine变量之间的读写发生顺序。
+多个goroutine下而没有同步机制保证，则为并发顺序。
+
+一个对变量v的读操作r，
+允许读到（可能读到）对其的写操作w的值：r不在w之前发生，且没有其它的写操作在w之后在r之前发生。
+保证读到对其的写操作w的值：w在r之前发生，其它写操作要么在w之前发生，要么在r之后发生。（更严格）
+在一个goroutine内部，因为没有并发，观察到和能够读到是等价的。
+变量初始化为0值的操作等价于写操作。
+读写大于一个机器字长的变量的操作顺序是未定义的。
+
+注意：r能读到与其并发的w，并不代表在r之后发生的r'能读到在w之前发生的w'。
+问题：双锁检测问题，重复检测问题，解决：使用显式的同步机制。
+
+* 语句可能乱序，造成另一个goroutine逻辑判断错误
+* 语句直接被优化掉，对另一个goroutine不可见
+
+同步机制：
+程序初始化：程序的初始化都在一个goroutine内（但可能创建多个goroutine导致并发）；被导入的包init在本包init之前发生；main函数在所有init函数完成之后发生。
+goroutine：go语句（执行完成）在goroutine执行之前发生；goroutine的退出不保证在任何事件之前发生。
+channel: 一次send操作在对应的receive操作完成之前发生；关闭操作在一次接收0值的操作之前发生；一次在无buffer的channel上的接收操作在对应的发送完成之前发生。第k次在cap为C的channel上的接收操作在第k＋C次发送完成之前发生（用来限定并发数）。
+lock: 对任何Mutex/RWMutex变量l，以及n<m，调用n次Unlock在m次Lock之前发生；对于RWMutex变量l，RLock在n次Unlock之后发生，对应地RUnlock在n+1次Lock之前发生。
+once: 一个单独的`once.Do(f)`内的`f()`调用在任何`once.Do(f)`调用返回之前发生。
+
 
 ### Goroutine
 goroutine指在同一地址空间内并发执行的函数，非常廉价和轻量级。执行: `go f()`

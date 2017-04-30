@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Python</title>
+<xmp theme="readable" style="display:none;">
+v3.0
+
+## 1.Basic
+### 1.1 注释
+注释以"#"起始，直至行尾。
+字符串中的#符号只是#符号本身。
+
+### 1.2 数值
+赋值(=), 一个值可以同时赋给几个变量, eg: `x = y = z = 0`
+多项赋值(a, b = 1, 2), 右边的表达式在赋值之前首先被完全解析(从左向右计算)。
+整数和浮点数的混合计算中，整数会被转换为浮点数。
+整数和浮点数的转换函数:float(), int(), 绝对值函数: abs().
+复数支持：虚部以"i"或"j"结尾。
+交互模式下，最近一次表达式输出被赋给变量`_`(只读)。
+
+### 1.3 字符串
+字符串用单引号或双引号标识，如果字符串中只有单引号没有双引号，就用双引号标识否则用单引号。
+转义符"\"，raw字符串使用前缀"r"不会转义，eg: `s = r"abc\ndef\"ghi"`
+三重引号`"""`或`'''`来标识全部原始格式。
+字符串可以用加号+连接(相邻的字符串会自动连接，但不能用于字符串表达式)，也可以用乘号`*`循环。
+字符串可以用下标查询(s[x])，x从0开始，可以是负数计数从右边开始，s[-1]为最后一个字符；字符串不可改变，索引位置不可赋值。
+切割检索(`s[a:b]`，对应值为s[a,b))，a默认为0，b默认是字符串的长度(可用len()获得)。`s[:i] + s[i:]`等于s。
+
+### 1.4 运算符
+算数运算符: 加减乘除`+, -, *, /, +=, -=, *=, /=`，取整`//`, eg: `7//3`。
+关系运算符: `<, >, ==, <=, >=, !=, in, not in, is, is not`, 内部不能赋值，可以串联，eg：`a < b == c`
+逻辑运算符: and, or, not；短路操作，表达式返回值通常是计算的最后一个变量。
+任何长度不为0的东西都是True，None，0和空序列为False。
+
+### 1.5 Unicode
+掩码序列\uNNNN表示在给定位置插入编码为0xNNNN的字符，eg: `Hello\u0020World!`。
+encode()方法将字符串转为指定编码的字节序列，eg: `"abcd".encode('utf-8')`。
+
+## 2.Control Flow
+### 2.1 while
+```
+while a > 0:
+    print(a)
+```
+
+### 2.2 if
+```
+if x < 0:
+    x = 0
+    print('Negative changed to zero')
+elif x == 0:
+    print('Zero')
+elif x == 1:
+    print('Single')
+else:
+    print('More')
+```
+```
+## 条件表达式被放在了中间，如果为真那么就取最前面的值否则取最后的else后面的值
+x = true_value if condition else false_value
+```
+
+### 2.3 for
+for语句依据任意序列（链表或字符串）中的子项，按它们在序列中的顺序来进行迭代。
+在循环中修改序列被迭代的部分不安全。如果需要修改，应该迭代它的复本（使用切割）。
+```
+for x in a[:]:
+    if len(x) > 6: a.insert(0, x)
+```
+
+### 2.4 Misc
+range()生成一个数值序列用于迭代，`list(range(n))`创建列表。
+break用于跳出最近的for或while循环，continue跳转到循环的下一个迭代过程。
+循环语句可以有一个else分支；当for循环穷尽它循环的列表或者while循环条件变为False，而非通过break语句中止时，它会执行。
+```
+for i in range(10):
+    print(i)
+else:
+    print('end for.')
+```
+pass用于占位。
+
+### 2.5 Function
+```
+def fib(n):    # write Fibonacci series up to n
+    """Print a Fibonacci series up to n."""
+    a, b = 0, 1
+    while b < n:
+        print(b, end=' ')
+        a, b = b, a+b
+    print()
+```
+函数体的第一行可以是一个字符串文本称为docstring(引用：`function.__doc__`)，是关于对象用途的简介，以大写字母开头，以句号结尾。如果文档字符串有多行，应该空一行，与接下来的详细描述分隔。
+参数使用传值方式传递。
+return从函数中返回一个值，没有则返回None.
+默认参数：`def ask_ok(prompt, retries=4, complaint=’Yes or no, please!’):`，如果是变量则为它在函数被定义时的值；默认值只绑定一次（共享），这使得默认值是列表、字典或大部分类的实例时会有所变化。
+函数可以通过形如keyword = value的关键字参数调用，参数列表中的每一个关键字都必须来自于形式参数。
+```
+def f(a, b):
+    print(a, b)
+
+##调用：
+f(b=1, b=2)
+```
+引入一个形如`**name`的参数时，它接收参数成为一个字典。
+`*name`(必须在`**name之前`)接收参数成为一个元组，包含了所有没有出现在形式参数列表中的参数值，任何`*name`之后的参数都是keyword-only参数，只能通过关键字而非位置''使用''。
+`*`操作符来自动把参数列表拆开，`**`操作符可以把字典传递给关键字参数。
+lambda可以用于任何需要的函数对象(lambda x: x+n)，可以接收任意多个参数并且返回单个表达式的值(包含的表达式不能超过一个，不能包含命令，可以从包含范围内引用变量)。  
+
+### 2.6 作用域
+尽管作用域是静态定义，在使用时他们都是动态的。每次执行时，至少有三个命名空间可以直接访问的作用域嵌套在一起：首先搜索最里面的作用域，包含局部命名；其次搜索的是中层的作用域，这里包含了同级的函数；最后搜索最外面的作用域，它包含内置命名。
+```
+g = 9
+def myf():
+　　print 'g =', g
+　　g = 3　　
+　　
+myf()
+
+------------
+UnboundLocalError: local variable 'g' referenced before assignment
+```
+赋值操作(删除del一样)总是在最里层的作用域。事实上，所有引入新命名的操作都作用于局部作用域，特别是import语句和函数定义将模块名或函数绑定于局部作用域。
+```
+g = 9
+def myf():
+    g = 3　　
+    print 'g =', g
+　　
+myf()
+print 'g =', g
+
+------------
+g = 3
+g = 9
+```
+关键字global可以用于从全局命名域引入个别变量并重绑定它，关键字nonlocal检索外围的作用域并进行重绑定。
+赋值不会复制数据，只是将命名绑定到对象(引用)。
+局部赋值（默认的）不会改变sope_test在spam上的绑定，nonlocal赋值改变了scope_test在spam上的绑定， 而global赋值改变了模块级绑定：
+```
+def scope_test():
+    def do_local():
+        spam = "local spam"
+    def do_nonlocal():
+        nonlocal spam
+        spam = "nonlocal spam"
+    def do_global():
+        global spam
+        spam = "global spam"
+
+    spam = "test spam"
+    do_local()
+    print("After local assignment:", spam)
+    do_nonlocal()
+    print("After nonlocal assignment:", spam)
+    do_global()
+    print("After global assignment:", spam)
+
+scope_test()
+print("In global scope:", spam)
+
+------------
+After local assignment: test spam
+After nonlocal assignment: nonlocal spam
+After global assignment: nonlocal spam
+In global scope: global spam
+```
+
+## 3.Data Structure
+### 3.1 tuple ()
+元组由若干逗号分隔的值组成，像字符串不可改变，输出时总是有括号的，输入时可能有或没有括号。
+一对空的括号可以创建空元组`t=()`，要创建一个单元素元组可以在值后面跟一个逗号`t=(1,)`。
+可变参数是元组封装和序列拆封的一个结合，拆封要求个数相同。
+
+### 3.2 list []
+就像字符串索引，list索引从0开始，list可以被切割，连接，而且每个元素可以被修改，可以给一部分切割结果赋值，可以改变尺寸或整个清空，可以嵌套。
+每个列表推导式都在表达式之后跟一个for，然后有零到多个for或if子句。
+```
+[3*x for x in vec]
+[[x, x**2] for x in vec]
+[3*x for x in vec if x > 3]
+[(x, x**2) for x in vec]
+[x*y for x in vec1 for y in vec2]
+[str(round(355/113.0, i)) for i in range(1, 6)]
+[str.strip() for str in strVec]
+```
+del可以从一个列表中依索引而不是值来删除一个元素，也可以用del删除实体变量。
+
+### 3.3 set {}
+set是一个无序不重复元素的集，用`{a, b, ...}`或`set()`创建一个set，如果要创建一个空集合，必须用`set()`而不是`{}`（空字典）。
+关系运算：union（联合|），intersection（交&），difference（差-）和 sysmmetric difference（对称差集^）。
+
+### 3.4 dictionary {:}
+字典(可以理解为map)以互不相同的关键字为索引，关键字可以是任意不可变类型，通常用字符串或数值；`{}`创建一个空的字典。
+`keys()`方法返回由所有关键字组成的list；`dict()`函数直接从键值对元组列表中构建字典；遍历时，关键字和对应的值可以使用`items()`方法同时解读出来。
+
+### 3.5 Misc
+遍历序列(以上结构都可以称为序列)时，索引位置和对应值可以使用`enumerate()`函数同时得到；同时遍历两个或更多的序列，可以使用`zip()`函数；反向遍历一个序列，使用`reversesd()`函数；要按顺序遍历一个序列，使用`sorted()`函数返回一个已排序的序列。
+序列对象可以与相同类型的其它对象比较，比较操作按字典序进行。
+
+## 4 Module
+模块就是拥有Python定义和声明的文件，文件名就是模块名称(`__name__`)，以.py结尾。
+导入模块：`import modname`或`from modname import itemname1, itemname2`。
+使用形如import item.subitem.subsubitem这种导入形式，除了最后一项，都必须是包，而最后一项则可以是模块或者是包，但是不可以是类，函数或者变量。
+在这个模块被当作”主”程序执行时(`python mymodule.py <arguments>`)，`__name__`会赋值为`__main__`。
+sys.path(如果定义了从环境变量PYTHONPATH，则从其中取得)定义了模块的搜索路径，通常搜索顺序是当前目录->环境变量PYTHONPATH->Python安装默认目录。子模块相互引用时，import首先查找同目录下是否有期望的模块，如果没有再按照标准的模块搜索方式进行。
+`dir(modname)`可以找到模块内定义的所有名称，`dir()`列出当前定义的所有名称，内置的函数和变量的名称在builtins模块中。
+在导入一个包的时候，Python会根据sys.path中的目录来寻找这个包中包含的子目录,目录只有包含一个叫做`__init__.py`的文件才会被认作是一个包。
+如果包定义文件`__init__.py`存在一个叫做`__all__`的列表变量，那么在使用`from package import *`的时候就把这个列表中的所有名字作为包内容导入，如果未定义`__all__`，则不导入任何模块。推荐使用`from package import specific_submodule`, 而不使用`*`，package可以用1个点来表示当前模块所属的包，2个点表示当前包的上一级。
+
+## 5.IO
+函数`str()`用于将值转化为适于人阅读的形式，而`repr()`转化为供解释器读取的形式。
+函数`vars()`返回一个包含所有局部变量的字典，`print()`可以按格式中的名字引用变量输出`%(name)format`:
+```
+table = {'Sjoerd': 4127, 'Jack': 4098, 'Dcab': 'hello'}
+print('Jack: %(Jack)d; Sjoerd: %(Sjoerd)d; Dcab: %(Dcab)s' % table)
+```
+
+`open()`返回一个文件，第二个参数指定模式：r只读，w只写，a追加，r+读写，r+b二进制读写。
+几种从文件对象f读取数据的方式：
+
+* f.read(size): 读取指定size，没有指定或者指定为负数，就会读取并返回整个文件。
+* f.readline(): 从文件中读取单独一行，字符串结尾会自动加上一个换行符(\n)。
+* f.readlines(): 返回一个列表，其中包含了文件中所有的数据行。
+* `for line in f: print(line, end="")`。
+
+持久化对象: 封装到文件f: `pickle.dump(x, f)`；拆封: `x = pickle.load(f)`。
+
+## 6.Exception
+```
+def divide(x, y):
+    try:
+        result = x / y
+    except ZeroDivisionError as e:
+        print("division by zero (%s): %s" % (e.errno, e.strerror))	#如果有异常参数，存放在e.args里面
+    except (RuntimeError, TypeError, NameError):
+        print("Other error!")
+    except:	#抓住所有异常
+        print("Unexpected error:", sys.exc_info()[0])
+        raise	#再次把异常抛出 
+    else:	#try子句没有发生任何异常的时候执行
+        print("result is", result)
+    finally:	#无论在任何情况下都会执行(清理行为)
+        print("executing finally clause")
+```
+发生的异常其类型如果是except子句中列出的类，或者是其派生类，那么它们就是相符的（反之不能）。
+创建一个新的exception类，应该直接或间接继承Exception类，并依标准的异常命名以"Error"结尾。
+一些对象定义了标准的清理行为，无论系统是否成功的使用了它，一旦不需要它了，那么这个标准的清理行为就会执行。with语句就可以保证诸如文件之类的对象在使用完之后一定会正确的执行他的清理方法。
+```
+with open("myfile.txt") as f:
+    for line in f:
+        print(line)
+```
+
+## 7 Types and Objects
+### 7.1 concepts
+Everything is an object.
+
+* identity(判断是否同一个obejct: is/is not)
+* attributes(得到另一个object: objectname.attributename)
+* relationships(type - type和class同义，每个object有且仅有一种type: `__class__`；bases - 一个object可以有一个或多个bases: `__bases__`)
+* name(object可以有多个或者没有)
+
+class and instance: 如果D继承B，B继承F，d是D的一个实例，那么：
+
+* `d.__class__ == D`
+* `isinstance(d, D) == isinstance(d, B) == True`
+* `D.__bases__ == (B,)`
+* `issubclass(D, B) == issubclass(D, F) == True`
+
+`<class 'object'>` and `<class 'type'>`
+
+* `<class 'object'>` is an instance of `<class 'type'>`.
+* `<class 'object'>` is a subtype of no object.
+* `<class 'type'>` is an instance of itself.
+* `<class 'type'>` is a subtype of `<class 'object'>`.
+* 只有2种object: types(type objects) 和 non-types(non-type objects，不能实例化，不能被继承)，判断:`isinstance(x, type)`.
+* `<class'type'>`是所有types的type, `<class 'object'>`是所有types的supertype（除了自己）.
+
+Instantiation: metaclass(继承自type, types) -> class(继承自object, types) -> instance(non-types).
+
+### 7.2 subtyping - class & instantiating - ()
+类(class)的定义就像函数定义，要先执行才能生效。类定义完成时（正常退出），就创建了一个类对象。
+实例方法(bound)的特别之处在于实例对象作为函数的第一个参数传给了函数: x是MyClass的实例，调用x.f()相当于MyClass.f(x)。
+继承(默认继承自object)：`class DerivedClassName(BaseClassName):`，多重继承：`class DerivedClassName(Base1, Base2, Base3):`。在父类中搜索继承属性的解析顺序，会先解析同级的基类；super()返回`self.__class__.__mro__`（包含了自己的type以及一定顺序的所有supertypes）中自己的下一个类型，第一个参数总是应该是使用它的类。
+用C++术语来讲，所有的类成员（包括数据成员）都是公有的，所有的成员函数都是虚（virtual）的，没有特定的构造和析构函数。
+```
+class Base:
+    def bar(self):
+        print("base bar")
+    def foo(self):
+        print("base foo")
+        self.bar()
+        Base.bar(self)
+
+class Sub(Base):
+    def bar(self):
+        print("sub bar")
+
+b = Sub()
+b.foo()
+
+-------------
+base foo
+sub bar
+base bar
+```
+类定义了`__init__()`方法的话，类的实例化操作会自动为新创建的类实例调用`__init__()`方法。
+一些特殊的方法如`__len__()`, `__str__()`, `__add__()`都是直接通过类来访问：len(obj) -> `obj.__class__.__len(obj)__`
+
+### 7.3 descriptor
+user-provided attributes: 又称dynamic attributes，在`__dict__`中能查到，一些objects如built-in types及其instances没有`__dict__`，所以不能自设attributes。
+python-provided attribute: 如`__dict__`, `__bases__`, `__class__`，是否是python-provided取决于具体的object.
+dir()可以列出所有attributes。
+对于普通attribute(非descriptor)，a.x访问顺序：
+
+1. `a.__dict__['x']`
+1. `a.__class__.__dict__['x']`
+1. 所有`a.__class__.__bases__`的dict
+
+不包括metaclasses，对于class直接查找自己及bases的dict.
+
+```
+class C(object):
+	x = 10
+
+b=C()   #b.__dict__不包含"x"，C.__dict__包含"x"
+b.x   #10
+C.x   #10
+b.x=100   #b.__dict__也包含一个"x"，对应的值为100；C.__dict__对应的值还是10
+b.x   #100
+C.x   #10
+t=C()
+t.x   #10
+C.x=99   #C.__dict__["x"]变成了99
+t.x	#99
+b.x	#100
+C.x	#99
+```
+
+如果一个object定义了`__get__`, `__set__`, and `__delete__`任何一个方法，这个object就称为descriptor。
+
+* data descriptor: 定义了`__get__` 和 `__set__`。eg: property.
+* non-data descriptor: 只定义了`__get__`。eg: function, classmethod, staticmethod.
+* read-only data descriptor: 定义了`__get__` 和 `__set__`，并`__set__`被调用时抛出一个AttributeError。eg: 没有setter的property.
+
+get一个attribute顺序(print(objectname.attrname))：
+
+1. check python-provided attribute，找到即返回。
+1. check`objectname.__class__.__dict__`，如果存在且是一个data-descriptor，则返回descriptor结果，否则继续检查所有的`objectname.__class__.__bases__`。
+1. check`objectname.__dict__`，找到即返回。如果objectname是一个type(也会搜索其bases)，并且存在且是一个descriptor，则返回descriptor结果。
+1. check`objectname.__class__.__dict__`，如果存在且是一个non-data-descriptor，则返回descriptor结果；如果存在，但不是一个descriptor，则返回结果；如果存在且是一个data-descriptor，在2时就返回了。否则继续检查所有的`objectname.__class__.__bases__`。
+1. 如果未找到，则抛出AttributeError，永远不会去搜索`objectname.__class__.__class__`。
+
+即：1) checks for a data descriptor in the type (and its bases), 2) check for the attribute in the object `__dict__`, 3) check for a non-data descriptor in the type (and its bases).
+
+set一个user-provided attribute顺序(objectname.attrname = something)：
+
+1. check`objectname.__class__.__dict__`，如果存在且是一个data-descriptor，则用descriptor设置，否则继续检查所有的`objectname.__class__.__bases__`。
+1. 直接设置：`objectname.__dict__[attrname]=something`。
+
+python-provided attribute取决于具体的attribute，有些不能修改。
+
+del一个attribute和set类似。
+
+当访问一个instance的attribute时，如果找到的object是一个descriptor，相应`__get__`/`__set__`/`__delete__`方法就会被调用；当访问一个type的attribute时，只有`__get__`会被调用，set/del会替换/删除这个descriptor。
+`<class 'object'>`和`<class 'type'>`均定义了 `__getattribute__`，并有缺省实现（调用`__get__`/`__set__`/`__delete__`），descriptor的各种特性通过`__getattribute__`来实现。如果覆盖了`__getattribute__`，就可以改变descriptor的默认行为。
+
+Built-in descriptors:
+property：property(fget=None, fset=None, fdel=None, doc=None)，传入的方法立即绑定(non-virtual)。
+```
+property实现：
+class property:
+    "Emulate PyProperty_Type() in Objects/descrobject.c"
+
+    def __init__(self, fget=None, fset=None, fdel=None, doc=None):
+        self.fget = fget
+        self.fset = fset
+        self.fdel = fdel
+        self.__doc__ = doc
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self         
+        if self.fget is None:
+            raise AttributeError, "unreadable attribute"
+        return self.fget(obj)
+
+    def __set__(self, obj, value):
+        if self.fset is None:
+            raise AttributeError, "can't set attribute"
+        self.fset(obj, value)
+
+    def __delete__(self, obj):
+        if self.fdel is None:
+            raise AttributeError, "can't delete attribute"
+        self.fdel(obj)
+```
+
+
+function, classmethod, staticmethod：
+
+Descriptor|Called from an Object|Called from a Class
+-|-|-
+function|f(obj, *args)|f(*args)
+staticmethod|f(*args)|f(*args)
+classmethod|f(type(obj), *args)|f(class, *args)
+
+典型应用：
+```
+class C:
+    def getx(self): return self.__x
+    def setx(self, value): self.__x = value
+    def delx(self): del self.__x
+
+    allOk = property(getx, setx, delx, "I'm the 'x' property.")
+    unDeletable = property(getx, setx)
+    readOnly = property(getx)
+
+    def clsMethod(cls):
+        return "You called class %s" % cls
+    clsMethod = classmethod(clsMethod)
+
+    def stcMethod():
+        return "Unbindable!"
+    stcMethod = staticmethod(stcMethod)
+```
+
+### 7.4 iterator & generator
+生成器是创建迭代器的简单而强大的工具，写起来就像是正则函数，需要返回数据的时候使用yield语句。生成器可以用简洁的表达式调用，就像不带中括号的链表推导式，为函数调用生成器而设计。
+```
+def reverse(data):
+    for index in range(len(data)-1, -1, -1):
+        yield data[index]
+
+for char in reverse('golf'):
+    print(char)
+
+list(reverse('golf'))
+list(data[i] for i in range(len('golf')-1, -1, -1))
+```
+
+## Python 2 vs 3
+[The key differences between Python 2.7.x and Python 3.x with examples](http://sebastianraschka.com/Articles/2014_python_2_3_key_diff.html) [(zh)](https://segmentfault.com/a/1190000000618286)
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
