@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Deep Learning</title>
+<xmp theme="united" style="display:none;">
+## Basic & MNIST
+https://codelabs.developers.google.com/codelabs/cloud-tensorflow-mnist/
+
+epoch: 完成一次：训练样本总数 N = 每个batch的样本数 b * 迭代次数 m。
+神经元：在神经网络中，对一个样本的所有或部分输入加权求和（加上偏差），并用结果来调用一个非线性的激活函数，最后产生一个输出。每个神经元都对(一组)输入都对应一组权重，一个偏差值。
+对于分类问题，一个常用的激活函数是softmax。
+softmax: 值域[0, 1]，既能明显地表示出最大的元素，又能保持与其他元素的相对大小关系。
+对于分类问题，一个常用的表示误差距离的是交叉熵cross-entropy。
+cross-entropy (loss function): 所有元素的真实概率(one-hot，表示某个确切的值)和计算概率(softmax结果)的对数的乘积之和的负值。
+one-hot: 只有一个元素值（概率）是1，其余值为0。
+broadcasting: 当两个矩阵运算不满足纬度要求时，扩展（复制元素）纬度小的那个直到满足要求。
+tensor: 一维tensor为向量，二维tensor为矩阵...
+训练：每次迭代不断调整权重和偏差的值，利用gradient descent算法使cross-entropy最小（即真实概率为1的元素尽可能对应计算概率最大的那个元素）。
+gradient descent：梯度下降，走最陡路径到一个最小值。
+learning rate：梯度下降的幅度，来调整权重和偏差。太小则收敛速度慢，太大则会产生跳跃偏差。一般一开始使用一个较大值，随着迭代次数逐步减小（LR Decay）。
+mini-batches：BGD，每次迭代用一批样本，梯度会受限于不同的样本，平均最小化这批所有样本的损失函数，对整体而言收敛速度 更快，但计算量更大。只用一个样本称为随机梯度下降SGD(stochastic gradient descent)，随机性更强。
+
+sigmoid：中间层的激活函数，1/(1+e^-x)，值域[0, 1]。层数过多会丢失信息（精度）。替代：Relu (Rectified Linear Unit)激活函数。
+第一层的输入是样本值，中间层的输入是上一层的输出，中间层每层的权重和偏差都不一样，初始一般为随机值，神经元的数目自定义。
+最后一层是softmax，神经元的数目为要识别分类的数目。
+
+
+saddle points： 随着样本维数增多，权重和偏差数量巨大，经常出现使得梯度为0而不是真正最小值的点，-> 使用AdamOptimizer代替GradientDescentOptimiser。
+overfitting: 表示学习效果不好，真实测试数据和训练数据结果相差很大，-> dropout：每次训练迭代随机丢弃一定的神经元（在全连接层）。(其他原因：训练数据太少，训练网络设计不好)
+
+CNN:
+一个神经元的输入不再是单一向量(图像变成一维丢失了形状信息)，而是一个区域（对于RGB图像是(M,N,3)的三维区域），而对应这块区域输入一般会采用多组权重，但对于不同区域重用相同的权重值。神经元的数目为权重的组数目×样本元素数目（像素）。
+max-pool: 降采样，取区域中最大值。一般最大值（图像边缘）是最有用的信息。作用：提取特征，去噪。
+full-connection: 全连接，连接变为一维向量。
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
