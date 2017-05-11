@@ -1143,6 +1143,17 @@ for i := 0; i < s.NumField(); i++ {
 // 1: B string = skidoo
 ```
 
+查看字段对齐：CPU更好地访问位于2字节边界上的2个字节，位于4字节边界上的4个字节，直到CPU的位大小（64位CPU为8个字节）。
+```
+typ := reflect.TypeOf(Data{})
+fmt.Printf("Data is %d bytes\n", typ.Size())
+n := typ.NumField()
+for i := 0; i < n; i++ {
+    field := typ.Field(i)
+    fmt.Printf("%s at offset %v, size=%d, align=%d\n", field.Name, field.Offset, field.Type.Size(), field.Type.Align())
+ }
+```
+
 ### [encoding/json](https://blog.golang.org/json-and-go)
 #### encoding/marshal
 * 对于map类型必须以string为key

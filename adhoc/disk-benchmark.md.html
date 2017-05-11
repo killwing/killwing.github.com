@@ -3,6 +3,39 @@
 <meta charset="utf-8" />
 <title>Disk Benchmark</title>
 <xmp theme="united" style="display:none;">
+## Read & Write
+DMA(Direct Memory Access): DMA 控制器通过系统总线来传输数据，不占用CPU，CPU只下达指令。
+同步读，异步写：
+`read()`: HDD --DMA copy--> kernel fs buffer (page cache) --CPU copy--> user buffer
+`write()`: user buffer --CPU copy--> kernel fs buffer (`fsync()`: --DMA copy--> HDD)
+
+socket发送文件：
+`HDD --DMA copy--> kernel fs buffer --CPU copy--> user buffer --CPU copy--> kernel socket buffer --DMA copy--> network card`
+
+`sendfile()/Zero CPU copy`:
+```
+HDD --DMA copy--> kernel fs buffer --sync pos&offset--> kernel socket buffer
+                                `------------------------------------------`--DMA gather copy--> network card
+```
+
+
+`mmap`: kernel fs buffer <--address mapping--> user buffer
+只建立用户地址空间和page cache的映射，不需要copy文件到用户缓存。
+
+pros:
+
+* 节省内存，用户空间不再保存一份copy
+* 不需要read/write系统调用，而是直接读内存引起缺页加载到page cache（同步读）
+* 只建立映射，读时才加载实际数据，不占内存（但占用用户地址空间）
+* 随机访问内存效率高
+* 长时间重复使用一个文件可以有效重用page cache（而read完之后的cache一定时间后可能就被刷掉了）
+
+cons:
+
+* 维护映射的数据结构，更多系统调用，实际开销比read大
+
+
+
 ## Buffer & Cache
 ### 查看
 `free -m`
@@ -19,15 +52,15 @@ Swap:         1153          0       1153
 (+buffers/cache) free内存数: 715M (指的第一部分Mem行中的free + buffers + cached) 反映的是可以挪用的内存总数（包括系统缓存）
 swap: 交换分区
 
-Page Cache (cached):，针对磁盘块的读写
-Buffer Cache (buffers):  针对文件dentries和inode的读写
+Page Cache (cached):，针对磁盘块的读写 (data)
+Buffer Cache (buffers):  针对文件dentries和inode的读写 (metadata)
 
 ### 清除
 `echo 1/2/3 > /proc/sys/vm/drop_caches`
 1: page cache
 2: buffer cache
 3: both
-还未真正写入磁盘的脏数据不会被清除，可先用`sync`强制同步数据到磁盘上以释放更多空间。
+还未真正写入磁盘的脏数据不会被清除，可先用`sync`命令强制同步数据到磁盘上以释放更多空间。(sync只是将修改过的内容放到写队列，并不等待磁盘写入完成。?)
 
 ### 配置
 `/proc/sys/vm/`
@@ -46,16 +79,32 @@ Buffer Cache (buffers):  针对文件dentries和inode的读写
 `watch grep -A 1 dirty /proc/vmstat` 脏页写回活动
 `watch cat /proc/sys/vm/nr_pdflush_threads` 活动的pdflush线程
 
+## O_DIRECT / O_SYNC
+open flag:
+O_DIRECT: 直接i/o，直接写磁盘，不经过系统缓存。
+O_SYNC: 同步，每次操作都要同步到磁盘。
+O_DSYNC: 只同步数据。
+
+fdatasync(): 将脏数据同步到磁盘。
+fsync(): 同时保证metadata同步到磁盘。
 
 ## Benchmark
 ### read
+`dd if=/tmp/testfile of=/dev/null bs=2M iflag=direct`
+
+hdparm:
 从磁盘读：`hdparm -t /dev/sda1`
 从缓存读：`hdparm -T /dev/sda1`
 
-### write
-写入256M数据并最后同步到磁盘：`dd bs=1M count=256 if=/dev/zero of=test conv=fdatasync`
-参数`oflag=dsync`表示每次写操作都同步一次，不加参数则由系统自动同步。
 
+### write
+`dd if=/dev/zero of=/tmp/testfile bs=2M count=250 oflag=direct`
+
+`conv=fdatasync` 最后保证数据同步到磁盘。
+`conv=fsync`: 同步数据及metadata。
+`oflag=dsync`表示每次写操作都同步一次，不加参数则由系统自动同步。
+`oflag=sync`同时对metadata。
+`oflag=direct`使用direct i/o。
 
 ## I/O Error Simulation
 创建虚拟磁盘(1048576个扇区，可用`blockdev --getsz /dev/loop0`查看)，不用挂载：
@@ -113,6 +162,10 @@ http://www.thesubodh.com/2013/07/what-are-exactly-odirect-osync-flags.html
 https://www.kernel.org/doc/Documentation/sysctl/vm.txt
 https://romanrm.net/dd-benchmark
 https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/5/html/Logical_Volume_Manager_Administration/device_mapper.html
+https://segmentfault.com/a/1190000007692223
+http://www.cnblogs.com/huxiao-tee/p/4660352.html
+http://duartes.org/gustavo/blog/post/page-cache-the-affair-between-memory-and-files/
+http://useless-factor.blogspot.jp/2011/05/why-not-mmap.html
 
 </xmp>
 <script src="../js/strapdown.js"></script>

@@ -76,6 +76,40 @@ unit文件在`/usr/lib/systemd/system/`和`/etc/systemd/system/`下面，`system
 1. `partprobe /dev/sda`重新载入分区（安装包：parted）
 1. `resize2fs /dev/sda1`调整大小
 
+## Security
+https://plusbryan.com/my-first-5-minutes-on-a-server-or-essential-security-for-linux-servers
+https://www.linode.com/docs/security/securing-your-server
+
+### Account
+新增用户 `useradd kelvin` && `passwd kelvin`
+加入管理员组 `usermod -aG wheel kelvin`
+非管理员组不能su `/etc/pam.d/su`文件中启用行：`auth            required        pam_wheel.so use_uid` （trust是不用输密码）
+visudo启用 `%wheel ALL=(ALL) ALL` 让wheel组有sudo权限。
+
+### SSH
+`/etc/ssh/sshd_config`: 更改后重启`systemctl restart sshd`
+
+* 禁止root登录：`PermitRootLogin no`
+* 禁止密码登录：`PasswordAuthentication no` (使用更安全的密钥对，见[ssh](../ssh.md.html)，可以指定passphrase登录时验证)
+* 仅监听IPv4地址: `AddressFamily inet`
+* 仅允许指定user `AllowUsers kelvin@(your-ip) kelvin@(another-ip-if-any)`
+
+安装[Fail2Ban](https://www.linode.com/docs/security/using-fail2ban-for-security)禁止错误重试。
+
+### Network
+卸载不必要的网络服务：`netstat -ltupn`
+防火墙：[iptables](./network-basic.md.html)或[ufw](https://wiki.archlinux.org/index.php/Uncomplicated_Firewall)
+```
+ufw allow from {your-ip} to any port 22
+ufw allow 80
+ufw allow 443
+ufw enable
+```
+
+### Misc.
+定期升级系统。
+使用[logwatch](http://linux.die.net/man/8/logwatch)监控系统日志。
+
 ## Reference
 [Installation guide](https://wiki.archlinux.org/index.php/Installation_guide_%28%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87%29)
 [systemd Commands to Manage Linux System](http://linoxide.com/linux-command/linux-systemd-commands) [cheatsheet](http://linoxide.com/linux-command/systemd-vs-sysvinit-cheatsheet/)
