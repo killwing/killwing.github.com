@@ -33,6 +33,7 @@ export PATH=$PATH:$GOPATH/bin
 交叉编译：
 如在mac上：`GOOS=linux GOARCH=amd64 go build`
 [cgo问题](https://inconshreveable.com/04-30-2014/cross-compiling-golang-programs-with-native-libraries/)
+[disable cgo](https://stackoverflow.com/questions/36279253/go-compiled-binary-wont-run-in-an-alpine-docker-container-on-ubuntu-host)
 
 
 ### 开发辅助工具
@@ -937,6 +938,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 竞态检测：`go run/build/test -race`
 
 [GDB](https://golang.org/doc/gdb): v7.1+
+[Debugging](https://software.intel.com/en-us/blogs/2014/05/10/debugging-performance-issues-in-go-programs)
 
 * debug: 禁止内联和优化 `-gcflags "-N -l"`。(查看全部`go tool compile -help`)
 * release: 删除调试信息和符号表 `-ldflags "-w -s"`。
@@ -1178,6 +1180,7 @@ nil|null
 * decode匹配字段struct tag > 字段名 > 不区分大小写字段名，找不到匹配的则忽略
 * 对于指针，slice，map类型若没预先分配则会自动分配内存，如果没有匹配字段则为nil
 * 数据流使用`NewDecoder`
+* 使用`json.RawMessage`([]byte)保留某个字段的原始json。
 
 Json|Go
 -|-
@@ -1192,7 +1195,7 @@ object|map[string]interface{}
 `json:"-"` 忽略这个字段
 `json:"myName"` 在json里key为myName
 `json:"myName,omitempty"` 如果字段为空值则忽略
-`json:",string"` 数值，布尔类型在json里转为string编码，如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)进而转为数值类型。
+`json:",string"` 数值，布尔类型在json里转为string编码。如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)从而不丢失精度，进而转为数值类型。
 
 ### text/template
 Action: 以`{{...}}`表示，进行求值或组成控制结构。`{{- ...`和`... -}}`可以trim左边和右边的空白。

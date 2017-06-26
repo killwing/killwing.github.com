@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Elastic</title>
+<xmp theme="united" style="display:none;">
+## Query
+https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html
+https://www.timroes.de/2016/05/29/elasticsearch-kibana-queries-in-depth-tutorial/
+
+```
+{
+  "title": "The Hitchhiker's Guide to the Galaxy",
+  "author": "Douglas Adams"
+}
+{
+  "title": "The Deeper Meaning of Liff",
+  "author": "Douglas Adams"
+}
+```
+
+string类型默认使用标准分析器：空格分隔，全小写。
+https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-standard-analyzer.html
+
+analyzed:
+
+TERM|DOCUMENTS
+-|-
+the|1, 2
+hitchhiker's|1
+guide|1
+deeper|2
+liff|2
+of|2
+to|1
+galaxy|1
+meaning|2
+douglas|1,2
+adams|1,2
+
+unanalyzed:
+
+TERM|DOCUMENTS
+-|-
+The Hitchhiker's Guide to the Galaxy|1
+The Deeper Meaning of Liff|2
+Douglas Adams|1, 2
+
+query|analyzed (text)|unanalyzed (keyword)|comment
+-|-|-|-
+`author:douglas`|1,2|0|冒号后面不能有空格
+`author:Douglas`|1,2|0|analyzed: 将与field同样的analyzer应用于query（转为小写）
+`author:"douglas adams"`|1,2|0|搜索phrase里的所有word，匹配相同的位置和顺序
+`author:"Douglas Adams"`|1,2|1,2|
+`author:doug*`|1,2|0|通配符不能用于带引号的phrases，会当作token处理
+`author:doug`|0|0|
+`author:Doug*`|1,2|0|带通配符的都会变为小写，选项：`lowercase_expanded_terms`
+`Douglas`|1,2|0|等同于`_all:Douglas`，`_all`为所有字段（不管是不是string）的值连接而成，并是一个使用标准分析器的analyzed的字段
+`author:douglas AND author:adams`|1,2|-|`AND`, `OR`必需大写，也可以用`&&`, `||`
+`author:douglas OR author:terry`|1,2|-|
+`author:douglas AND author:terry`|0|-|
+`author:douglas author:terry`|1,2|-|默认为`OR`，选项：`default_operator`
+`author:Douglas Adams`|1,2|-|等同于`author:Douglas OR _all:Adams`
+`+author:adams title:guide`|1,2|-|`+`必选，其余可选
+`author:douglas -author:adams`|0|-|`-`排除，也可以用`!`
+`author:/[Dd]ouglas.*[Aa]dams/`|0|1,2|
+
+`number:[32 TO 42]`: [32, 42]
+`number:[32 TO 42}`: [32, 42)
+`number:[32 TO *]`: 大于等于32，也可以写`number:>=32`
+也可以用于string，按字典序比较：
+`A < D < Douglas < Douglas Adams < a < d < douglas`
+
+其它：
+fuzziness: 模糊（~距离）`author:doglas~1`
+proximity: phrase顺序调换 `author:"adams douglas"~2`
+existence: `_missing_:author`, `_exists_:author`
+boosting: 结果排序权重，默认1 `author:douglas OR title:guide^5`
+json(kibana): 直接以string query的形式 `{ "range": { "numeric": { "gte": 10 } } }`
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

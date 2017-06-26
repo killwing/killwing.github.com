@@ -75,6 +75,36 @@ translate: http://mp.weixin.qq.com/s/gCgz5tfMw13XXQl3nfXkwg
 
 ## [Mongo queue](https://github.com/chilts/mongodb-queue)
 
+## [zmq](http://zguide.zeromq.org/page:all)
+### Request-Reply
+client以发送请求、接收响应的次序`zmq_socket(context, ZMQ_REQ);`
+server以接收请求，发送响应的次序`zmq_socket(context, ZMQ_REP);`
+不按次序的操作会失败。
+多个client可以连接同一个server，server会发送响应到收到请求的client。
+默认socket都是blocking操作。
+
+### Publish-Subscribe
+server只发不收`zmq_socket(context, ZMQ_PUB);`
+client只收不发`zmq_socket(context, ZMQ_SUB);`，订阅`zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, filter, strlen(filter));`前缀匹配，可以连多个server
+一个server pub的消息会（复制）发送给每个sub的client。
+一个client可以连多个server，sub不同的消息，收到的消息会交错。
+client连接之前server发送的消息都会丢弃，连接之后会缓存放到server的queue里。
+对于有连接协议，过滤是发生在server端。
+
+### Push-Pull
+`zmq_socket(context, ZMQ_PUSH);`
+`zmq_socket(context, ZMQ_PULL);`
+server push, client pull: push会等待连接（平均分配消息到所有连接上），但不等待pull，消息只会被消费(pull)一次。
+server pull, client push: push不会等待pull，但消息不会丢弃。
+
+### Dealer-Router
+可以用DEALER/ROUTER（无协议）完全替代REQ/REP（有协议），这就必需自己定制协议：控制消息次序和格式。
+
+例如：
+将REQ/REP都作为client连到broker server上。
+broker server作为`zmq_socket(context, ZMQ_DEALER);` `zmq_socket(context, ZMQ_ROUTER);`
+ROUTER接收请求转发到后端，DEALER接收响应转发到前端。
+
 ## Reference
 http://queues.io/
 http://www.warski.org/blog/2014/07/evaluating-persistent-replicated-message-queues/
