@@ -283,6 +283,15 @@ range迭代数组结束时，index不会递增到下一个。
 迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
 
 ```
+list := []int{1, 2, 3}
+var ret []*int
+for _,v := range list {
+    ret = append(ret, &v)
+}
+// 结果：ret里三个地址一样
+```
+
+```
 s := "[\u00ff\u754c]";
 for i, c := range s { // 对于string，按照rune类型迭代
     fmt.Printf("%d:%c ", i, c)  // 打印 0:[ 1:ÿ 3:界 6:]
@@ -425,6 +434,20 @@ func MySqrt(f float32) (v float32, ok bool) {
 如果命名了返回值参数（局部变量），return可以不带参数返回当前值（不被其他同名变量遮盖(shadowed)的情况下）。
 不支持默认参数。
 多返回值可以直接作为函数调用的实参。
+
+命名返回参数和传入参数不同，可以直接指针赋值：
+```
+func foo(in *int) (out *int) {
+	i := 100
+	out = &i
+	in = &i
+	return
+}
+
+i := 10
+n := foo(&i)
+fmt.Println(i,*n) // 10, 100
+```
 
 闭包：
 ```
@@ -795,6 +818,24 @@ func main() {
     out := merge(done, c1, c2)
 
     fmt.Println(<-out) // 4 or 9
+}
+```
+
+### Concurrent Pool
+```
+concurrency := 5
+sem := make(chan bool, concurrency)
+urls := []string{"url1", "url2"}
+for _, url := range urls {
+    sem <- true
+    go func(url) {
+        defer func() { <-sem }()
+        // get the url
+    }(url)
+}
+// wait all done
+for i := 0; i < cap(sem); i++ {
+    sem <- true
 }
 ```
 

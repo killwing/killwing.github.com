@@ -102,10 +102,27 @@ def f(a, b):
 ##调用：
 f(b=1, b=2)
 ```
+
 引入一个形如`**name`的参数时，它接收参数成为一个字典。
 `*name`(必须在`**name之前`)接收参数成为一个元组，包含了所有没有出现在形式参数列表中的参数值，任何`*name`之后的参数都是keyword-only参数，只能通过关键字而非位置''使用''。
 `*`操作符来自动把参数列表拆开，`**`操作符可以把字典传递给关键字参数。
-lambda可以用于任何需要的函数对象(lambda x: x+n)，可以接收任意多个参数并且返回单个表达式的值(包含的表达式不能超过一个，不能包含命令，可以从包含范围内引用变量)。  
+
+```
+def foo(kind, *args, **kwargs):
+    print kind
+    for a in args:
+        print a
+
+    for b in kwargs:
+        print b, kwargs[b]
+
+foo(0, 1, 2, 3, name='alice', age=26)
+l = [1, 2, 3]
+m = {'name': 'alice', 'age': 26}
+foo(0, *l, **m)
+```
+
+lambda可以用于任何需要的函数对象(lambda x: x+n)，可以接收任意多个参数并且返回单个表达式的值(包含的表达式不能超过一个，不能包含命令，可以从包含范围内引用变量)。
 
 ### 2.6 作用域
 尽管作用域是静态定义，在使用时他们都是动态的。每次执行时，至少有三个命名空间可以直接访问的作用域嵌套在一起：首先搜索最里面的作用域，包含局部命名；其次搜索的是中层的作用域，这里包含了同级的函数；最后搜索最外面的作用域，它包含内置命名。
@@ -381,7 +398,7 @@ class property:
 
     def __get__(self, obj, objtype=None):
         if obj is None:
-            return self         
+            return self
         if self.fget is None:
             raise AttributeError, "unreadable attribute"
         return self.fget(obj)
@@ -438,6 +455,129 @@ for char in reverse('golf'):
 
 list(reverse('golf'))
 list(data[i] for i in range(len('golf')-1, -1, -1))
+```
+
+## Decorator
+decorator一般返回一个wrapper函数供调用，否则被装饰的函数就不能再被调用(NoneType)。
+
+decorator是函数声明:
+```
+from functools import wraps
+def decorator(fn):
+    @wraps(f) # 消除decorator，让func能输出自己的`__name__`, `__doc__`
+    def wrapper():
+        print "calling %s" % fn.__name__
+        fn()
+    return wrapper
+
+@decorator
+def func():
+    pass
+```
+解释成:
+```
+func = decorator(func)
+```
+
+多个叠加：
+```
+@decorator1
+@decorator2
+def func():
+    pass
+```
+解释成:
+```
+func = decorator1(decorator2(func))
+```
+
+可以是个函数调用，必须返回一个真正的decorator（接收func参数）
+```
+@foo()
+def func():
+    pass
+```
+解释成:
+```
+func = foo()(func)
+```
+
+
+可以是个类，`__call__`作为decorator的wrapper函数：
+```
+class Decorator(object):
+    def __init__(self, fn):
+        print "__init__()"
+        self.fn = fn
+
+    def __call__(self):
+        self.fn()
+        print "__call__()"
+
+@Decorator
+def func():
+    print "func()"
+
+print "main()"
+func()
+
+# 输出：
+# __init__()  # 先解释，构造出对象
+# main()
+# func()
+# __call__()
+```
+
+可以是个对象，func在call的时候传入，`__call__`作为decorator：
+```
+class Decorator(object):
+    def __init__(self, a, b):
+        print "__init__()"
+        self.a = a
+	    self.b = b
+
+    def __call__(self, fn):
+        print "__call__()"
+        def wrapper():
+            fn()
+        return wrapper
+
+@Decorator(1, 2)
+def func():
+    print "func()"
+
+print "main()"
+func()
+
+# 输出：
+# __init__()
+# __call__()  # 解释时调用
+# main()
+# func()
+```
+
+典型例子，带缓存的斐波拉契数例的递归算法:
+```
+from functools import wraps
+def memo(fn):
+    cache = {}
+    miss = object()
+
+    @wraps(fn)
+    def wrapper(*args):
+        result = cache.get(args, miss)
+        if result is miss:
+            result = fn(*args)
+            cache[args] = result
+        return result
+
+    return wrapper
+
+@memo
+def fib(n):
+    if n < 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
 ```
 
 ## Python 2 vs 3

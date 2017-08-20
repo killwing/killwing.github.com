@@ -33,9 +33,24 @@ CNN:
 max-pool: 降采样，取区域中最大值。一般最大值（图像边缘）是最有用的信息。作用：提取特征，去噪。
 full-connection: 全连接，连接变为一维向量。
 
-training set: 训练数据集
-validation set: 验证数据集，用于调整超参数，以得到更好的模型
-test set: 用于评估（evaluation）模型，预测（predict）结果
+### Sample Set
+training set: 训练数据集（mnist: 60000, batch size: 64, iter: 1000/epoch）
+validation set: 验证数据集，一般和训练同时进行，对训练没有影响，主要验证是否过拟合及时停止训练调整超参数，以得到更好的模型 （mnist: 10000, batch size: 100, iter: 100）
+test set: 用于评估（evaluation）最终训练后的模型，预测（predict）结果
+
+
+### Precision & Recall
+https://en.wikipedia.org/wiki/Precision_and_recall
+准确率(A)：Accuracy。`A = (TP + TN)/(P+N) = (TP + TN)/(TP + FN + FP + TN)`
+召回率(R)：Recall，又称“查全率”。没有漏查（漏报, Missing Alarm）。`R = TP/(TP+FN)`
+精确率(P)：Precision。没有多查（误报, False Alarm）。`P = TP/(TP+FP)`
+F1 Measure: `F1 = 2P*R / (P+R)`
+
+比如：100张样本图片，真实有10张黄图，检测出8张黄图，其中6张是真实黄图(TP)，2张误报(FP)，4张漏报(FN)。
+则：P = 6/8, R = 6/10, A = (6+88)/100
+       实际真 实际假
+检测真 6(TP)  2(FP)
+检测假 4(FN)  88(TN)
 
 </xmp>
 <script src="../js/strapdown.js"></script>

@@ -871,6 +871,7 @@ trap 'echo "VARIABLE-TRACE> \$variable = \"$variable\""' DEBUG
 * 使用shell脚本来编写CGI程序是值得商榷的.
 * Bash不能正确的处理双斜线(//)字符串.
 * 在Linux或BSD上编写的Bash脚本, 可能需要修改一下, 才能使它们运行在商业的UNIX(或Apple OSX)机器上. 这些脚本通常都使用GNU命令和过滤工具, 通常都比一般的UNIX上的同类工具更加强大.
+* 不要使用`boolvar && dosomething`短路形式，如果条件为false会使退出码不为0，造成使用`set -e`时退出，应使用`if`来判断。
 
 
 ## 32.脚本编程风格

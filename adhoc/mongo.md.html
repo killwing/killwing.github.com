@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Mongo</title>
+<xmp theme="united" style="display:none;">
+## Index
+### 单域索引
+`{ score: 1 }` 升序／降序可以任意
+可以在子域，或子doc上建。
+
+### 复合索引
+`{ userid: 1, score: -1 }` 域顺序，升序／降序有影响，但等同于全反序`{ userid: -1, score: 1 }`
+Prefixes: 复合索引同时包含了其的前缀子集的索引。所以没必要再在`userid`上建索引。
+
+### Index Intersection
+使用多个索引来完成对应域的多条件查询。
+唯一：多个域值组合具有唯一性。
+
+### Sort
+Sort利用索引可以达到更好的性能。如果sort域上没有索引，则结果会在内存中排序，可能导致内存占用过高。
+如果有sort条件，其sort域必须是查询条件某个域的索引的一部分：
+
+* 完全和复合索引（或其prefix索引）一致，或升降序全反。查询条件为空或为其prefix。
+* 复合索引（或其prefix索引）除去sort的部分，前面部分必须在查询条件里，同时可以有其它查询条件。
+
+### Measure & Opt.
+`db.coll.find().explain(true)`
+
+* `COLLSCAN` for a collection scan
+* `IXSCAN` for scanning index keys
+* `FETCH` for retrieving documents
+* `SHARD_MERGE` for merging results from shards
+
+复合索引域顺序：1. 等同比较 2. sort 3. 范围比较
+
+### Ref
+https://docs.mongodb.com/manual/indexes/
+https://docs.mongodb.com/manual/reference/explain-results/index.html
+https://emptysqua.re/blog/optimizing-mongodb-compound-indexes/
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

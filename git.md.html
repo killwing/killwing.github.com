@@ -374,7 +374,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 ## 补丁
 `git format-patch` 从提交范围创建对应的补丁，支持二进制文件。`-s`加上用户签名(signed-off)。
 `git send-mail` 发送补丁。
-`git am` 应用补丁。可以是mbox邮件补丁格式。
+`git am` 应用补丁。可以是mbox邮件补丁格式。应用PR补丁：`curl -L http://github.com/user/test/pull/17.patch | git am`
 `git apply` 应用一般格式的补丁，但需手动提交，也不能保留补丁中的作者信息。类似Gnu patch。`-R`反向应用补丁。
 
 
