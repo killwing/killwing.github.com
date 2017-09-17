@@ -683,6 +683,7 @@ func suck(ch chan int) {
 * 如果多个条件满足，则随机选择一个执行。
 * `select {}`阻塞goroutine。
 * break/continue作用于select
+* select中向closed的channel发送也会导致panic。
 ```
 c1 := make(chan int)
 c2 := make(chan int)
@@ -796,7 +797,7 @@ func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
         }(c)
     }
 
-    go func() {
+    go func() { // 全部发送完最后才能关闭
         wg.Wait()
         close(out)
     }()
@@ -978,7 +979,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 查看import及依赖：`go list -json`
 竞态检测：`go run/build/test -race`
 
-[GDB](https://golang.org/doc/gdb): v7.1+
+Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/derekparker/delve)
 [Debugging](https://software.intel.com/en-us/blogs/2014/05/10/debugging-performance-issues-in-go-programs)
 
 * debug: 禁止内联和优化 `-gcflags "-N -l"`。(查看全部`go tool compile -help`)
@@ -989,12 +990,39 @@ https://github.com/stretchr/testify : 辅助测试工具
 查看：`go tool cover -html=cover.out`
 
 ## [Profiling](http://blog.golang.org/profiling-go-programs) ([cmd](http://golang.org/cmd/pprof/) [pkg](https://golang.org/pkg/runtime/pprof/))
-测试时：`go test -cpuprofile/-memprofile out.prof`
+测试时：`go test -bench=. -cpuprofile/-memprofile out.prof`
 独立程序：`pprof.StartCPUProfile()/pprof.StopCPUProfile()/pprof.WriteHeapProfile()`
-查看：`go tool pprof binary out.prof`
+查看：`go tool pprof binary.test out.prof`
+[使用label](https://rakyll.org/profiler-labels/)：`pprof.Do()`
 
-http接口：`import _ "net/http/pprof"`
-查看：`go tool pprof http://localhost:6060/debug/pprof/profile(heap, block)`
+独立程序嵌入http接口：`import _ "net/http/pprof"`，并运行一个server：
+```
+go func() {
+	log.Println(http.ListenAndServe("localhost:6060", nil))
+}()
+```
+查看：`go tool pprof -seconds 5 http://localhost:6060/debug/pprof/profile(heap, block)`
+
+### Frame Graphs
+安装：
+go get github.com/uber/go-torch
+git clone https://github.com/brendangregg/FlameGraph (add dir to PATH)
+
+http pprof: `go-torch -t 10`
+file pprof: `go-torch --binaryname binary.test -b pprof.cpu`
+
+## Tracing
+main里加上：
+```
+func main() {
+    _ = trace.Start(os.Stdout)
+    defer trace.Stop
+    ...
+}
+```
+
+`go run main.go > trace.out`
+`go tool trace trace.out`
 
 ## Documentation ([cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
 规范化注释格式，任何直接属于顶层声明的注释都会可被`godoc`提取为文档注释（除了package main）。
@@ -1337,6 +1365,7 @@ extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 https://golang.org/ref/spec
 http://godoc.org/
 https://github.com/golang/go/wiki
+https://github.com/campoy/go-tooling-workshop
 
 </xmp>
 <script src="js/strapdown.js"></script>
