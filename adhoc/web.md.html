@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Web</title>
+<xmp theme="united" style="display:none;">
+## BOM
+### window
+* window 对象表示浏览器中打开的窗口。相当与 ECMAScript 中的 Global 对象，所有在全局对象中创建的变量和函数都会变成 window 对象的属性和方法。
+* window对象还实现了核心 ECMAScript 所定义的所有全局属性和方法。
+* 如果文档包含框架（frame 或 iframe 标签），浏览器会为 HTML 文档创建一个 window 对象，并为每个框架创建一个额外的 window 对象并保存在 frames 集合中。
+* top 对象始终指向最外层的框架即浏览器窗口。parent 指向当前框架的直接上层框架。
+* 窗口位置：screenLeft, screenTop 相对于屏幕左边和上边。
+* 窗口大小：innerWidth, innerHeight, outerWidth, outerHeight 指 viewport 大小（Chrome）。
+* `window.open()` 打开一个 URL。
+* `setInterval()` 很少用，因为可能导致两次调用同时进行。
+* 其它4中对象都是 window 对象的属性。
+
+### location
+* location 对象包含有关当前显示文档的 URL 的信息，还提供导航功能。`window.location` 和 `document.location` 引用同一个对象。
+* 当一个 location 对象被转换成字符串，href 属性的值被返回。
+* 如果把一个含有 URL 的字符串赋予 location 对象或它的 href 属性，浏览器就会把新的文档装载并显示出来。相当于调用 `location.assign()`。
+* 每次修改 location 的属性（hash除外）页面都会以新的 URL 重新加载。
+* `location.replace()` 可以装载一个新文档而不会产生新的历史记录。
+* `location.reload()` 后面的代码可能会也可能不会执行，所以放在最后一行。
+
+### navigator
+navigator 对象包含有关浏览器的信息。
+
+### screen
+screen 对象包含有关客户端显示屏幕的信息。
+
+### history
+* history 对象包含用户（在当前窗口中）访问过的 URL。
+* 安全原因，开发者无法得知用户浏览过的 URL。但可以前进和后退，以及跳转 `history.go()`。
+
+
+## DOM
+HTML文档对象模型（HTML Document Object Model）定义了访问和处理 HTML 文档的标准方法。
+
+### Node
+* Document: 整个文档是一个文档节点
+* Element: 每个 HTML 标签是一个元素节点
+* Text: 包含在 HTML 元素中的文本是文本节点
+* Attribute: 每一个 HTML 属性是一个属性节点
+* Comment: 注释属于注释节点
+
+node|	nodeName|	nodeValue|	nodeType
+-|-|-|-
+元素|   标签名称|	null|	1
+属性|   属性名称|	包含属性值|	2
+文本|   #text	|包含文本|	3
+文档|   #document|	null|	9
+
+* 每个节点都有一个 childNodes 属性，保存一个 NodeList 对象（类似数组，可以用`Array.prototype.slice.call(list)`转为数组）。其它关系参考：
+![img](https://www.qualitestgroup.com/images/howto/DOMTree_HowTo.png)
+* 如果传入到 `appendChild()` 中的节点已经是文档的一部分了，结果是从原位置移动到新位置。DOM 树可以看成是一系列指针连起来，但任何 DOM 节点不能同时出现在文档中的多个位置上。
+* `replaceChild()` 被替换的节点都还在文档中，但已没有了自己的位置。
+* `cloneNode()` bool参数表示深层复制，返回复制的节点为文档所有，但为孤儿节点（未指定父节点）。不会复制节点的 JavaScript 属性，如事件处理程序。
+* `normalize()` 删除空文本节点，合并相邻的文本节点。
+
+#### Document
+* document 对象是 HTMLDocuement （继承自 Document） 的一个实例，表示整个 HTML 页面。
+* documentElement 属性指向页面的 `<html>` 元素。（文档类型是只读的，只有一个 Element 子节点）
+* body 属性指向页面的 `<body>` 元素。
+* title 包含 `<title>` 元素中的文本。
+* 其它属性：URL, domain, referrer。其中 domain 用来避免跨域和子框架通信。
+* `getElementById()` 根据 id 属性查找。
+* `getElementsByTagName()` 根据 html tag （可以是`*`） 查找返回 HTMLCollection 动态集合对象，和 NodeList 类似。HTMLCollection 可以用数值索引调用`item()`，或字符串索引调用`namedItem()`。
+* `getElementsByName()` 根据 name 属性查找。
+* 特殊集合：`document.anchors`, `document.images`, `document.links`, `document.applets`, `document.forms`。
+* `write()` 直接写 HTML 代码创建 DOM 元素作为页面内容，可以动态加载外部资源。如果在文档加载结束后再调用会重写整个页面。
+
+#### Element
+* 取得标签名可以用`nodeName`或`tagName`属性（大写）。
+
+
+### 常用操作
+选择器：`var $ = document.querySelectorAll.bind(document)`
+追加：`parent.appendChild(child)`
+插入：`parent.insertBefore(child, parent.childNodes[0])`
+删除：`child.parentNode.removeChild(child)`
+
+简单库：https://github.com/remy/min.js
+
+[Chrome CLI](https://developer.chrome.com/devtools/docs/commandline-api):
+`$`: `querySelector`
+`$$`: `querySelectorAll`
+`$x`: 通过 xPath 选择
+
+## CSS
+### 显示优先级
+1. 内联样式（在元素内部）- 仅需要在一个元素上应用一次时：`<p style="color: sienna">...</p>`
+1. 内部样式表 - 使用style标签在文档head定义内部样式表：`<style type="text/css">hr {color: sienna;}</style>`
+1. 外部样式表 - 使用link标签在文档head链接到样式表：`<link rel="stylesheet" type="text/css" href="mystyle.css" />`
+1. 浏览器缺省设置
+
+### 语法
+* 样式声明(declaration, 用";"隔开) `selector {property: value}`：选择器(selector)通常是希望定义的HTML元素或标签，属性(property)是你希望改变的属性，并且每个属性都有一个值(value). eg: body {color: blue; ... }
+* 子元素从父元素继承属性。
+* @media规则可以在相同的样式表中，使用不同的样式规则来针对不同的媒介。
+
+### 选择器
+selector|name|description|example
+-|-|-|-
+`*`  |通用	|所有元素|`* { ... }`
+`,`  |分组	|被分组的选择器就可以共享相同的定义|`h1,h2 { ... }`
+空格 |派生	|包含所有子级的所有对象|`body p { ... }`
+`>`  |子对象|仅包含下一级对象元素|`body > p { font-size:14px; }`
+`#`  |ID	|唯一标识符的 ID|`#sidebar p { ... }`
+`.`  |类型	|基于类而被选择|`.center { ... }, td.myclass { ... }`
+`:`  |伪类	|用于向某些选择器添加特殊的效果|`a:link {color: #FF0000}`
+`[]` |属性	|选择具有某属性的元素|`h[title] { color: blue; }`
+
+### 框模型
+* 位置：元素内容(element) - 内边距(padding) - 边框(border) - 外边距(margin)。
+* 内边距显示元素的背景，外边距默认是透明的(不会遮挡其后的元素)。
+* 内边距、边框和外边距都是可选的，默认值是零，但浏览器可能提供预定义的样式。
+* width和height指的是元素内容区域的宽度和高度。
+* 内边距、边框和外边距可以应用于一个元素的所有边，也可以应用于单独的边，默认值都是0。
+* 内边距不可以是负值，外边距可以，在很多情况下都要使用负值的外边距。外边距还可以设置为auto，继承父元素值。
+* 内边距和外边距的百分数值是相对于其父元素的width计算的。上下内边距会与左右内边距一致，即上下内边距的百分数会相对于父元素宽度设置，而不是相对于高度。
+* 元素的背景指的是内容、内边距和边框区的背景。
+* 每个边框有3个方面：宽度、样式，以及颜色。边框颜色可以透明。
+* 外边距合并指的是，当两个垂直的外边距相邻时，它们将形成一个外边距，并可以连续合并(只有普通文档流中块框的垂直外边距才会发生外边距合并，行内框、浮动框或绝对定位之间的外边距不会合并)。合并后的外边距的高度等于两个发生合并的外边距的高度中的较大者。
+
+### 定位
+#### position
+* 默认值(position:static)
+* 相对定位(position:relative):
+ * 设置为相对定位的元素框会偏移某个距离。
+ * 相对定位的元素位置是相对于自己在文档中的原来初始位置。
+ * 元素仍然保持其未定位前的形状，它原本所占的空间仍保留（实际上被看作普通流定位模型的一部分）。
+ * 偏移会导致它覆盖其它框。
+* 绝对定位(position:absolute):
+ * 设置为绝对定位的元素框从文档流完全删除。
+ * 绝对定位的元素位置是相对于最近的已定位父元素(非static)，如果元素没有已定位的父元素，那么它的位置相对于最初的包含块。
+ * 元素原先在正常文档流中所占的空间会关闭，就好像该元素原来不存在一样。
+ * 元素定位后生成一个内联块框，而不论原来它在正常流中生成何种类型的框。
+ * 绝对定位的框与文档流无关，可以覆盖页面上的其它元素。可以设置z-index属性来控制这些框的堆放次序。
+ * position:fixed元素框的表现类似position:absolute，不过其包含块是window本身。
+
+#### float
+* 浮动元素的定位还是基于正常的文档流，然后从文档流中抽出并尽可能远的移动至左侧或者右侧，并生成一个内联块框。
+* 浮动的框可以向左或向右移动，只在行内浮动，直到它的外边缘碰到边缘或另一个浮动框的边框为止(只会排挤非绝对定位的行内框)。
+* 要想阻止行框围绕浮动框，需要对该框应用clear属性。clear属性的值可以是left、right、both或none，它表示框的哪些边不应该挨着浮动框。
+* 如果父元素只包含浮动元素，那么它的高度就会塌缩为零，如果要让包围元素(div)在视觉上包围它里面的浮动元素：在最后添加一个空元素(div)并且清理它（或者对容器div进行浮动，但下一个元素会受到这个浮动元素的影响）。
+
+#### display
+* 块级框(block-box)从上到下一个接一个地排列，行内框(inline-box)在一行中水平布置，由一行形成的水平框称为行框(line-box)。
+* 行高(line-height)指的是文本行的基线间的距离，也即行内框的高度。
+ * 在没有其他因素（padding）影响的时候，行内框等于元素内容区域。
+ * 行框高度等于本行内所有元素中行高最大的值。
+ * 对于行内元素如em、strong、span和等，其padding、margin、border-top、border-bottom 不会增加行高。
+ * 设置行内元素的padding、border和margin并不会撑大外层元素的高度，但会溢出。
+ * 垂直居中性: 无论行高多少，其占据的空间都是与其内容公用水平中垂线的。垂直对齐属性(vertical-align)只对行内元素有效，默认是基线对齐(baseline)。
+* display属性可以让行内元素表现得像块级元素一样，也可让生成的元素根本没有框。
+* 块(display:block)
+ * 总在新行上开始，结束亦换行。
+ * 高度可控制，宽度默认为它容器的100%。
+ * 元素: div, p, h1, form, li, ul
+* 内联(display:inline)
+ * 和其他元素在同一行。
+ * 高度不可改变，宽度就是它包含内容的宽度不可改变。
+ * 元素: span, a, label, img, strong, em, input
+* 内联块(display:inline-block)
+ * 和其他元素在同一行。
+ * 高度宽度可控制。
+
+## [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+`window.fetch(url)`返回一个Promise对象，resolve时传入Reponse对象，`response.json()`返回另一个Promise对象，relove时传入json数据。
+eg: `fetch("http://www.weather.com.cn/data/cityinfo/101010100.html").then(res => res.json()).then(d => console.log(d))`
+
+* fetch 请求默认是不带 cookie 的，需要设置`fetch(url, {credentials: 'include'})`
+* 返回400，500错误码时并不会 reject，只有网络错误这些导致请求失败时，fetch 才会被 reject。
+
+Headers:
+`new Headers({'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600'})`
+
+Request:
+fetch默认'GET'一个url字符串，也接受一个Request对象：`new Request(URL, {method: 'POST', cache: 'reload', headers: h})`。
+
+* Request也可以基于已有Request对象创建。
+* 可以用Headers对象设置请求头部。
+
+Response:
+`new Response(data, {status: 200, headers: h})`
+
+* Response中的headers是只读的。
+* 浏览器中构造的Reponse对象不能发送出去，但可以通过Service Worker发送给自己。
+* 使用`response.body.getReader()`读取流。
+
+## [Service Worker]()
+
+## Reference
+JavaScript 高级程序设计 2ed
+https://www.html5rocks.com
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

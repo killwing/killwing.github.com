@@ -417,8 +417,16 @@ fmt.Println(d.s)    // xyz
 ### 比较
 除基本内置类型外只有Struct, Array可以进行`==`, `!=`比较，逐个元素比较，成员必须也可以比较。
 Slice, Map, Function都只可以和nil比较。可以用`reflect.DeepEqual()`函数来比较。
-Interface的等同比较包括类型和值都要相同。
+Interface的等同比较包括（动态）类型和值都要相同。
 
+```
+type key int
+func equal(a, b interface{}) bool {
+	return a == b
+}
+
+equal(1, key(1))) // false
+```
 
 ## 函数及接口
 ### function
