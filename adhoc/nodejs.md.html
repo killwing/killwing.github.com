@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <meta charset="utf-8" />
-<title>Node.js | io.js</title>
+<title>Node.js</title>
 <xmp theme="united" style="display:none;">
-https://iojs.org | v2.3.0
 https://nodejs.org/
 https://www.npmjs.com/
 
@@ -48,20 +47,22 @@ module为当前模块对象。require, module, exports都是针对每个模块�
 ## NPM
 `~/.npmrc`: 配置文件。用代理时使用非https源: `registry = http://registry.npmjs.org`。
 `~/.npm/`:  cache目录。
+`$(npm config get prefix)/lib/node_modules`: 全局lib目录。
 
 ### install
 `npm install`
-本地安装：没有`-g`选项，无包名则根据package.json自动安装所有依赖的包。`--save`/`--save-dev`安装时同时加到package.json文件中。
-全局安装：带有`-g`选项，安装在`$INSTALL_PREFIX/node_modules`下，不能被require到，一般用来安装命令行工具类（有bin文件）的包。
+本地安装：没有`-g`选项，无包名则根据package.json自动安装所有依赖的包。`--save`/`--save-dev`安装时同时加到package.json文件的`dependencies`/`devDependencies`中。
+全局安装：带有`-g`选项，安装在全局`node_modules`下，不能被require到，一般用来安装命令行工具类（有bin文件）的包。
 npm会根据package.json里的依赖定义自动管理版本依赖性（`npm ls`查看）， 如果已安装且module的版本满足就不会再装，否则在自己的node_modules目录安装特定版本。
 
 更新本地包：`npm update`
-卸载本地包：`npm uninstall <package>` 加上`--save`也从package.json里面移除
-更新全局包：`npm install -g [package]` 省略package则更新全部
+卸载本地包：`npm uninstall <package>` 加上`--save`/`--save-dev`也从package.json里面移除
+更新全局包：`npm update -g <package>` 省略package则更新全部。
 卸载全局包：`npm uninstall -g <package>`
 查看过时包：`npm outdated [-g]`
 查看所有包：`npm ls [-g]`
-更新npm自己：`npm install npm -g`
+更新npm自己：`npm install npm@latest -g`
+执行script：`npm run <cmd> -- [param]` package.json 里 script 的命令，如 test, build, start，可以直接调用本地安装包里的命令。简写：`npm start/stop/restart/test`
 
 ### publish
 发布到`https://www.npmjs.org/package/<package>`上。
@@ -78,7 +79,7 @@ minor: `1` or `1.x` or `^1.0.4`
 patch: `1.0` or `1.0.x` or `~1.0.4`
 
 ### develop package
-初始化package.json：`npm init`
+初始化package.json：`npm init -y`
 测试全局安装：`npm install . -g`或`npm link`
 测试本地安装：在新的目录 `npm install path/to/my/package`
 
