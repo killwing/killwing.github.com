@@ -61,6 +61,11 @@ DocumentFragment | #document-fragment| null|11
 * `replaceChild()` 被替换的节点都还在文档中，但已没有了自己的位置。
 * `cloneNode()` bool参数表示深层复制，返回复制的节点为文档所有，但为孤儿节点（未指定父节点）。不会复制节点的 JavaScript 属性，如事件处理程序。
 * `normalize()` 删除空文本节点，合并相邻的文本节点。
+* `contains()`: 判断一个节点是否是另一个节点的后代。
+* `isSameNode()` 和 `isEqualNode()`：判断相同（引用同一个对象），相等。
+* `NodeList`, `NamedNodeMap`, `HTMLCollection` 都是动态的，每当 DOM 结构发生变化，都会实时更新。每次访问 NodeList 都会运行一次基于文档的查询。
+* `setUserData()`, `getUserData()`：设置（可带操作回调函数）和获取用户数据。
+* DOM 遍历是深度优先的 DOM 结构遍历，`document.createNodeIterator()` 创建一个 `NodeIterator`, `document.createTreeWalker()` 创建一个 `TreeWalker`。
 
 #### Document
 * document 对象是 HTMLDocuement （继承自 Document） 的一个实例，表示整个 HTML 页面。
@@ -73,6 +78,8 @@ DocumentFragment | #document-fragment| null|11
 * `getElementsByName()` 根据 name 属性查找。
 * 特殊集合：`document.anchors`, `document.images`, `document.links`, `document.applets`, `document.forms`。
 * `write()` 直接写 HTML 代码创建 DOM 元素作为页面内容，可以动态加载外部资源。如果在文档加载结束后再调用会重写整个页面。
+* `document.defaultView.getComputedStyle()`: 返回只读的 CSSStyleDeclaration 对象，包含元素的所有计算的样式。
+* `styleSheets` 属性: 文档中`<link>`和`<style>`定义的样式表的集合，样式表对象是一个 CSSStyleSheet 实例，cssRules 属性（CSSStyleRule 类型，有style属性）包含了所有样式规则的集合。
 
 #### Element
 * 所有 HTML 元素都由 `HTMLElement`（继承自 Element） 的子类型表示。
@@ -80,12 +87,21 @@ DocumentFragment | #document-fragment| null|11
 * 标准属性：`id`, `title`, `lang`, `dir`, `className`。
 * 操作属性：`getAttribute()`（不常用，而是直接使用对象属性）, ``setAttribute()`, `removeAttribute()`。传入实际属性名，不区分大小写。
 * `attribute` 属性中包含一个 `NamedNodeMap`，是一个 `Attr` 节点的动态集合。
+* `style`属性，是一个 CSSStyleDeclaration 实例（cssText, length等属性成员），表示样式信息。短划线的 CSS 属性名，JS中变为驼峰形式。
 * 创建：`document.createElement()`
 * 追加：`parent.appendChild(child)`
 * 替换：`parent.replaceChild(child)`
 * 插入：`parent.insertBefore(child, parent.childNodes[0])`
 * 删除：`child.parentNode.removeChild(child)`
 * 查找：`parent.getElementsByTagName()`
+* [元素大小](https://stackoverflow.com/questions/21064101/understanding-offsetwidth-clientwidth-scrollwidth-and-height-respectively)
+ * 偏移量: `offsetHeight`, `offsetWidth`, `offsetLeft`, `offsetTop`，相对于 `offsetParent` （不一定是 `parentNode`） 的偏移量（像素）。
+ * 客户区: `clientWidth`, `clientHeight`。浏览器视口大小：`document.documentElement.clientWidth/clientHeight`
+ * 滚动大小：`scrollHeight`, `scrollWidth`, `scrollLeft`, `scrollTop`。
+ * `getBoundingClientRect()` 元素相对于视口的位置。`offsetWidth == right - left`, `offsetHeight == bottom - top`
+* `innerText`: 元素中包含的所有文本内容。读取时拼接文本，设置时转义 HTML 标签。自赋值过滤 HTML 标签：`div.innerText = div.innerText`。`outerText`: 读取时一样，设置时也替换元素本身。
+* `innerHTML`: 元素中包含的 HTML 代码，设置时解析代码。不是所有元素都有此属性。`outerHTML` 替换元素本身，不常用。
+* 滚动操作：`scrollIntoView()`, `scrollIntoViewIfNeeded()`, `scrollByLines()`, `scrollByPages()`。
 
 #### Text
 * Text 类型，可以包含 HTML 代码，但需转义。
@@ -93,23 +109,72 @@ DocumentFragment | #document-fragment| null|11
 * 默认情况下每个可以包含内容的元素最多只能有一个文本节点（内容不能为空）。
 * 创建：`document.createTextNode()`
 
-### 扩展
-* 滚动操作：`scrollIntoView()`, `scrollIntoViewIfNeeded()`, `scrollByLines()`, `scrollByPages()`。
-* `contains()`: 判断一个节点是否是另一个节点的后代。
-* `innerText`: 元素中包含的所有文本内容。读取时拼接文本，设置时转义 HTML 标签。自赋值过滤 HTML 标签：`div.innerText = div.innerText`。`outerText`: 读取时一样，设置时也替换元素本身。
-* `innerHTML`: 元素中包含的 HTML 代码，设置时解析代码。不是所有元素都有此属性。`outerHTML` 替换元素本身，不常用。
-* `NodeList`, `NamedNodeMap`, `HTMLCollection` 都是动态的，每当 DOM 结构发生变化，都会实时更新。每次访问 NodeList 都会运行一次基于文档的查询。
+### 事件
+事件流：从页面中接收事件的顺序。传播顺序包括捕获，处于目标，冒泡三个阶段。有两个机会在目标对象上操作事件。
 
+* 冒泡：由最具体的元素接收，逐级向上传播到不具体的节点（直到 window 对象）。
+* 捕获：从不具体的节点开始（window 对象），最具体的节点最后接收到事件。
+
+事件处理程序：
+
+* onxxx属性：指定处理函数，`this` 引用当前元素，冒泡阶段处理。
+* `addEventListener()`/`removeEventListener()`: 指定事件名，处理函数，布尔值（true表示捕获阶段调用，false表示在冒泡阶段调用，冒泡阶段兼容性好，常用）参数。可以对同一个事件添加多个处理程序。
+
+传入参数：事件对象。
+
+* `type`: 事件类型。
+* `eventPhase`: 调用时所处阶段。当为2（处于目标）时，target 和 currentTarget 相等。
+* `preventDefault()`: 取消事件的默认行为。`cancelable`为true时。
+* `stopPropagation()`: 取消事件的进一步传播。
+* `target`: 事件实际作用的目标。
+* `currentTarget`: 注册事件的元素，等于`this`的值。
+* 其他事件类型相关属性。
+
+事件类型：
+
+* UI: DOMActive, DOMFocusIn, DOMFocusOut
+* 鼠标: click, dbclick, mousedown, mouseup, mouseout, mouseover, mousemove
+* 键盘: keydown, keypress, keyup
+* HTML: load（当页面完全加载后在 window 上触发，img/script元素加载完后也会触发）, unload（切换到另一个页面）, abort, error, select, change, submit, reset, resize, scroll, focus, blur
+* 变动: DOMSubtreeModified, DOMNodeInserted, DOMNodeRemoved, DOMNodeInsertedIntoDocument, DOMNodeRemovedFromDocument, DOMAttrModified, DOMCharacterDataModified
+* 其他：contextmenu, beforeunload, mousewheel, DOMMouseScroll, DOMContentLoaded, readystatechange, pageshow, pagehide
+* 移动：orientationchange, touchstart, touchmove, touchend, touchcancel, gesturestart, gesturechange, gestureend
+
+事件委托：尽量在 DOM 树高层次上提供一个事件处理程序，判断`target.id`分别处理。
+内存泄露(dangling event handler)：移除元素时没有移除事件处理程序；卸载页面时。
+事件模拟：创建：`document.createEvent()`；初始化：根据类型不同调用初始化方法；节点触发（冒泡）：`dispatchEvent()`
+
+### 表单
+表单 `<form>` 是 `HTMLFormElement` 类型。
+
+* 用户单击提交按钮或图像按钮时就会提交表单，使用`<input>`/`<button>`的`type=submit`属性来定义提交按钮（图像:`<input type="image" src="test.jpg">`）。浏览器会在请求发给服务器之前触发 submit 事件。
+* `form.sumbit()`无需包含提交按钮，不触发 submit 事件。
+* `<input>`/`<button>`的`type=reset`属性来定义重置按钮，或`form.reset()`重置，触发 reset 事件。
+* `form.elements`是一个有序列表，所有控件字段的集合，可以按位置（索引）或 `name` 属性访问。
+* 共有表单字段属性：disabled, form, name, readOnly, tabIndex, type, value。
+* 共有表单字段方法：`focus()`, `blur()`
+* 共有表单字段事件：blur, change, focus。
+* 文本框`<input type="text">`（单行）, `<textarea>`（多行）
+* 选择框`<select>`, `<option>`
+* 发送：`form.action`属性接受请求的 URL，`form.method`提交方法，如果是`post`则提交序列化后内容以`Content-Type: application/x-www-form-urlencoded`在body里发送。
+* 序列化：
+  * 对表单的字段 name 和 value 进行 URL 编码，使用 `&` 分隔。
+  * 不发送禁用的字段。
+  * 只发送勾选的复选框和单选按钮，多选框中每个选中的值。
+  * 不发送 type 为`reset`和`button`的按钮。
+  * 单击提交的情况也发送提交按钮。
 
 ### 常用操作
-选择器：`var $ = document.querySelectorAll.bind(document)`
-
-简单库：https://github.com/remy/min.js
+选择器：参数为一个或多个 CSS 选择器。
+`var $ = document.querySelector.bind(document)` 返回一个 Element 对象（匹配多个返回第一个）
+`var $$ = document.querySelectorAll.bind(document)` 返回一个静态的 NodeList 对象
 
 [Chrome CLI](https://developer.chrome.com/devtools/docs/commandline-api):
 `$`: `querySelector`
 `$$`: `querySelectorAll`
 `$x`: 通过 xPath 选择
+
+简单库：https://github.com/remy/min.js
 
 ## CSS
 ### 显示优先级
@@ -119,7 +184,7 @@ DocumentFragment | #document-fragment| null|11
 1. 浏览器缺省设置
 
 ### 语法
-* 样式声明(declaration, 用";"隔开) `selector {property: value}`：选择器(selector)通常是希望定义的HTML元素或标签，属性(property)是你希望改变的属性，并且每个属性都有一个值(value). eg: body {color: blue; ... }
+* 样式声明(declaration, 用";"隔开) `selector {property: value}`：选择器(selector)通常是希望定义的HTML元素或标签，属性(property)是你希望改变的属性，并且每个属性都有一个值(value). eg: `body {color: blue; ... }`
 * 子元素从父元素继承属性。
 * @media规则可以在相同的样式表中，使用不同的样式规则来针对不同的媒介。
 
@@ -133,13 +198,16 @@ selector|name|description|example
 `#`  |ID	|唯一标识符的 ID|`#sidebar p { ... }`
 `.`  |类型	|基于类而被选择|`.center { ... }, td.myclass { ... }`
 `:`  |伪类	|用于向某些选择器添加特殊的效果|`a:link {color: #FF0000}`
+`::` |伪元素|创建了一些抽象元素，这些抽象元素是不存在DOM树中|`h1::before { content: "Hello "; }`
 `[]` |属性	|选择具有某属性的元素|`h[title] { color: blue; }`
 
-### 框模型
+### 盒模型
 * 位置：元素内容(element) - 内边距(padding) - 边框(border) - 外边距(margin)。
 * 内边距显示元素的背景，外边距默认是透明的(不会遮挡其后的元素)。
 * 内边距、边框和外边距都是可选的，默认值是零，但浏览器可能提供预定义的样式。
-* width和height指的是元素内容区域的宽度和高度。
+* width和height指的是box-sizing区域的宽度和高度。
+ * `box-sizing: content-box;` 计算仅包含元素内容。
+ * `box-sizing: border-box;` 计算包含元素内容，border, padding在内。
 * 内边距、边框和外边距可以应用于一个元素的所有边，也可以应用于单独的边，默认值都是0。
 * 内边距不可以是负值，外边距可以，在很多情况下都要使用负值的外边距。外边距还可以设置为auto，继承父元素值。
 * 内边距和外边距的百分数值是相对于其父元素的width计算的。上下内边距会与左右内边距一致，即上下内边距的百分数会相对于父元素宽度设置，而不是相对于高度。
@@ -190,7 +258,7 @@ selector|name|description|example
  * 和其他元素在同一行。
  * 高度宽度可控制。
 
-## [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+## [fetch](https://developer.mozilla.org/zh-CN/docs/Web/API/Fetch_API)
 `window.fetch(url)`返回一个Promise对象，resolve时传入Reponse对象，`response.json()`返回另一个Promise对象，relove时传入json数据。
 eg: `fetch("http://www.weather.com.cn/data/cityinfo/101010100.html").then(res => res.json()).then(d => console.log(d))`
 
@@ -218,6 +286,7 @@ Response:
 ## Reference
 JavaScript 高级程序设计 2ed
 https://www.html5rocks.com
+https://developer.mozilla.org/zh-CN/
 
 </xmp>
 <script src="../js/strapdown.js"></script>
