@@ -147,7 +147,7 @@ function BarWidget(sort) {
 }
 BarWidget.prototype.init = function() {
     this.data = new BarData;
-    this.gen = new this.sort(this.data);
+    this.gen = this.sort(this.data);
 };
 BarWidget.prototype.update = function() {
     let ret = this.gen.next();
@@ -328,7 +328,7 @@ function TreeWidget(sort) {
 }
 TreeWidget.prototype.init = function() {
     this.data = new TreeData;
-    this.gen = new this.sort(this.data);
+    this.gen = this.sort(this.data);
 };
 TreeWidget.prototype.update = function() {
     let ret = this.gen.next();
