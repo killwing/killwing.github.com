@@ -354,6 +354,15 @@ slice = slice[5:10] // reslice, reuse name
 `append(slice, v1, v2, ...)`: 在slice（可以是nil）结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
 `copy(dest, src)`: 复制一个slice到另一个，直到其中一个结尾，返回copy的个数，可正确处理重叠部分。复制到一个数组：`copy(array[:], src)`
 
+filtering without allocating:
+```
+b := a[:0]
+for _, x := range a {
+	if f(x) {
+	    b = append(b, x)
+	}
+}
+```
 
 更多：[Slice详解](http://blog.golang.org/slices), [SliceTricks](https://github.com/golang/go/wiki/SliceTricks)
 
@@ -901,7 +910,7 @@ func main() {
 
 导入包: `import myfmt "path/to/fmt"  // use the name myfmt，相对src的路径`
 导入本地包：`import "./myfmt" // 仅对go run或go build main.go有效`
-导入内部包（内部包只能包自己可以用，`go run`不受此限制）。`import "myfmt/internal/util"`
+导入内部包（内部包只能此内部包所在目录及以下的包可用，`go run`不受此限制，也只能使用导出的结构）。`import "myfmt/internal/util"`
 不导入仅初始化：`import _ "fmt"`
 全部导入（无须以包名开头使用）：`import . "fmt"`
 导入多个包：
