@@ -161,6 +161,26 @@ http://natureofcode.com/book/
 **Example 3.11: A Spring connection**
 <canvas id="example_3_11"></canvas>
 
+## 10 Neural Networks
+### Classification
+感知器(Perceptron)：最简单的神经网络，只有一个神经元的计算模型，包含一个或多个输入，一个处理器，单个输出。
+
+算法（前向计算）：
+
+1. 对每个输入（包括偏差）乘以权重
+1. 累加所有权重后的输入得到和
+1. 将和通过一个激活函数计算输出
+
+训练过程（循环重复）：
+
+1. 提供 Perceptron 带有正确答案 `DESIRED OUTPUT` 的输入
+1. 前向计算出 `GUESS OUTPUT`
+1. 计算误差: `ERROR = DESIRED OUTPUT - GUESS OUTPUT`
+1. 更新所有权重: `NEW WEIGHT = WEIGHT + ERROR * INPUT * LEARNING CONSTANT`
+
+**Example 10.1: The Perceptron**
+<canvas id="example_10_1"></canvas>
+
 </xmp>
 <script src="js/strapdown.js"></script>
 <script src="js/noc.js"></script>

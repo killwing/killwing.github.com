@@ -199,11 +199,13 @@ class Util {
 }
 
 class Shape {
-    static circle(ctx, x, y, r) {
+    static circle(ctx, x, y, r, nofill) {
         ctx.beginPath();
-        ctx.arc(x, y, 20, 0, 2 * Math.PI, false);
-        ctx.globalAlpha = 0.3;
-        ctx.fill();
+        ctx.arc(x, y, r, 0, 2 * Math.PI, false);
+        if (!nofill) {
+            ctx.globalAlpha = 0.3;
+            ctx.fill();
+        }
         ctx.globalAlpha = 1;
         ctx.stroke();
     }
@@ -557,6 +559,45 @@ class SpringBall {
     }
 }
 
+class Trainer {
+    constructor(x, y, a) {
+        this.inputs = [];
+        this.inputs[0] = x;
+        this.inputs[1] = y;
+        this.inputs[2] = 1; // fixed bias
+        this.answer = a;
+    }
+}
+
+class Perceptron {
+    constructor(n) {
+        this.lr = 0.01; // learning rate
+        this.weights = [];
+        for (let i = 0; i != n; i++) {
+            this.weights[i] = Random.arbitrary(-1, 1); // weights start off random
+        }
+    }
+
+    feedforward(inputs) {
+        let sum = 0;
+        for (let i = 0; i != this.weights.length; i++) {
+            sum += inputs[i] * this.weights[i];
+        }
+        return this.activate(sum)
+    }
+
+    activate(sum) { // binary output
+        return sum > 0 ? 1 : -1;
+    }
+
+    train(inputs, desired) {
+        let guess = this.feedforward(inputs);
+        let error = desired - guess;
+        for (let i = 0; i != this.weights.length; i++) {
+            this.weights[i] += this.lr * error * inputs[i];
+        }
+    }
+}
 
 (function example_0_1() {
     function Walker(x, y) {
@@ -1336,3 +1377,48 @@ class SpringBall {
     let ew = new EgWidget('example_3_11', p.display.bind(p), p.update.bind(p), p.reset.bind(p));
     ew.run();
 })();
+
+(function example_10_1() {
+    let f = x => 2*x+1;
+    let ff = x => (x-1)/2; // inverse of f
+    let total = 2000;
+    let count = 0;
+    let error = 0;
+    let training = [];
+    // gen real data for training
+    for (let i = 0; i != total; i++) {
+        let x = Random.arbitrary(-WIDTH/2, WIDTH/2);
+        let y = Random.arbitrary(-HEIGHT/2, HEIGHT/2);
+        let answer = f(x) > y ? 1 : -1;
+        training[i] = new Trainer(x, y, answer);
+    }
+
+    let ptron = new Perceptron(3);
+    let ew = new EgWidget('example_10_1', (ctx) => {
+        ew.clear();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.translate(WIDTH / 2, HEIGHT / 2);
+
+        // real line
+        ctx.beginPath();
+        ctx.moveTo(ff(-HEIGHT/2), -HEIGHT/2);
+        ctx.lineTo(ff(HEIGHT/2),HEIGHT/2);
+        ctx.stroke();
+
+        for (let i = 0; i != count; i++) {
+            // inference
+            let guess = ptron.feedforward(training[i].inputs);
+            // classification result: nofill for -1, fill for 1
+            Shape.circle(ctx, training[i].inputs[0], training[i].inputs[1], 5, guess < 0);
+        }
+    }, () => {
+        // training one point at a time
+        ptron.train(training[count].inputs, training[count].answer);
+        count = (count + 1) % total;
+    }, () => {
+        count = 0;
+    });
+    ew.run();
+})();
+
+
