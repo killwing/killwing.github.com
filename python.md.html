@@ -114,12 +114,12 @@ f(b=1, b=2)
 
 ```
 def foo(kind, *args, **kwargs):
-    print kind
+    print(kind)
     for a in args:
-        print a
+        print(a)
 
     for b in kwargs:
-        print b, kwargs[b]
+        print(b, kwargs[b])
 
 foo(0, 1, 2, 3, name='alice', age=26)
 l = [1, 2, 3]
@@ -137,7 +137,7 @@ lambda可以用于任何需要的函数对象(lambda x: x+n)，可以接收任�
 ```
 g = 9
 def myf():
-　　print 'g =', g
+　　print('g =', g)
 　　g = 3　　
 　　
 myf()
@@ -150,10 +150,10 @@ UnboundLocalError: local variable 'g' referenced before assignment
 g = 9
 def myf():
     g = 3　　
-    print 'g =', g
+    print('g =', g)
 　　
 myf()
-print 'g =', g
+print('g =', g)
 
 ------------
 g = 3
@@ -265,7 +265,7 @@ def divide(x, y):
         print("Other error!")
     except:	#抓住所有异常
         print("Unexpected error:", sys.exc_info()[0])
-        raise	#再次把异常抛出 
+        raise	#再次把异常抛出
     else:	#try子句没有发生任何异常的时候执行
         print("result is", result)
     finally:	#无论在任何情况下都会执行(清理行为)
@@ -314,31 +314,45 @@ Instantiation: metaclass(继承自type, types) -> class(继承自object, types) 
 用C++术语来讲，所有的类成员（包括数据成员）都是公有的，所有的成员函数都是虚（virtual）的，没有特定的构造和析构函数。
 ```
 class Base:
+    var1 = 10
+    
+    def __init__(self):
+        self.var1 = 100
+    
     def bar(self):
-        print("base bar")
+        print("base bar", self.var1)
+        
     def foo(self):
-        print("base foo")
+        print("base foo", self.var1)
         self.bar()
         Base.bar(self)
 
 class Sub(Base):
+    var2 = 20
+    
+    def __init__(self):
+        super(Sub, self).__init__() # call Base to init member
+        self.var2 = 200
+        
     def bar(self):
-        print("sub bar")
+        print("sub bar", self.var2)
 
 b = Sub()
 b.foo()
-
--------------
-base foo
-sub bar
-base bar
+----
+base foo 100
+sub bar 200
+base bar 100
 ```
+
 类定义了`__init__()`方法的话，类的实例化操作会自动为新创建的类实例调用`__init__()`方法。
 一些特殊的方法如`__len__()`, `__str__()`, `__add__()`都是直接通过类来访问：len(obj) -> `obj.__class__.__len(obj)__`
 
+类变量和成员变量：类变量属于类本身，以类名直接引用。创建对象时复制一份到对象中作为成员变量，直接修改类变量不会影响已创建的对象中的成员变量，但是对象如果没更新过这个成员则能看见修改（写时复制）。
+
 ### 7.3 descriptor
 user-provided attributes: 又称dynamic attributes，在`__dict__`中能查到，一些objects如built-in types及其instances没有`__dict__`，所以不能自设attributes。
-python-provided attribute: 如`__dict__`, `__bases__`, `__class__`，是否是python-provided取决于具体的object.
+python-provided attribute: 如`__dict__`, `__bases__`, `__class__`，是否是python-provided取决于具体的object。
 dir()可以列出所有attributes。
 对于普通attribute(非descriptor)，a.x访问顺序：
 
@@ -477,7 +491,7 @@ from functools import wraps
 def decorator(fn):
     @wraps(f) # 消除decorator，让func能输出自己的`__name__`, `__doc__`
     def wrapper():
-        print "calling %s" % fn.__name__
+        print("calling %s" % fn.__name__)
         fn()
     return wrapper
 
@@ -518,18 +532,18 @@ func = foo()(func)
 ```
 class Decorator(object):
     def __init__(self, fn):
-        print "__init__()"
+        print("__init__()")
         self.fn = fn
 
     def __call__(self):
         self.fn()
-        print "__call__()"
+        print("__call__()")
 
 @Decorator
 def func():
-    print "func()"
+    print("func()")
 
-print "main()"
+print("main()")
 func()
 
 # 输出：
@@ -543,21 +557,21 @@ func()
 ```
 class Decorator(object):
     def __init__(self, a, b):
-        print "__init__()"
+        print("__init__()")
         self.a = a
 	    self.b = b
 
     def __call__(self, fn):
-        print "__call__()"
+        print("__call__()")
         def wrapper():
             fn()
         return wrapper
 
 @Decorator(1, 2)
 def func():
-    print "func()"
+    print("func()")
 
-print "main()"
+print("main()")
 func()
 
 # 输出：
@@ -590,6 +604,11 @@ def fib(n):
         return n
     return fib(n - 1) + fib(n - 2)
 ```
+
+### 类方法
+`@staticmethod`: 完全不依赖类和对象的方法，第一个参数不是`self`/`cls`，不需要对象，直接以类名调用（用对象也可以调用）。
+`@classmethod`: 绑定在类上而不是对象上的方法，第一个参数是类本身`cls`，可以使用类变量，直接以类名调用。（类似C++静态方法中使用静态成员）
+`@abc.abstractmethod`: `abc`模块的抽象方法，类似接口（可以有默认实现，子类通过`super()`来调用），父类无法实例化（须继承自`abc.ABC`），子类必须实现接口（名字相同，参数可以任意）。
 
 ## Python 2 vs 3
 [The key differences between Python 2.7.x and Python 3.x with examples](http://sebastianraschka.com/Articles/2014_python_2_3_key_diff.html) [(zh)](https://segmentfault.com/a/1190000000618286)

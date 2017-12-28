@@ -39,6 +39,7 @@ validation set: 验证数据集，一般和训练同时进行，对训练没有�
 test set: 用于评估（evaluation）最终训练后的模型，预测（predict）结果
 
 
+## Evaluation
 ### Precision & Recall
 https://en.wikipedia.org/wiki/Precision_and_recall
 准确率(A)：Accuracy。`A = (TP + TN)/(P+N) = (TP + TN)/(TP + FN + FP + TN)`
@@ -48,9 +49,23 @@ F1 Measure: `F1 = 2P*R / (P+R)`
 
 比如：100张样本图片，真实有10张黄图，检测出8张黄图，其中6张是真实黄图(TP)，2张误报(FP)，4张漏报(FN)。
 则：P = 6/8, R = 6/10, A = (6+88)/100
-       实际真 实际假
-检测真 6(TP)  2(FP)
-检测假 4(FN)  88(TN)
+
+|       |实际真 |实际假
+|-|-|-
+|检测真 |6(TP)  |2(FP)
+|检测假 |4(FN)  |88(TN)
+
+PR曲线：采点是按照样本的数量采的（1，2，...直到所有样本数），一条PR曲线只对应一个分类阈值。也可以用不同分类阈值。
+http://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html
+
+### ROC
+https://en.wikipedia.org/wiki/Receiver_operating_characteristic
+
+真正例率：和Recall一样。`TPR = TP/(TP+FN)`
+假真例率：把多少负样本也归成了正的了。`FPR = FP/(TN+FP)`
+
+ROC(Receiver Operating Characteristic)曲线：不同的分类阈值（采点）下TPR和FPR的点图。
+http://scikit-learn.org/stable/auto_examples/model_selection/plot_roc.html
 
 </xmp>
 <script src="../js/strapdown.js"></script>
