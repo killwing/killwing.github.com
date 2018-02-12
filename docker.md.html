@@ -65,11 +65,10 @@ top: `docker container`
 查看容器状态：`docker ps`，`-a`查看包括已终止的所有容器; `-q`仅列出id。
 查看容器设置：`docker inspect`
 查看容器进程：`docker top`
-在运行的容器中执行命令：`docker exec`
 连接到容器：`docker attach`，`ctrl-p,ctrl-q`可以detach而不退出shell。
 导出导入容器快照：`docker export/import` 导出到快照文件（无元信息）／从文件导入为镜像。
 删除容器：`docker rm`，加上`-v`同时删除数据卷（只会删除匿名的卷）；`-f`停止并删除。删除所有容器：`docker rm $(docker ps -qa)`, `docker container prune`
-在容器中执行命令：`docker exec`
+在容器中执行命令：`docker exec` (exec leak: https://github.com/moby/moby/issues/9098)
 
 ### Data Volume
 top: `docker volume`

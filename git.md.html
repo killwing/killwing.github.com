@@ -393,11 +393,6 @@ clone后同步所有子模块：`git submodule update --init --recursive`
 更新子模块：要使所有子模块同步到远程最新，用`git submodule foreach git pull`。
 [删除子模块](http://stackoverflow.com/questions/1260748/how-do-i-remove-a-git-submodule/)：
 
-* 删除`.gitmodules`里的相关项
-* `git submodule deinit`删除`.git/config`里的相关项
-* `git rm --cached path/to/submodule` (没有最后的slash)
-* 提交然后删除未加入版本库的子模块文件
-
 
 ## 子树
 `git read-tree` 将一个分支内容读到当前分支的一个子目录下（只更新在stage中）。

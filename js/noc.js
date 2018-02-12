@@ -102,7 +102,9 @@ Random.gauss = function(mu, sigma) {
         spare = null;
         return v;
     } else {
-        var u, v, s;
+        var u,
+            v,
+            s;
         do {
             u = Math.random() * 2 - 1; // [-1, 1)
             v = Math.random() * 2 - 1;
@@ -592,7 +594,7 @@ class Perceptron {
 
     train(inputs, desired) {
         let guess = this.feedforward(inputs);
-        let error = desired - guess;
+        let error = desired - guess; // loss
         for (let i = 0; i != this.weights.length; i++) {
             this.weights[i] += this.lr * error * inputs[i];
         }
@@ -1379,16 +1381,16 @@ class Perceptron {
 })();
 
 (function example_10_1() {
-    let f = x => 2*x+1;
-    let ff = x => (x-1)/2; // inverse of f
+    let f = x => 2 * x + 1;
+    let ff = x => (x - 1) / 2; // inverse of f
     let total = 2000;
     let count = 0;
     let error = 0;
     let training = [];
     // gen real data for training
     for (let i = 0; i != total; i++) {
-        let x = Random.arbitrary(-WIDTH/2, WIDTH/2);
-        let y = Random.arbitrary(-HEIGHT/2, HEIGHT/2);
+        let x = Random.arbitrary(-WIDTH / 2, WIDTH / 2);
+        let y = Random.arbitrary(-HEIGHT / 2, HEIGHT / 2);
         let answer = f(x) > y ? 1 : -1;
         training[i] = new Trainer(x, y, answer);
     }
@@ -1401,8 +1403,8 @@ class Perceptron {
 
         // real line
         ctx.beginPath();
-        ctx.moveTo(ff(-HEIGHT/2), -HEIGHT/2);
-        ctx.lineTo(ff(HEIGHT/2),HEIGHT/2);
+        ctx.moveTo(ff(-HEIGHT / 2), -HEIGHT / 2);
+        ctx.lineTo(ff(HEIGHT / 2), HEIGHT / 2);
         ctx.stroke();
 
         for (let i = 0; i != count; i++) {
@@ -1420,5 +1422,4 @@ class Perceptron {
     });
     ew.run();
 })();
-
 

@@ -55,8 +55,11 @@ F1 Measure: `F1 = 2P*R / (P+R)`
 |检测真 |6(TP)  |2(FP)
 |检测假 |4(FN)  |88(TN)
 
-PR曲线：采点是按照样本的数量采的（1，2，...直到所有样本数），一条PR曲线只对应一个分类阈值。也可以用不同分类阈值。
+PR曲线：对于一个类别，采用所有样本不同的推理score作为阈值（采点）下P和R的点图。
 http://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html
+
+对于分类问题：根据 ground truth （实际真假） 和 推理结果及分数阈值来确定评估真假。
+对于检测问题：根据 iou （重合度） 最大的组合及 iou 阈值确定 ground truth，根据这个组合的推理结果和分数阈值来确定评估真假。
 
 ### ROC
 https://en.wikipedia.org/wiki/Receiver_operating_characteristic
@@ -64,7 +67,7 @@ https://en.wikipedia.org/wiki/Receiver_operating_characteristic
 真正例率：和Recall一样。`TPR = TP/(TP+FN)`
 假真例率：把多少负样本也归成了正的了。`FPR = FP/(TN+FP)`
 
-ROC(Receiver Operating Characteristic)曲线：不同的分类阈值（采点）下TPR和FPR的点图。
+ROC(Receiver Operating Characteristic)曲线：对于一个类别，采用所有样本不同的推理score作为阈值（采点）下TPR和FPR的点图。
 http://scikit-learn.org/stable/auto_examples/model_selection/plot_roc.html
 
 </xmp>

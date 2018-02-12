@@ -200,6 +200,7 @@ In global scope: global spam
 ### 3.2 list []
 就像字符串索引，list索引从0开始，list可以被切割，连接，而且每个元素可以被修改，可以给一部分切割结果赋值，可以改变尺寸或整个清空，可以嵌套。
 每个列表推导式都在表达式之后跟一个for，然后有零到多个for或if子句。
+
 ```
 [3*x for x in vec]
 [[x, x**2] for x in vec]
@@ -209,7 +210,9 @@ In global scope: global spam
 [str(round(355/113.0, i)) for i in range(1, 6)]
 [str.strip() for str in strVec]
 ```
-del可以从一个列表中依索引而不是值来删除一个元素，也可以用del删除实体变量。
+
+`del`可以从一个列表中依索引而不是值来删除一个元素，也可以用del删除实体变量。
+`enumerate()`函数遍历时同时获取下标。
 
 ### 3.3 set {}
 set是一个无序不重复元素的集，用`{a, b, ...}`或`set()`创建一个set，如果要创建一个空集合，必须用`set()`而不是`{}`（空字典）。
@@ -229,12 +232,13 @@ set是一个无序不重复元素的集，用`{a, b, ...}`或`set()`创建一个
 ## 4 Module
 模块就是拥有Python定义和声明的文件，文件名就是模块名称(`__name__`)，以.py结尾。
 导入模块：`import modname`或`from modname import itemname1, itemname2`。
-使用形如import item.subitem.subsubitem这种导入形式，除了最后一项，都必须是包，而最后一项则可以是模块或者是包，但是不可以是类，函数或者变量。
+使用形如`import item.subitem.subsubitem`这种导入形式，除了最后一项，都必须是包，而最后一项则可以是模块或者是包，但是不可以是类，函数或者变量，使用时必须带全路径`item.subitem.subsubitem`。
 在这个模块被当作”主”程序执行时(`python mymodule.py <arguments>`)，`__name__`会赋值为`__main__`。
-sys.path(如果定义了从环境变量PYTHONPATH，则从其中取得)定义了模块的搜索路径，通常搜索顺序是当前目录->环境变量PYTHONPATH->Python安装默认目录。子模块相互引用时，import首先查找同目录下是否有期望的模块，如果没有再按照标准的模块搜索方式进行。
+sys.path(如果定义了从环境变量PYTHONPATH，则从其中取得)定义了模块的搜索路径，通常搜索顺序是当前目录（输入脚本所在目录，不是工作目录）->环境变量PYTHONPATH->Python安装默认目录。子模块相互引用时，import首先查找同目录下是否有期望的模块，如果没有再按照标准的模块搜索方式进行。
 `dir(modname)`可以找到模块内定义的所有名称，`dir()`列出当前定义的所有名称，内置的函数和变量的名称在builtins模块中。
 在导入一个包的时候，Python会根据sys.path中的目录来寻找这个包中包含的子目录,目录只有包含一个叫做`__init__.py`的文件才会被认作是一个包。
 如果包定义文件`__init__.py`存在一个叫做`__all__`的列表变量，那么在使用`from package import *`的时候就把这个列表中的所有名字作为包内容导入，如果未定义`__all__`，则不导入任何模块。推荐使用`from package import specific_submodule`, 而不使用`*`，package可以用1个点来表示当前模块所属的包，2个点表示当前包的上一级。
+`python -m pkg/module` 直接运行package（根目录下的`__main__.py`文件），或module（`if __name__ == "__main__":`用判断）。
 
 ## 5.IO
 函数`str()`用于将值转化为适于人阅读的形式，而`repr()`转化为供解释器读取的形式。
