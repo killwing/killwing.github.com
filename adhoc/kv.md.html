@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>KV</title>
+<xmp theme="united" style="display:none;">
+## LSM-Tree
+[Log Structured Merge Tree](http://paperhub.s3.amazonaws.com/18e91eb4db2114a06ea614f0384f2784.pdf)
+不可变结构的优点：
+不用预分配空间，减少存储开销
+读取时不用加锁，提高并发读性能
+
+定期合并重写，减少文件总数量，以减少查询时需要的文件数量
+因为不可变，插入更新删除都需要重写整个文件
+
+### SSTable
+[Sorted String Table](https://static.googleusercontent.com/media/research.google.com/en//archive/bigtable-osdi06.pdf)
+
+为顺序读写优化:
+从某一点读取范围是顺序读
+所有的写操作都是顺序写：同步MemTable，合并压缩，WAL
+
+结构：
+index block: key:offset，在内存中，可以用搜索树实现
+data block: key:value，持久化不变结构
+每个SSTable key有序且key range不重合
+每个item都有一个timestamp，如更新时间，删除时间
+删就是加一个placeholder记录并标记为删除，改就是一个新的timestamp的记录
+
+写：直接写内存(内存里对应MemTable)，当树大小（或定时）超过阈值，就写磁盘为一个新的SSTable
+读：根据索引搜索所有磁盘上的SSTable, 同时检查内存里的MemTable，然后合并结果
+合并（压缩）：类似合并排序，和读取时合并过程相同
+
+例子：LevelDB, RocksDB, Cassandra
+
+## B-Tree
+
+## WAL
+Write-Ahead Log: 保证可靠性，在改变数据文件之前追加写操作日志。
+重放WAL以恢复状态，这样就不用每次操作都要将数据文件sync到磁盘。
+WAL一般写在和数据文件不同的磁盘上。
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

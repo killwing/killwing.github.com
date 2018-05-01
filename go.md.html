@@ -3,7 +3,7 @@
 <meta charset="utf-8" />
 <title>Go</title>
 <xmp theme="readable" style="display:none;">
-[http://golang.org](http://golang.org) | v1.7
+[http://golang.org](http://golang.org) | v1.10
 
 ## 准备
 ### [下载安装](http://golang.org/doc/install)
@@ -13,6 +13,9 @@
 export GOROOT=$HOME/go
 export PATH=$PATH:$GOROOT/bin
 ```
+
+GOPATH 默认：`$HOME/go`
+GOROOT 默认：自动推导安装的路径
 
 ### [环境配置](http://golang.org/doc/code.html)
 工作区：包含src, pkg, bin目录。
@@ -151,6 +154,31 @@ var (
 )
 ```
 
+赋值，可以多个变量一起
+```
+a = b
+x, y, z = f1(), f2(), f3()
+a, b = b, a
+nbytes, error := Write(buf)
+```
+
+`new` 是一个函数，分配了一个零初始化的类型值，返回指向它的指针，没有delete。不一定分配在堆上。
+```
+var p *Point = new(Point) // 或 &Point{}
+v := new(int)   // v has type *int
+```
+
+`make`
+
+* 对于引用语义的复杂类型(slice, map, channel)用make来初始化引用（分配内存和初始化结构）。引用类型的赋值可以理解成这个类型头结构的值传递赋值。
+* 未初始化的引用为nil, 如: `var ar []int`, `var m map[string]int`, `var chan int`
+* 字面定义`ar := []int {}` 和 `ar := make([]int)`
+* 字面定义`m := map[string]int {}` 和 `m := make(map[string]int)`
+
+`++`/`--` 是语句不是表达式，只能后置使用。
+
+### predeclared type
+#### defined type
 `type`: 给一个匿名类型（一般是复合类型，如`[]int`, `[]MyInt`, `map[int]int`, `struct {}`, `func() {}`）起个名字（命名！简单区别：命名类型只含有标识没有其它符号，包括内置基本类型）或一个命名类型起个别名，类似C里的typedef，但不完全一样：
 
 * 如果两个类型的变量都是命名类型，即使底层一样也不能通用（可以强转）。
@@ -194,29 +222,17 @@ type B struct {
 }
 ```
 
+#### alias type
+语法：`type T1 = T2`
 
-赋值，可以多个变量一起
-```
-a = b
-x, y, z = f1(), f2(), f3()
-a, b = b, a
-nbytes, error := Write(buf)
-```
+* 没有定义新类型，可以理解成字符替换，使用时不需要类型转换。
+* method set 相同，在alias type上定义新方法也会反映到原类型上（如果是非本地类型则无法添加新方法）。
+* 可以通过`type Foo = foo`将package内的非导出类型foo导出为Foo。
 
-`new` 是一个函数，分配了一个零初始化的类型值，返回指向它的指针，没有delete。不一定分配在堆上。
-```
-var p *Point = new(Point) // 或 &Point{}
-v := new(int)   // v has type *int
-```
+内置：
+byte: alias for uint8
+rune: alias for int32
 
-`make`
-
-* 对于引用语义的复杂类型(slice, map, channel)用make来初始化引用（分配内存和初始化结构）。引用类型的赋值可以理解成这个类型头结构的值传递赋值。
-* 未初始化的引用为nil, 如: `var ar []int`, `var m map[string]int`, `var chan int`
-* 字面定义`ar := []int {}` 和 `ar := make([]int)`
-* 字面定义`m := map[string]int {}` 和 `m := make(map[string]int)`
-
-`++`/`--` 是语句不是表达式，只能后置使用。
 
 ## [常量](https://blog.golang.org/constants)
 必须有编译期确定初始化表达式，只可以是数字，字符，布尔类型，类型说明可省。
@@ -340,7 +356,7 @@ string也可以被slice。不可修改。
 初始化，赋值
 ```
 a = ar[7:9] // 长度为2, [7,9)
-a2 = ar[7:9:10] // 指定容量为3, [7,10)，下标都是指索引值
+a2 = ar[7:9:10] // 指定容量为3, [7,10)，下标都是指索引值，如果不指定默认容量和ar相同
 a3 = &ar  // same as a = ar[0:len(ar)] or ar[:]
 header, data := buf[0:n], buf[n:len(buf)] // split
 var slice = []int{ 1,2,3,4,5 } // 字面定义，可以个别赋值，自动创建底层数组
@@ -669,6 +685,11 @@ goroutine如果内部调用了非内联函数（内联函数如lambda，编译�
 
 关于goroutine的调度，可以看[go-scheduler](http://morsmachine.dk/go-scheduler) （[中文](http://mikespook.com/2013/07/%E7%BF%BB%E8%AF%91go-%E7%9A%84%E8%B0%83%E5%BA%A6%E5%99%A8/)）, [netpoller](http://morsmachine.dk/netpoller)，以及[原始设计文档](https://docs.google.com/document/d/1TTj4T2JO42uD5ID9e89oa0sLKhJYD0Y_kqxDv3I3XMw)。
 
+#### G-P-M 模型
+G: Goroutine
+P: 逻辑处理单元（GOMAXPROCS个）
+M: 物理处理单元（系统线程）
+
 ### Channel
 声明: `chan element_type`，创建: `var c = make(chan int)`
 channel是引用类型，内部同步，并发安全。
@@ -928,8 +949,9 @@ import (
 按照惯例，包名使用小写，且为一个单词的名字；不要使用下划线或者混合大小写。
 
 ### Vendoring ([cmd](https://github.com/golang/dep))
-实验性功能，默认不启用。启用：`GO15VENDOREXPERIMENT=1`
 在src下如果有形如`d/vendor`的目录（一般vendor不直接放在src下），那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
+
+`./...`不会匹配vendor目录。
 
 ## Testing ([pkg](http://golang.org/pkg/testing/))
 ### Test
@@ -969,7 +991,9 @@ func BenchmarkHello(b *testing.B) {
     }
 }
 ```
-用`b.ResetTimer()`重新计时。
+用`b.ResetTimer()`重新计时以忽略准备过程。
+
+用[benchstat](https://github.com/rsc/benchstat)比较结果。
 
 ### [Examples](https://blog.golang.org/examples)
 示例函数命名(suffix可选)：
@@ -995,6 +1019,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 查看go相关环境变量：`go env`
 查看import及依赖：`go list -json`
 竞态检测：`go run/build/test -race`
+GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`
 
 Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/derekparker/delve)
 [Debugging](https://software.intel.com/en-us/blogs/2014/05/10/debugging-performance-issues-in-go-programs)
@@ -1009,7 +1034,7 @@ Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/d
 ## [Profiling](http://blog.golang.org/profiling-go-programs) ([cmd](http://golang.org/cmd/pprof/) [pkg](https://golang.org/pkg/runtime/pprof/))
 测试时：`go test -bench=. -cpuprofile/-memprofile out.prof`
 独立程序：`pprof.StartCPUProfile()/pprof.StopCPUProfile()/pprof.WriteHeapProfile()`
-查看：`go tool pprof binary.test out.prof`
+查看：`go tool pprof binary.test out.prof`/`go tool pprof -http=:8080 out.prof`
 [使用label](https://rakyll.org/profiler-labels/)：`pprof.Do()`
 
 独立程序嵌入http接口：`import _ "net/http/pprof"`，并运行一个server：
@@ -1028,6 +1053,8 @@ git clone https://github.com/brendangregg/FlameGraph (add dir to PATH)
 http pprof: `go-torch -t 10`
 file pprof: `go-torch --binaryname binary.test -b pprof.cpu`
 
+使用原生[pprof](http://github.com/google/pprof): `pprof -http=:8080 out.prof`
+
 ## Tracing
 main里加上：
 ```
@@ -1038,7 +1065,7 @@ func main() {
 }
 ```
 
-`go run main.go > trace.out`
+`go run main.go > trace.out`/`go test -bench=. -trace=trace.out`
 `go tool trace trace.out`
 
 ## Documentation ([cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
@@ -1066,7 +1093,7 @@ func main() {
 特殊的tag：操作系统`runtime.GOOS`，架构`runtime.GOARCH`，编译器`gc`/`gccgo`，`cgo`，版本`go1.x`，忽略`ignore`。
 操作系统和架构也可以以文件名的形式说明：`*_GOOS`, `*_GOARCH`, `*_GOOS_GOARCH`，如`source_windows_amd64.go`
 
-## [Packages](https://golang.org/pkg/)
+## [Std Packages](https://golang.org/pkg/)
 ### [context](http://blog.golang.org/context)
 Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
 Context本身是线程安全的，它携带的参数也必须是线程安全的。

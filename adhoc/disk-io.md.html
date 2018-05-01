@@ -3,6 +3,16 @@
 <meta charset="utf-8" />
 <title>Disk IO</title>
 <xmp theme="united" style="display:none;">
+## Block Device
+扇区sector(Disc): 块设备传输数据的最小单元。512 byte.
+块block(FS): 连续相邻的sector，文件系统最小可寻址单元。512-4096 byte.
+页page(VM): block在虚拟内存里的映射。4096 byte.
+
+SSD: 写放大问题
+* 最小读写单位为page(4k)
+* 删除时只是标记删除，需要等GC回收
+* page不能原地更新只能写新分配的空白page，原page变为失效等待回收
+
 ## Read & Write
 DMA(Direct Memory Access): DMA 控制器通过系统总线来传输数据，不占用CPU，CPU只下达指令。
 同步读，异步写：
@@ -34,9 +44,9 @@ cons:
 
 * 维护映射的数据结构，更多系统调用，实际开销比read大
 
+`fadvise()` 通知内核，优化page cache的使用。
 
-
-## Buffer & Cache
+## Buffer / Cache
 ### 查看
 `free -m`
 `cat /proc/meminfo`
@@ -52,15 +62,15 @@ Swap:         1153          0       1153
 (+buffers/cache) free内存数: 715M (指的第一部分Mem行中的free + buffers + cached) 反映的是可以挪用的内存总数（包括系统缓存）
 swap: 交换分区
 
-Page Cache (cached):，针对磁盘块的读写 (data)
-Buffer Cache (buffers):  针对文件dentries和inode的读写 (metadata)
+Page Cache (cached) & Buffer Cache (buffers) 已合并不作区分：https://lwn.net/Articles/712467/
+查看文件的缓存情况：https://github.com/tobert/pcstat
 
 ### 清除
 `echo 1/2/3 > /proc/sys/vm/drop_caches`
 1: page cache
 2: buffer cache
 3: both
-还未真正写入磁盘的脏数据不会被清除，可先用`sync`命令强制同步数据到磁盘上以释放更多空间。(sync只是将修改过的内容放到写队列，并不等待磁盘写入完成。?)
+还未真正写入磁盘的脏数据不会被清除，可先用`sync`命令强制同步数据到磁盘上以释放更多空间。
 
 ### 配置
 `/proc/sys/vm/`
@@ -81,12 +91,21 @@ Buffer Cache (buffers):  针对文件dentries和inode的读写 (metadata)
 
 ## O_DIRECT / O_SYNC
 open flag:
-O_DIRECT: 直接i/o，直接写磁盘，不经过系统缓存。
+O_DIRECT: 直接i/o，直接写磁盘，不经过系统缓存。（注意block对齐问题）
 O_SYNC: 同步，每次操作都要同步到磁盘。
 O_DSYNC: 只同步数据。
+O_NONBLOCK: 对文件IO不起作用。
 
-fdatasync(): 将脏数据同步到磁盘。
-fsync(): 同时保证metadata同步到磁盘。
+fdatasync(): 将脏数据同步到磁盘（写入完成）。如果metadata更新则同步metadata。
+fsync(): 同时保证metadata同步到磁盘（两次磁盘IO）。
+sync(): 将所有修改过的内容放到写队列，并不等待磁盘写入完成。
+fflush(): 作用于文件(`FILE*`)，同步用户空间数据到文件（缓存）。
+msync(): 使用mmap时同步数据。
+
+## AIO
+Linux (Kernel) AIO: 内核异步IO。主要syscall: `io_submit`和`io_getevents`, glibc并未暴露。
+[Posix AIO](http://man7.org/linux/man-pages/man7/aio.7.html): 用户空间实现，并未使用内核AIO。
+
 
 ## Benchmark
 ### read
@@ -105,6 +124,11 @@ hdparm:
 `oflag=dsync`表示每次写操作都同步一次，不加参数则由系统自动同步。
 `oflag=sync`同时对metadata。
 `oflag=direct`使用direct i/o。
+
+### fio
+https://github.com/axboe/fio
+http://fio.readthedocs.io/en/latest/fio_doc.html
+https://www.binarylane.com.au/support/solutions/articles/1000055889-how-to-benchmark-disk-i-o
 
 ## I/O Error Simulation
 创建虚拟磁盘(1048576个扇区，可用`blockdev --getsz /dev/loop0`查看)，不用挂载：

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Pytorch</title>
+<xmp theme="united" style="display:none;">
+http://pytorch.org/
+
+## autograd
+### 梯度
+graph leaves: 事先创建的、而非运算得到的变量
+
+`out.backward()`
+如果out是个标量(scalar), gradient默认为`torch.tensor(1)`
+如果out是个向量，gradient必须为和out维度一致的tensor。
+结果：`x.grad = ∂out/∂x`
+
+
+#### 梯度下降
+https://zhuanlan.zhihu.com/p/27297638
+
+```
+import torch
+
+a = torch.tensor([0.45], requires_grad=True) # graph leaves
+b = torch.tensor([0.75], requires_grad=True) # graph leaves
+
+x = torch.tensor([0, 0.22, 0.24, 0.33, 0.37, 0.44, 0.44, 0.57, 0.93, 1.0])
+y = torch.tensor([0, 0.22, 0.58, 0.2, 0.55, 0.39, 0.54, 0.53, 1.0, 0.61])
+
+p = a + b*x
+loss = 0.5*(y - p) * (y - p)
+print(loss)
+
+loss.backward(gradient=torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
+print(a.grad)
+print(b.grad)
+
+--- out ----
+tensor([ 0.1012,  0.0780,  0.0013,  0.1238,  0.0158,  0.0760,  0.0288, 0.0604,  0.0109,  0.1741])
+tensor([ 3.2850])
+tensor([ 1.5312])
+```
+
+#### 线性回归
+```
+import torch
+import torch.nn as nn
+
+x = torch.randn(5, 3)
+y = torch.randn(5, 2)
+
+# y = w * x + b
+l = nn.Linear(3, 2)
+print(l.weight, l.bias)
+
+crit = nn.MSELoss()
+opt = torch.optim.SGD(l.parameters(), lr=0.01)
+
+loss = 10
+while loss > 0.5:
+    # forward
+    pred = l(x)
+    loss = crit(pred, y) # compute loss
+    print("loss:", loss)
+
+    # backward
+    opt.zero_grad() # reset, because gradients are accumulated
+    loss.backward() # compute grad
+    opt.step() # update parameters
+    # print(l.weight.grad, l.bias.grad)
+```
+
+## NN
+### 逻辑回归
+
+```
+import torch
+import torch.nn as nn
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+
+# MNIST dataset: 10-classes, 1x28x28
+trainset = datasets.MNIST(root='./data', train=True,
+                               transform=transforms.ToTensor(),
+                               download=True)
+trainloader = DataLoader(trainset, batch_size=32, shuffle=True)
+
+
+class LogsticRegression(nn.Module):
+    def __init__(self, dim, classes):
+        super(LogsticRegression, self).__init__()
+        self.logistic = nn.Linear(dim, classes)
+
+    def forward(self, x):
+        out = self.logistic(x)
+        return out
+
+
+model = LogsticRegression(28*28, 10)
+# This criterion combines nn.LogSoftmax() and nn.NLLLoss() in one single class.
+crit = nn.CrossEntropyLoss()
+opt = torch.optim.SGD(model.parameters(), lr=0.01)
+
+for epoch in range(10):
+    correct = 0
+    for (img, label) in trainloader:
+        # img.size(): [32, 1, 28, 28] batch, channel, height, width
+        # label.size(): [32]
+        img = img.view(img.size(0), -1)
+
+        # forward
+        out = model(img)
+        loss = crit(out, label)
+
+        _, pred = torch.max(out, 1)
+        correct += (pred == label).sum().item()
+
+        # backward
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+
+    print("epoch {}, acc {}".format(epoch+1, correct/len(trainset)))
+```
+
+### LeNet
+
+```
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+
+
+transform = transforms.Compose(
+    [transforms.ToTensor(),
+     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+# CIFAR10 dataset: 10-classes, 3x32x32
+trainset = datasets.CIFAR10(root='./data', train=True,
+                            download=True, transform=transform)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
+                                          shuffle=True, num_workers=2)
+
+testset = datasets.CIFAR10(root='./data', train=False,
+                           download=True, transform=transform)
+testloader = torch.utils.data.DataLoader(testset, batch_size=4,
+                                         shuffle=False, num_workers=2)
+
+class LeNet(nn.Module):
+    def __init__(self):
+        super(LeNet, self).__init__()
+        # 3 input image channel, 6 output channels, 5x5 square convolution kernel, stride=1, padding=0 by default
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        # max pooling over a (2, 2) window
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+# 另一种写法
+class LeNet2(nn.Module):
+    def __init__(self):
+        super(LeNet2, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(3, 6, 5),
+            nn.ReLU(True),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(6, 16, 5),
+            nn.ReLU(True),
+            nn.MaxPool2d(2, 2),
+        )
+
+        self.fc = nn.Sequential(
+            nn.Linear(16 * 5 * 5, 120),
+            nn.Linear(120, 84),
+            nn.Linear(84, 10)
+        )
+
+    def forward(self, x):
+        out = self.conv(x)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
+
+
+model = LeNet()
+crit = nn.CrossEntropyLoss()
+opt = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+
+for epoch in range(1):
+    running_loss = 0.0
+    for i, (img, label) in enumerate(trainloader):
+        # forward
+        out = model(img)
+        loss = crit(out, label)
+
+        # backward
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+
+        # print statistics
+        running_loss += loss.item()
+        if i % 2000 == 1999:    # print every 2000 mini-batches
+            print('[%d, %5d] loss: %.3f' %
+                  (epoch + 1, i + 1, running_loss / 2000))
+
+# test
+correct = 0
+with torch.no_grad():
+    for (images, labels) in testloader:
+        outputs = model(images)
+        _, predicted = torch.max(outputs, 1)
+        correct += (predicted == labels).sum().item()
+
+print('acc: %d %%' % (100 * correct / len(testset)))
+```
+
+## Data Parallelism (GPU)
+```
+def data_parallel(module, inputs, device_ids=None, output_device=None, dim=0, module_kwargs=None):
+    if device_ids is None:
+        device_ids = list(range(torch.cuda.device_count()))
+
+    if output_device is None:
+        output_device = device_ids[0]
+
+    inputs, module_kwargs = scatter_kwargs(inputs, module_kwargs, device_ids, dim)
+    if len(device_ids) == 1:
+        return module(*inputs[0], **module_kwargs[0])
+    used_device_ids = device_ids[:len(inputs)]
+    replicas = replicate(module, used_device_ids)
+    outputs = parallel_apply(replicas, inputs, module_kwargs, used_device_ids)
+    return gather(outputs, output_device, dim)
+```
+* replicate: replicate a Module on multiple devices
+* scatter: distribute the input in the first-dimension
+* gather: gather and concatenate the input in the first-dimension
+* parallel_apply: apply a set of already-distributed inputs to a set of already-distributed models.
+
+使用：
+
+* 获取设备 `device = torch.device("cuda:0")`
+* 模型数据并行 `model = nn.DataParallel(model)` 默认使用所有可见GPU `CUDA_VISIBLE_DEVICES`
+* 模型 `model.to(device)`
+* 训练数据（模型输入）`input = data.to(device)`
+
+效果：平均拆分input第一维度（batch size）到GPU上并行执行, 模型输出output（默认在device:0上）为汇总合并的结果。
+
+## Distributed
+### Initialization Methods
+可以用环境变量，共享文件参数，以及TCP和多播。
+
+* MASTER_ADDR
+* MASTER_PORT
+* WORLD_SIZE
+* RANK: 0为master
+
+过程：
+
+1. First, the arguments are parsed and validated.
+1. The backend is resolved via the `name2channel.at()` function. A `Channel` class is returned, and will be used to perform the data transmission.
+1. The GIL is dropped, and `THDProcessGroupInit()` is called. This instantiates the channel and adds the address of the master node.
+1. The process with rank 0 will execute the master procedure, while all other ranks will be workers.
+1. The master
+  1. Creates sockets for all workers.
+  1. Waits for all workers to connect.
+  1. Sends them information about the location of the other processes.
+1. Each worker
+  1. Creates a socket to the master.
+  1. Sends their own location information.
+  1. Receives information about the other workers.
+  1. Opens a socket and handshakes with all other workers.
+1. The initialization is done, and everyone is connected to everyone.
+
+### Collective Communication
+* dist.broadcast(tensor, src, group): Copies tensor from src to all other processes.
+* dist.reduce(tensor, dst, op, group): Applies op to all tensor and stores the result in dst.
+* dist.all_reduce(tensor, op, group): Same as reduce, but the result is stored in all processes. (reduce + broadcast)
+* dist.scatter(tensor, src, scatter_list, group): Copies the ith tensor scatter_list[i] to the ith process.
+* dist.gather(tensor, dst, gather_list, group): Copies tensor from all processes in dst.
+* dist.all_gather(tensor_list, tensor, group): Copies tensor from all processes to tensor_list, on all processes.
+
+在使用NCCL作为后端时，使用带有`_multigpu()`后缀的函数可以用来加速。
+
+```
+import os
+import torch
+import torch.distributed as dist
+from torch.multiprocessing import Process
+
+
+def run(rank, size):
+    """ Distributed function to be implemented later. """
+    group = dist.new_group([0, 1])
+    tensor = torch.ones(1)
+    dist.all_reduce(tensor, op=dist.reduce_op.SUM, group=group)
+    print('Rank ', rank, ' has data ', tensor[0])
+
+
+def init_processes(rank, size, fn, backend='tcp'):
+    """ Initialize the distributed environment. """
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29500'
+    dist.init_process_group(backend, rank=rank, world_size=size)
+    fn(rank, size)
+
+
+if __name__ == "__main__":
+    size = 3
+    processes = []
+    for rank in range(size):
+        p = Process(target=init_processes, args=(rank, size, run))
+        p.start()
+        processes.append(p)
+
+    for p in processes:
+        p.join()
+
+---- out ----
+Rank  2  has data  tensor(1.)
+Rank  1  has data  tensor(2.)
+Rank  0  has data  tensor(2.)
+```
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
