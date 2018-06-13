@@ -9,9 +9,13 @@
 页page(VM): block在虚拟内存里的映射。4096 byte.
 
 SSD: 写放大问题
-* 最小读写单位为page(4k)
+
+* 最小读写单位为page，回收最小单位为block，block一般为page数倍大小
 * 删除时只是标记删除，需要等GC回收
-* page不能原地更新只能写新分配的空白page，原page变为失效等待回收
+* page不能原地更新只能读取原来的并写新分配的空白page，原page变为失效等待回收
+
+所以SSD顺序写比随机写效率高，新写比更新效率高。
+https://serverfault.com/questions/843628/why-does-sequential-writes-have-better-performance-than-random-writes-in-ssds
 
 ## Read & Write
 DMA(Direct Memory Access): DMA 控制器通过系统总线来传输数据，不占用CPU，CPU只下达指令。
