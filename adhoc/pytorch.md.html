@@ -5,17 +5,84 @@
 <xmp theme="united" style="display:none;">
 http://pytorch.org/
 
+## tensor
+basic
+```
+# 创建
+x = torch.empty(5, 3)
+x = torch.rand(5, 3)
+x = torch.zeros(5, 3, dtype=torch.long)
+x = torch.tensor([5.5, 3])
+print(x.size()) # size 是 tuple
+
+# 基于现有的属性创建新的
+y = x.new_ones(5, 3, dtype=torch.double)
+y = torch.randn_like(x, dtype=torch.float)
+
+# operation
+z = x + y
+z = torch.add(x, y)
+z = torch.empty(5, 3)
+torch.add(x, y, out=result)
+y.add_(x) # `_` 表示 in-place
+x.copy_(y)
+x.t_()
+
+# numpy like indexing
+print(x[:, 1])
+
+# resize / reshape
+x = torch.randn(4, 4)
+y = x.view(16)
+z = x.view(-1, 8) # -1 表示自动推导
+
+# 只有一个元素转为 python 数字
+x = torch.randn(1)
+print(x.item())
+
+# 和 numpy 数组互转，低层共享存储
+y = x.numpy()
+z = torch.from_numpy(y)
+```
+
+cuda
+```
+if torch.cuda.is_available():
+    device = torch.device("cuda")          # a CUDA device object
+    y = torch.ones_like(x, device=device)  # directly create a tensor on GPU
+    x = x.to(device)                       # or just use strings `.to("cuda")`
+    z = x + y
+    print(z)
+    print(z.to("cpu", torch.double))       # ``.to`` can also change dtype together!
+```
+
 ## autograd
+对 tensor 设置 `.requires_grad_(True)`或创建时指定`requires_grad=True`，以后所有操作都会被记录，当调用 `.backward()` 时，梯度自动计算并保存于 `.grad` 属性中，同时每个经计算出的 tensor 都有一个 `.grad_fn` 表示创建这个 tensor 的 `Function`。使用 `.detach()` 停止记录，或使用 `with torch.no_grad():`。
+
 ### 梯度
 graph leaves: 事先创建的、而非运算得到的变量
 
-`out.backward()`
+`out.backward(gradient)`
 如果out是个标量(scalar), gradient默认为`torch.tensor(1)`
-如果out是个向量，gradient必须为和out维度一致的tensor。
+如果out是个向量，gradient必须为和out维度一致的tensor作为系数。
 结果：`x.grad = ∂out/∂x`
 
+```
+x = torch.ones(2, 2, requires_grad=True)
+y = x + 2
+z = y * y * 3 # 3(x+2)^2
+out = z.mean()
+out.backward()
+print(x.grad)
 
-#### 梯度下降
+--- out ----
+tensor([[ 4.5000,  4.5000],
+        [ 4.5000,  4.5000]])
+```
+`out = 1/4 * ∑ z = 1/4 * ∑ 3(x+2)^2`
+x=1 时: `x.grad = ∂out/∂x = 3/2 * (x+2) = 4.5`
+
+### 梯度下降
 https://zhuanlan.zhihu.com/p/27297638
 
 ```
@@ -41,7 +108,7 @@ tensor([ 3.2850])
 tensor([ 1.5312])
 ```
 
-#### 线性回归
+### 线性回归
 ```
 import torch
 import torch.nn as nn
@@ -66,8 +133,11 @@ while loss > 0.5:
     # backward
     opt.zero_grad() # reset, because gradients are accumulated
     loss.backward() # compute grad
-    opt.step() # update parameters
-    # print(l.weight.grad, l.bias.grad)
+    opt.step() # update parameters，相当于
+    #for f in l.parameters(): # 参数有2个，为 weight, bias
+    #    f.data.sub_(f.grad.data * lr)
+
+    print(l.weight.grad, l.bias.grad)
 ```
 
 ## NN
@@ -106,13 +176,13 @@ for epoch in range(10):
     for (img, label) in trainloader:
         # img.size(): [32, 1, 28, 28] batch, channel, height, width
         # label.size(): [32]
-        img = img.view(img.size(0), -1)
+        img = img.view(img.size(0), -1) # [32, 784]
 
         # forward
-        out = model(img)
+        out = model(img) # [32, 10]
         loss = crit(out, label)
 
-        _, pred = torch.max(out, 1)
+        _, pred = torch.max(out, 1) # pred 为10个类中最大值的index, [32]
         correct += (pred == label).sum().item()
 
         # backward
@@ -216,6 +286,7 @@ for epoch in range(1):
         if i % 2000 == 1999:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                   (epoch + 1, i + 1, running_loss / 2000))
+            running_loss = 0.0
 
 # test
 correct = 0
@@ -227,6 +298,14 @@ with torch.no_grad():
 
 print('acc: %d %%' % (100 * correct / len(testset)))
 ```
+
+### GPU
+获取device
+`device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")`
+
+将模型和数据复制到device：
+`net.to(device)`
+`inputs, labels = inputs.to(device), labels.to(device)`
 
 ## Data Parallelism (GPU)
 ```

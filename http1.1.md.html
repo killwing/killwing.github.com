@@ -98,6 +98,12 @@ DELETE: 请求源服务器删除请求URI指定的资源。如果响应里包含
 TRACE: 用于激发一个远程的，应用层的请求消息回路。
 CONNECT: 为了能用于能动态切换到隧道的代理服务器。
 
+PATCH: PUT 对于资源一般是全部更新，而 PATCH 是部分更新：
+
+* [application/json-patch+json](https://tools.ietf.org/html/rfc6902) 指定 `op`, `path`, `value` 来更新
+* [application/merge-patch+json](https://tools.ietf.org/html/rfc7386) 合并操作，不支持数组，总是用新的替换，和 json-patch 的区别：http://erosb.github.io/post/json-patch-vs-merge-patch/
+* [application/strategic-merge-patch+json]() 和 merge-patch 类似，但由资源自己决定使用 merge 还是 replace 等操作，可以支持数组。
+
 Request-URI
 `Request-URI   ="*" | absoluteURI | abs_path | authotity`
 Request-URI大多数情况是被用于指定一个源服务器或网关（gateway）上的资源。这种情况下，URI的绝对路径（abs_path）必须被用作Request-URI，并且此URI（authority）的网络位置必须在Host头域里指出。

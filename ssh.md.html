@@ -22,7 +22,7 @@ SSH采用非对称加密，没有CA，由用户自己评估风险。
 1. server用client事先保存在server上的公钥进行解密验证，若正确则同意登录。
 
 client必须生成自己的公钥私钥对，并把公钥保存到server上。
-生成：`ssh-keygen -t rsa`并一路回车，生成的公钥`~/.ssh/id_rsa.pub`，私钥`~/.ssh/id_rsa`。
+生成：`ssh-keygen -t rsa -b 4096 -C "you@example.com"`并一路回车，生成的公钥`~/.ssh/id_rsa.pub`，私钥`~/.ssh/id_rsa`。
 保存公钥到server：`ssh-copy-id user@server`，公钥会被保存到server的`~/.ssh/authorized_keys`中。等价命令`cat ~/.ssh/id_rsa.pub | ssh user@server 'cat >> ~/.ssh/authorized_keys'`。
 
 ### GitHub
@@ -49,22 +49,25 @@ Host github.com
 
 ## SSH Tunnel
 ### 本地端口转发
-`local$ ssh -L 8080:target:80 middle` (-L 本地端口:目标主机:目标主机端口)
+`local$ ssh -L 8080:target:80 middle` (-L [本地地址:]本地端口:目标主机:目标主机端口)
 在本机上监听8080端口，并通过middle转发到target的80端口上。
 e.g.: 本机上通过curl访问 `curl --proxy 127.0.0.1:8080 http://target/index.html`
 
 `local$ ssh -L 8080:localhost:80 middle`
-当target是localhost，即middle就是目标主机，将本机的8080端口映射到middle的80端口。
+当target是localhost，即middle就是目标主机，将local的8080端口映射到middle的80端口。
 
 ### 远程端口转发
-`middle$ ssh -R 8080:target:80 local` (-R 远程主机端口:目标主机:目标主机端口)
-在中间主机上执行，让local（对于自己是远程主机）监听8080端口，并通过自己转发到target的80端口上。
+`middle$ ssh -R 8080:target:80 local` (-R [远程地址:]远程主机端口:目标主机:目标主机端口)
+在中间主机上执行，通过local（对于middle是远程主机）监听8080端口，并通过自己转发到target的80端口上。
 要求local也运行有sshd。
 
+`middle$ ssh -R 8080:localhost:80 local`
+当target是localhost，即middle就是目标主机，将local的8080端口映射到middle的80端口。
+
 ### 动态转发(SOCKS代理)
-`ssh -D 8080 server`
+`ssh -D 8080 server` 目标地址:目标端口则是不确定，而由发起的请求决定。
 在本地监听8080端口，把数据转发到server上，server充当一个SOCKS代理服务器负责和外部主机通信。
-e.g.: `curl --socks5 127.0.0.1:8080 www.google.com`
+e.g.: `curl --socks5 127.0.0.1:8080 www.google.com:443` 即由 server 请求 `www.google.com:443`
 
 ### X转发
 DISPLAY环境变量: `DISPLAY=host:NumA.NumB`
