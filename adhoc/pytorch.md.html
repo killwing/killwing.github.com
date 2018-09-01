@@ -99,8 +99,8 @@ loss = 0.5*(y - p) * (y - p)
 print(loss)
 
 loss.backward(gradient=torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
-print(a.grad)
-print(b.grad)
+print(a.grad) # ∑ (p - y)
+print(b.grad) # ∑ ((p - y) * x)
 
 --- out ----
 tensor([ 0.1012,  0.0780,  0.0013,  0.1238,  0.0158,  0.0760,  0.0288, 0.0604,  0.0109,  0.1741])
@@ -308,6 +308,8 @@ print('acc: %d %%' % (100 * correct / len(testset)))
 `inputs, labels = inputs.to(device), labels.to(device)`
 
 ## Data Parallelism (GPU)
+src: `site-packages/torch/nn/parallel/data_parallel.py`
+
 ```
 def data_parallel(module, inputs, device_ids=None, output_device=None, dim=0, module_kwargs=None):
     if device_ids is None:
@@ -329,7 +331,7 @@ def data_parallel(module, inputs, device_ids=None, output_device=None, dim=0, mo
 * gather: gather and concatenate the input in the first-dimension
 * parallel_apply: apply a set of already-distributed inputs to a set of already-distributed models.
 
-使用：
+正式使用：
 
 * 获取设备 `device = torch.device("cuda:0")`
 * 模型数据并行 `model = nn.DataParallel(model)` 默认使用所有可见GPU `CUDA_VISIBLE_DEVICES`
@@ -385,7 +387,7 @@ def run(rank, size):
     """ Distributed function to be implemented later. """
     group = dist.new_group([0, 1])
     tensor = torch.ones(1)
-    dist.all_reduce(tensor, op=dist.reduce_op.SUM, group=group)
+    dist.all_reduce(tensor, op=dist.reduce_op.SUM, group=group) # group 可省，默认所有
     print('Rank ', rank, ' has data ', tensor[0])
 
 
@@ -413,6 +415,71 @@ Rank  2  has data  tensor(1.)
 Rank  1  has data  tensor(2.)
 Rank  0  has data  tensor(2.)
 ```
+
+### D-SGD
+```
+""" Distributed Synchronous SGD Example """
+def run(rank, size):
+    torch.manual_seed(1234)
+    train_set, bsz = partition_dataset()
+    model = Net()
+    optimizer = optim.SGD(model.parameters(),
+                          lr=0.01, momentum=0.5)
+
+    num_batches = ceil(len(train_set.dataset) / float(bsz))
+    for epoch in range(10):
+        epoch_loss = 0.0
+        for data, target in train_set:
+            optimizer.zero_grad()
+            output = model(data)
+            loss = F.nll_loss(output, target)
+            epoch_loss += loss.item()
+            loss.backward()
+            average_gradients(model)
+            optimizer.step()
+        print('Rank ', dist.get_rank(), ', epoch ',
+              epoch, ': ', epoch_loss / num_batches)
+
+""" Gradient averaging. """
+def average_gradients(model):
+    size = float(dist.get_world_size())
+    for param in model.parameters():
+        dist.all_reduce(param.grad.data, op=dist.reduce_op.SUM)
+        param.grad.data /= size
+```
+
+正式使用：`nn.parallel.DistributedDataParallel`
+src: `site-packages/torch/nn/parallel/distributed.py`
+
+### [Ring-Allreduce](http://images.nvidia.com/events/sc15/pdfs/NCCL-Woolley.pdf)
+```
+""" Implementation of a ring-reduce with addition. """
+def allreduce(send, recv):
+    rank = dist.get_rank()
+    size = dist.get_world_size()
+    send_buff = th.zeros(send.size())
+    recv_buff = th.zeros(send.size())
+    accum = th.zeros(send.size())
+    accum[:] = send[:]
+
+    left = ((rank - 1) + size) % size
+    right = (rank + 1) % size
+
+    for i in range(size - 1):
+        if i % 2 == 0:
+            # Send send_buff
+            send_req = dist.isend(send_buff, right)
+            dist.recv(recv_buff, left)
+            accum[:] += recv[:]
+        else:
+            # Send recv_buff
+            send_req = dist.isend(recv_buff, right)
+            dist.recv(send_buff, left)
+            accum[:] += send[:]
+        send_req.wait()
+    recv[:] = accum[:]
+```
+
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>

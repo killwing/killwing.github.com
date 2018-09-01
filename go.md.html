@@ -975,6 +975,72 @@ import (
 
 `./...`不会匹配vendor目录。
 
+## Modules
+https://github.com/golang/go/wiki/Modules
+
+`GO111MODULE=on` 默认auto自动检测是否启用。
+
+module: 带版本的包的集合。版本符合 [semver](https://semver.org/) 形式：`v(major).(minor).(patch)`。如果没有 semver，会使用伪版本。
+module 本身不再依赖`GOPATH`，不再需要 `bin`, `src`, `pkg` 目录。但依赖缓存会下载到`~/go/pkg/mod`，`go install`会安装到`~/go/bin`（如果 GOPATH 没有定义）。
+module 可以有子 module （go.mod 定义）。
+
+### go.mod
+module 定义文件，位于 module 根目录。
+
+```
+module github.com/my/module/v3
+
+require (
+    github.com/some/dependency v1.2.3
+    github.com/another/dependency v0.1.0
+    github.com/additional/dependency/v4 v4.0.0
+)
+
+exclude (
+)
+
+replace (
+)
+```
+
+module: mod-patch，module 路径
+require: 依赖包
+exclude: 只作用于当前 module
+replace: 只作用于当前 module
+
+### command
+相关命令从当前目录开始向上找`go.mod`，第一个找到的 module 作为 main module（命令运行目录）。
+
+`go mod init <mod-path>`: 初始化，mod-path不指定会自动检测
+`go mod vendor` 可以把依赖从缓存 copy 到 module 的 vendor 目录下。
+`go build` 自动分析下载依赖并更新`go.mod`(require)，然后编译。
+`go list -m -json all` 显示 build list，编译依赖的所有 module。
+
+### 依赖管理
+`go get -u` to use the latest minor or patch releases
+`go get -u=patch` to use the latest patch releases
+`go get` 默认获取有 `semver` tag 的最新版本。要指定版本，可以用`@version`后缀或"module query"。
+
+### 语义化版本导入
+规则：
+
+* tag 符合 semver。
+* 如果 tag 主版本是 v2 或更高，mod-path 和 import path 都必须包含主版本（后缀）。如果是 v0 或 v1 则不需要包含。
+
+用不同 branch 区分不同主版本进行开发。
+
+## Plugin
+必须是main包（可以没有main函数），用`-buildmode=plugin`或`-buildmode=c-shared`编译，生成动态库文件。
+导出的包函数和变量成为动态库符号。
+
+调用（使用plugin库）：
+
+1. `p = plugin.Open(mod)` 打开动态库文件
+1. `s = p.Lookup("Type")` 查找符号，返回`Symbol`（`interface{}`）
+1. `s.(Type)` 转成实际类型使用
+
+plugin可以导出任何类型的包函数和变量，但一般导出接口类型，这样可以使用接口的全部方法集。
+
 ## Testing ([pkg](http://golang.org/pkg/testing/))
 ### Test
 * 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。
@@ -1439,6 +1505,7 @@ extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 
 ## Reference
 https://golang.org/ref/spec
+https://tip.golang.org/cmd/go/
 http://godoc.org/
 https://github.com/golang/go/wiki
 https://github.com/campoy/go-tooling-workshop

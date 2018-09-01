@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Container</title>
+<xmp theme="united" style="display:none;">
+## Namespace
+内核级别全局系统资源隔离。
+
+类型|        定义|             内容
+-|-|-
+Cgroup      |CLONE_NEWCGROUP   |Cgroup 根目录 (Linux 4.6+)
+IPC         |CLONE_NEWIPC      |IPC消息队列
+Network     |CLONE_NEWNET      |网络设备，栈，端口等
+Mount       |CLONE_NEWNS       |挂载点
+PID         |CLONE_NEWPID      |进程ID
+User        |CLONE_NEWUSER     |用户ID和组ID
+UTS         |CLONE_NEWUTS      |主机名和NIS域名
+
+`/proc/[pid]/ns/`目录: 如`ipc -> ipc:[4026531839]`
+数字是inode号，如果两个进程某个类型的namespace的inode一样，说明同属一个namespace。
+当一个namespace中的所有进程都退出时，该namespace将会被删除。
+
+### syscall
+clone：在新namespace中创建一个新的进程
+setns：设置当前进程的一个namespace为指定的namespace
+unshare：使当前进程退出一个或多个namespace，创建并加入新的namespace
+
+### tools
+nsenter
+unshare
+lsns (util-linux 2.28+)
+
+## cgroup
+对一组进程进行资源的限制和控制。
+
+subsystems:
+
+cpu: 限制CPU使用率。
+cpuacct: 统计CPU使用率。
+cpuset: 绑定指定CPU集。
+memory: 统计和限制内存使用率。
+devices: 限制创建(mknod)和访问设备的权限。
+freezer: suspend和restore组中所有进程。
+net_cls: 创建的所有网络包加上一个classid标记，用于tc和iptables。
+blkio: 限制访问块设备的IO速度。
+perf_event: 对cgroup进行性能监控
+net_prio: 针对每个网络接口设置访问优先级。
+hugetlb: 限制huge pages的使用量。
+pids: 限制总进程数。
+
+查看系统 `/proc/cgroups`
+查看进程 `/proc/[pid]/cgroup`
+控制 `/sys/fs/cgroup`
+
+cgroup.clone_children 只对cpuset有影响，内容为1时，新创建的cgroup将会继承父cgroup的配置。
+cgroup.procs cgroup中的所有进程ID。
+cgroup.sane_behavior
+notify_on_release 内容为1时，当cgroup退出时（不再包含任何进程和子cgroup），将调用release_agent里面配置的命令。
+release_agent cgroup退出时将会执行的命令，系统调用该命令时会将相应cgroup的相对路径当作参数传进去。
+tasks cgroup中的所有线程ID。
+
+### tools
+cgcreate
+cgexec
+
+## Reference
+http://lwn.net/Articles/531114/
+https://segmentfault.com/a/1190000009732550
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
