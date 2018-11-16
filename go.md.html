@@ -1043,7 +1043,7 @@ plugin可以导出任何类型的包函数和变量，但一般导出接口类�
 
 ## Testing ([pkg](http://golang.org/pkg/testing/))
 ### Test
-* 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。
+* 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。
 * 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
 * 测试工具包: `import "testing"`, 支持logging, error reporting...
@@ -1081,6 +1081,7 @@ func BenchmarkHello(b *testing.B) {
 ```
 用`b.ResetTimer()`重新计时以忽略准备过程。
 
+输出如`50000000    24.1 ns/op    8 B/op    1 allocs/op` 表示跑了50000000次循环，每次循环用时24.1 ns, 分配了8 Byte堆内存，有1次堆内存分配。
 用[benchstat](https://github.com/rsc/benchstat)比较结果。
 
 ### [Examples](https://blog.golang.org/examples)
@@ -1299,8 +1300,7 @@ func (t *TimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if ctx == nil {
 		ctx = context.TODO()
 	}
-	toctx, cancel := context.WithTimeout(ctx, t.timeout)
-	defer cancel()
+	toctx, _ := context.WithTimeout(ctx, t.timeout)
 	resp, e := t.rt.RoundTrip(req.WithContext(toctx)) // implicit dial
 	if e != nil {
 		select {
@@ -1502,6 +1502,14 @@ func MyFunction(arg1, arg2 int, arg3 string) int64 {...}
 ```
 extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 ```
+
+## pragmas
+https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
+
+`//go:noescape` 表示函数里的内存分配不会逃逸到堆上
+`//go:norace`
+`//go:nosplit`
+`//go:noinline`
 
 ## Reference
 https://golang.org/ref/spec
