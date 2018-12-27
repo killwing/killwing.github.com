@@ -584,6 +584,8 @@ se(&p)
 ```
 
 ### interface
+> [Accept interfaces, return structs.](https://blog.chewxy.com/2018/03/18/golang-interfaces/)
+
 一个interface是许多method的集合。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
 interface变量仅在实际类型和值都为nil时才为nil: `val==nil`。如果只是值为nil，那么也会打印出`<nil>`。
 ```
@@ -946,6 +948,8 @@ func main() {
 
 
 ## Packages
+> [magic is bad; global state is magic → no package level vars; no func init](https://peter.bourgon.org/blog/2017/06/09/theory-of-modern-go.html)
+
 每个go的源文件第一行都必须是`package xxx`
 
 * 可执行文件包名`package main`(在单独目录)，内含一个main函数。

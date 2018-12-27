@@ -91,6 +91,8 @@ Routing decision                                                  |
                                XXXXXXXXXXXXXXXXXX
 ```
 
+[Packet flow](https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg)
+
 tables:
 
 * filter: 规定允许还是不允许（默认），应用于INPUT/FORWARD/OUTPUT
@@ -115,16 +117,16 @@ commands:
 
 targets:
 
-* DROP: 丢弃
-* REJECT: 拒绝
-* ACCEPT: 接受
-* DNAT
-* SNAT
-* MASQUERADE：源地址伪装
-* REDIRECT：端口重定向
-* MARK: 打标记
-* RETURN: 返回原规则链
-* chain-name: 转向自定义链
+* DROP: 丢弃（终止）
+* REJECT: 拒绝（终止）
+* ACCEPT: 接受（next chain）
+* DNAT （next chain）
+* SNAT （next chain）
+* MASQUERADE：源地址伪装 （next chain）
+* REDIRECT：端口重定向 （next rule）
+* MARK: 打标记 （next rule）
+* RETURN: 返回原规则链 （next rule）
+* chain-name: 转向自定义链 （next chain）
 
 rule-specs:
 在一个chain中自上而下匹配，匹配到执行targets并返回。
@@ -147,10 +149,12 @@ SNAT(源地址的转换)/MASQUERADE(伪装)
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j SNAT --to-source 142.10.0.1`
 如果外网地址不固定，使用MASQUERADE可以自动从网卡获取外网地址：
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE`
+场景：局域网共享一个公网IP上网
 
 DNAT(目标地址转换)
 访问外网IP时转向内网主机（有数据返回时，从内网地址映射回外网地址UN-DNAT）：
 `iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
+场景：端口映射，以让外部访问内网
 
 同一个流上的包只会被iptables NAT判断一次，以后的包自动NAT。
 </xmp>

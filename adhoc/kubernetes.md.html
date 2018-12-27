@@ -3,6 +3,123 @@
 <meta charset="utf-8" />
 <title>Kubernetes</title>
 <xmp theme="united" style="display:none;">
+https://kubernetes.io
+
+## 安装部署
+### kubeadm
+#### 安装
+所有 node 上执行。
+```
+apt-get update && apt-get install -y apt-transport-https
+curl https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | apt-key add -
+cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main
+EOF
+apt-get update
+apt-get install -y kubelet kubeadm kubectl
+```
+
+最新稳定版：`https://dl.k8s.io/release/stable-1.txt`
+镜像：`kubeadm config images list`
+```
+k8s.gcr.io/kube-apiserver:v1.12.3
+k8s.gcr.io/kube-controller-manager:v1.12.3
+k8s.gcr.io/kube-scheduler:v1.12.3
+k8s.gcr.io/kube-proxy:v1.12.3
+k8s.gcr.io/pause:3.1
+k8s.gcr.io/etcd:3.2.24
+k8s.gcr.io/coredns:1.2.2
+```
+
+手动拉镜像并重命名
+```
+#!/bin/bash
+images=`kubeadm config images list`
+for i in $images; do
+	image=registry.cn-hangzhou.aliyuncs.com/google_containers/${i#k8s.gcr.io/}
+	docker pull $image
+	docker tag $image $i
+done
+```
+
+#### init master
+`kubeadm init --config config.yaml`
+默认配置：`kubeadm config print-default`
+详细说明：https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1alpha3
+
+config.yaml
+```
+apiVersion: kubeadm.k8s.io/v1alpha3
+kind: InitConfiguration
+apiEndpoint:
+  advertiseAddress: 192.168.212.107
+  bindPort: 6443
+---
+apiVersion: kubeadm.k8s.io/v1alpha3
+kind: ClusterConfiguration
+networking:
+  podSubnet: "10.100.0.0/16" # 需与 calico 配置一致，且不与 host 网络冲突
+imageRepository: "registry.cn-hangzhou.aliyuncs.com/google_containers"
+kubernetesVersion: "v1.12.3"
+```
+
+网络插件
+```
+kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
+kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml
+```
+
+#### join node
+`kubeadm token create --print-join-command`
+`kubeadm join <ip>:<port> --token <token> --discovery-token-ca-cert-hash <hash>`
+
+#### 删除 node
+```
+kubectl drain <node name> --delete-local-data --force --ignore-daemonsets
+kubectl delete node <node name>
+kubeadm reset
+```
+
+#### 相关配置
+`/etc/kubernetes/*.conf` 各组件访问 APIServer 鉴权文件。
+`/etc/kubernetes/pki/` ca公钥私钥。
+`/etc/kubernetes/manifests` 各组件静态 Pod。
+`/var/lib/kubelet/kubeadm-flags.env` kubeadm 为 kubelet 设置的 `KUBELET_EXTRA_ARGS`。
+`/var/lib/kubelet/config.yaml` kubelet 配置文件。
+`/etc/default/kubelet` kubelet `KUBELET_EXTRA_ARGS=` 配置。
+`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` kubelet systemd 配置，启动命令行。
+
+### 其它插件
+[nvidia-device-plugin](https://github.com/NVIDIA/k8s-device-plugin)
+`kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v1.11/nvidia-device-plugin.yml`
+
+[dashboard](https://github.com/kubernetes/dashboard)
+`kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml`
+
+[rook](https://github.com/rook/rook)
+```
+kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/operator.yaml
+kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/cluster.yaml
+```
+
+[kube-prometheus](https://github.com/coreos/prometheus-operator/tree/master/contrib/kube-prometheus)
+
+### Tips
+kubelet alias 自动补全(Linux)：
+`source <(kubectl completion bash | sed 's/kubectl/kc/g')`
+
+### 验证
+#### [Node Conformance Test](https://kubernetes.io/docs/setup/node-conformance/)
+在 node 加入集群之前验证。
+run: `test/e2e_node/conformance/run_test.sh`
+
+#### Cluster
+validate cluster: `KUBECTL_PATH=$(which kubectl) NUM_NODES=1 KUBERNETES_PROVIDER=local cluster/validate-cluster.sh`
+
+#### 其他
+https://github.com/heptio/sonobuoy
+https://github.com/bloomberg/powerfulseal
+
 ## Scheduler
 https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
 https://github.com/kubernetes/community/blob/master/contributors/devel/scheduler.md
