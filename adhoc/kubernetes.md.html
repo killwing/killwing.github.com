@@ -121,7 +121,97 @@ https://github.com/heptio/sonobuoy
 https://github.com/bloomberg/powerfulseal
 
 ## Networking
+Networking Model:
+
+* all containers can communicate with all other containers without NAT
+* all nodes can communicate with all containers (and vice-versa) without NAT
+* the IP that a container sees itself as is the same IP that others see it as
+
 ### [CNI](https://github.com/containernetworking/cni)
+功能：
+
+* 在容器网络命名空间中配置网络接口。
+* 在host上配置网络。
+* 给容器中的网络接口分配IP地址以及路由。
+
+[标准基础插件](https://github.com/containernetworking/plugins)：
+
+* main: 创建网络设备
+* IPAM: IP地址分配
+* meta: 其他(内置flannel)
+
+plugin位置：`/opt/cni/bin`
+配置(Network Configuration Lists)：`/opt/cni/net.d` 只会加载按字母顺序第一个，如 `10-flannel.conflist`
+
+执行环境：由 [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/kubelet-cri-networking.md)(如dockershim) 调用: [`RunPodSandbox` -> `SetUpPod`](https://github.com/kubernetes/kubernetes/blob/4dc40aabfb9af68913986a2caf87906312c9f4ea/pkg/kubelet/dockershim/docker_sandbox.go#L177)
+
+执行参数：
+
+* 环境变量：`CNI_*`
+  * `CNI_COMMAND`: `ADD`/`DEL`/`CHECK`/`VERSION`
+  * `CNI_CONTAINERID`: 容器ID
+  * `CNI_NETNS`: 网络命名空间路径, `/proc/<container_pid>/ns/net`
+  * `CNI_IFNAME`: 容器内网络接口名字
+  * `CNI_ARGS`: KV形式的自定义参数
+  * `CNI_PATH`: plugin搜索路径
+* stdin: `Network Configuration` 调用中可能会被修改
+```
+{
+    "cniVersion": "0.4.0",
+    "name": "dbnet",
+    "type": "bridge",
+    // type (plugin) specific
+    "bridge": "cni0",
+    "ipam": {
+      "type": "host-local",
+      // ipam specific
+      "subnet": "10.1.0.0/16",
+      "gateway": "10.1.0.1"
+    },
+    "dns": {
+      "nameservers": [ "10.1.0.1" ]
+    }
+}
+```
+`delegate` 字段（内容和 `Network Configuration` 相同）可以用于委派其他插件完成。
+
+执行结果(`ADD`)：
+
+* result code: 1/2/3/11
+* stdout: `Result` (`IPAM`的结果没有interfaces)
+```
+{
+    "cniVersion": "0.4.0",
+    "interfaces": [...],
+    "ips": [...],
+    "routes": [...],
+    "dns": [...]
+}
+```
+失败结果：
+```
+{
+    "cniVersion": "0.4.0",
+    "code": <numeric-error-code>,
+    "msg": <short-error-message>,
+    "details": <long-error-message> (optional)
+}
+```
+
+整体List执行：
+`ADD`按照`Network Configuration Lists`配置的plugins顺序执行，`DEL`反序执行。
+```
+{
+    "cniVersion": "0.4.0",
+    "name": "...",
+    "disableCheck": false,
+    "plugins": [<Network Configuration>, ...]
+}
+```
+
+对于 `ADD`, 把结果 `Result` 作为`Network Configuration` 的一个新增字段 `prevResult` 传给下一个plugin。后面的 plugin 除非需要修改或覆盖结果，都应该把收到的 `prevResult` 原样输出给下一个。
+如果 `ADD` 中有一个 plugin 失败，执行 `DEL` (全部 plugins) 作为错误处理。
+`DEL` 输入也包含最近 `ADD` 的 `Result` 作为 `prevResult`。
 
 ## Storage
 ### [CSI](https://kubernetes-csi.github.io/)

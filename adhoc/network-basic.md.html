@@ -44,12 +44,14 @@ D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有�
 dns(dig, host, nslookup, whois)
 
 ### [ip](https://helpmanual.io/man8/ip/)
-subcommands:
+[subcommands](https://events.static.linuxfound.org/sites/events/files/slides/2016%20-%20Linux%20Networking%20explained_0.pdf):
 
 * addr(ess): ip 地址
 * route: 路由
 * link: 网络设备
 * netns: 网络空间
+* tuntap: 用户空间网关，L2(TAP), L3(TUN)
+* neigh: ARP
 
 ### ip-route
 指定路由查找 `ip route get 192.168.10.10`
@@ -60,8 +62,8 @@ type:
 * bridge: Virtual Switch
 * bond: Link Aggregation
 * veth: Virtual Ethernet Cable Peer
-* vlan: 二层vlan
 * vxlan
+* vlan: 二层vlan
 * macvlan
 * ipvlan
 * ipip
@@ -155,6 +157,7 @@ targets:
 * REDIRECT：端口重定向 （next rule）
 * MARK: 打标记 （next rule）
 * RETURN: 返回原规则链 （next rule）
+* TRACE
 * chain-name: 转向自定义链 （next chain）
 
 rule-specs:
@@ -186,6 +189,16 @@ DNAT(目标地址转换)
 场景：端口映射，以让外部访问内网
 
 同一个流上的包只会被iptables NAT判断一次，以后的包自动NAT。
+
+TRACE
+在`/var/log/syslog`中查看日志。格式：`TRACE: tablename:chainname:type:rulenum`
+`iptables -t raw -A PREROUTING -p icmp -j TRACE`
+需要设置：
+```
+modprobe nf_log_ipv4
+sysctl net.netfilter.nf_log.2=nf_log_ipv4
+```
+
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>
