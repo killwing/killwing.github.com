@@ -43,7 +43,36 @@ D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有�
 [iproute2](https://en.wikipedia.org/wiki/Iproute2)(ifconfig, route, arp, netstat), tcpdump, iptables, ping, ethtool
 dns(dig, host, nslookup, whois)
 
-## [iptables](https://wiki.archlinux.org/index.php/iptables)
+### [ip](https://helpmanual.io/man8/ip/)
+subcommands:
+
+* addr(ess): ip 地址
+* route: 路由
+* link: 网络设备
+* netns: 网络空间
+
+### ip-route
+指定路由查找 `ip route get 192.168.10.10`
+
+### ip-link
+type:
+
+* bridge: Virtual Switch
+* bond: Link Aggregation
+* veth: Virtual Ethernet Cable Peer
+* vlan: 二层vlan
+* vxlan
+* macvlan
+* ipvlan
+* ipip
+
+查看类型：[ip link show type](https://unix.stackexchange.com/questions/272850/how-to-determine-the-logical-type-of-a-linux-network-device)
+
+### ip-netns
+`ip netns` 默认看不到docker netns，需要[symlink](https://stackoverflow.com/questions/31265993/docker-networking-namespace-not-visible-in-ip-netns-list)。
+查看veth peer：`ethtool -S`，需到对应ns才能看到 `nsenter -t <contanier_pid> -n ip link`。
+
+### [iptables](https://wiki.archlinux.org/index.php/iptables)
 命令：`iptables [-t table] command chain [rule-num] rule-spec -j target`
 
 chains: 规则链

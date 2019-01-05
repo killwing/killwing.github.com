@@ -299,8 +299,9 @@ with torch.no_grad():
 print('acc: %d %%' % (100 * correct / len(testset)))
 ```
 
-### GPU
+### [GPU](https://pytorch.org/docs/stable/notes/cuda.html)
 获取device
+`cuda = torch.device('cuda')` 默认device，等于 `torch.cuda.current_device()`
 `device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")`
 
 将模型和数据复制到device：
@@ -387,7 +388,7 @@ def run(rank, size):
     """ Distributed function to be implemented later. """
     group = dist.new_group([0, 1])
     tensor = torch.ones(1)
-    dist.all_reduce(tensor, op=dist.reduce_op.SUM, group=group) # group 可省，默认所有
+    dist.all_reduce(tensor, op=dist.ReduceOp.SUM, group=group) # group 可省，默认所有
     print('Rank ', rank, ' has data ', tensor[0])
 
 
@@ -444,7 +445,7 @@ def run(rank, size):
 def average_gradients(model):
     size = float(dist.get_world_size())
     for param in model.parameters():
-        dist.all_reduce(param.grad.data, op=dist.reduce_op.SUM)
+        dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
         param.grad.data /= size
 ```
 
