@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Designing Data-Intensive Applications</title>
+<xmp theme="united" style="display:none;">
+# 3 Storage and Retrieval
+## Data Structures That Power Your Database
+log: append-only 顺序记录的数据文件。
+
+ * 顺序写，性能高，尤其在机械磁盘上
+ * 并发控制和 crash 恢复相对容易。
+ * 合并以避免数据碎片化问题。
+
+存储系统里的一个重要权衡：精心选择的索引可以加速读（查询），但每个索引都会使写变慢。
+
+### Hash Indexes
+设计：
+
+* 在内存里用 hash 表作为数据索引，元素结构为`{key: location}`。在硬盘上用 log 存放数据，顺序即为写入先后的顺序。
+* 操作：
+ * 增：追加新增的记录。
+ * 删：追加删除标记`tombstone`记录。
+ * 改：追加更新的记录。
+ * 查：按从新到旧的顺序，在每个段的索引里查找。
+* 分段：硬盘上数据文件分段避免过大，每段内存里都对应一个 hash 表索引。
+* 压缩：对于重复的 key 数据，丢弃老的，保留最新的。
+* 合并：把多个段合成一个。
+* 特殊处理：
+ * crash 恢复：需要重建 hash 索引，用 snapshot 加速。
+ * 坏记录：chechsum 校验。
+ * 并发控制：每个段单写多读。
+
+局限性：
+
+* hash 索引必须能全部放到内存中，不适合巨量 key 数目的情况。
+* 根据 key 范围查询效率低。
+
+实现：Bitcask
+[riak](https://github.com/basho/riak)
+
+### SSTables and LSM-Trees
+[SSTables (Sorted String Table)](https://static.googleusercontent.com/media/research.google.com/en//archive/bigtable-osdi06.pdf)：log 存储时按 key 的顺序，且每个段中的 key 不重复（压缩过）。
+
+* 段合并类似归并排序，更有效率。
+* 内存中 hash 索引可以是稀疏的而不用存放所有 key，如果要查找的 key 不在索引里，可以先找到前一个较近的被索引 key 的位置再往后 scan。
+* 利用相邻稀疏 key 之间的范围，可以把数据分块压缩存储，每个 key 就指向对应块的位置。
+
+构建和维护 SSTable:
+
+* 写入时，先加到内存中有序的平衡树(实现：红黑，B-Tree, [skiplist](https://www.epaperpress.com/sortsearch/download/skiplist.pdf))上(`memtable`)。
+* 当 `memtable` 大小超过阈值时，格式化为 SSTable 文件（即一个段）写入硬盘。后续写时，使用新的 `memtable` 实例，旧的丢弃。
+* 读时，先在 `memtable` 中查找 key，再按从新到旧的顺序在 SSTable 文件中查找。可以用 bloom filter 优化查找。
+* 后台定期合并压缩 SSTable 文件 (size-tiered/leveled)。
+* 避免 crash 丢失内存数据，用单独的一个 log 按写入顺序保存每次写入 (WAL)。
+
+实现：[LSM-Tree (Log Structured Merge Tree)](http://paperhub.s3.amazonaws.com/18e91eb4db2114a06ea614f0384f2784.pdf)
+[levelDB](https://github.com/golang/leveldb), RocksDB, Cassandra, [badger](https://github.com/dgraph-io/badger)
+
+### B-Trees
+B-Tree 将数据分成固定大小的页（4KB）作为树的节点，读写都以页为单位。
+
+每个页都有 ref 到其他页，key 都有序且表示连续的范围。
+`| ref1 | 100 | ref2 | 200 | ref3 | 300 | ref4 | 400 | ref5 | 500 | ref6 |`
+ref1: key < 100
+ref2: 100 <= key < 200
+
+每个页中 ref 的数目固定，称为 `branching factor`。
+叶子节点包含实际的 key 和 value （或 value 的位置）。
+平衡：有 n 个 key 的 B-Tree，其深度为 `O(log n)`。
+使用 WAL 防止写多个页时 crash。
+
+增：如果页空间足够，直接添加；否则把所在的页分割为两个再添加并更新父节点的引用范围（写回三个页到硬盘）。
+删：
+改：更新叶子节点中 key 对应的值，写回整个页到硬盘（对于机械磁盘，原地覆写）。
+查：从根节点开始，一直找到具体的叶子节点中的 key。
+
+其他优化：
+
+* 使用写时复制代替 WAL 作为 crash 恢复。
+* 表示 key 范围的页，可以用缩写以节省空间。
+* 相邻的 key 范围的页，在硬盘上可以不相邻。
+* 页节点上可以存额外的指针，指向左右兄弟节点。
+* 变种如 fractal trees (B+ tree)，借鉴了一些 log 结构的做法。
+
+实现：
+[boltDB](https://github.com/boltdb/bolt)
+
+### Comparing B-Trees and LSM-Trees
+LSM-trees 相比 B-Trees 来说写更快，但读较慢。
+
+LSM-trees 优点：
+
+* 写放大：一次写入数据库导致多次写入硬盘。影响写性能的主要因素。
+* 较高的写入吞吐量，因为写放大不高和顺序写。
+* 文件小，存储开销少效率高，碎片化少。
+* 较少的写放大问题和少碎片化也对 SSD 友好。
+
+LSM-trees 缺点：
+
+* 后台的压缩过程可能影响正在读写的性能。
+* 压缩导致较高的写入吞吐量，抢占有限的写入带宽。
+* 如果配置不小心，可能导致压缩的速度跟不上初始写入的速度。
+* key 是分散在不同的段中的，相比 B-trees 不容易提供强事务语义。
+
+### Other Indexing Structures
+
+# 8 The Trouble with Distributed Systems
+## Faults and Partial Failures
+在分布式系统中，可能有一些系统组件不可预料地出错，而其他组件工作正常，这称为局部错误，局部错误具有不确定性。
+
+### Cloud Computing and Supercomputing
+两种大规模计算机系统的设计哲学：
+
+* 一种是高性能计算／超算（HPC）。
+* 另一种是云计算。
+* 传统的企业数据中心介于两者之间。
+
+它们处理错误的方式不同：
+
+* 超算：更像单机，局部出错就认为整个系统出错，进而可以全部重启从上一个检查点重新开始。
+* 云计算：要求时刻在线，可用性高，容错的，局部错误系统仍然可用。
+
+分布式系统中错误是常见的，因此错误处理是软件设计的重要部分，要在不可靠的组件之上构建可靠的系统。
+
+## Unreliable Networks
+因特网和数据中心的局域网是异步的分包网络，如果一个node发送消息给另一个node，这种网络并不能保证到达的时间，甚至能否到达。
+通常的处理方式是：响应和超时机制。
+
+### Network Faults in Practice
+### Detecting Faults
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

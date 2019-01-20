@@ -19,16 +19,16 @@ apt-get update
 apt-get install -y kubelet kubeadm kubectl
 ```
 
-最新稳定版：`https://dl.k8s.io/release/stable-1.txt`
+最新稳定版：`https://dl.k8s.io/release/stable-1.txt` (v1.13.2)
 镜像：`kubeadm config images list`
 ```
-k8s.gcr.io/kube-apiserver:v1.12.3
-k8s.gcr.io/kube-controller-manager:v1.12.3
-k8s.gcr.io/kube-scheduler:v1.12.3
-k8s.gcr.io/kube-proxy:v1.12.3
+k8s.gcr.io/kube-apiserver:v1.13.2
+k8s.gcr.io/kube-controller-manager:v1.13.2
+k8s.gcr.io/kube-scheduler:v1.13.2
+k8s.gcr.io/kube-proxy:v1.13.2
 k8s.gcr.io/pause:3.1
 k8s.gcr.io/etcd:3.2.24
-k8s.gcr.io/coredns:1.2.2
+k8s.gcr.io/coredns:1.2.6
 ```
 
 手动拉镜像并重命名
@@ -44,29 +44,39 @@ done
 
 #### init master
 `kubeadm init --config config.yaml`
-默认配置：`kubeadm config print-default`
-详细说明：https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1alpha3
+默认配置：`kubeadm config print init/join-defaults`
+详细说明：https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1
 
 config.yaml
 ```
-apiVersion: kubeadm.k8s.io/v1alpha3
+apiVersion: kubeadm.k8s.io/v1beta1
 kind: InitConfiguration
-apiEndpoint:
+localAPIEndpoint:
   advertiseAddress: 192.168.212.107
   bindPort: 6443
+nodeRegistration:
+  kubeletExtraArgs:
+    dynamic-config-dir: /var/lib/kubelet/dynamic-config
 ---
-apiVersion: kubeadm.k8s.io/v1alpha3
+apiVersion: kubeadm.k8s.io/v1beta1
 kind: ClusterConfiguration
+apiServer:
+  extraArgs:
+    enable-admission-plugins: NodeRestriction,ExtendedResourceToleration
 networking:
   podSubnet: "10.100.0.0/16" # 需与 calico 配置一致，且不与 host 网络冲突
 imageRepository: "registry.cn-hangzhou.aliyuncs.com/google_containers"
-kubernetesVersion: "v1.12.3"
+kubernetesVersion: "v1.13.2"
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+featureGates:
+    DynamicKubeletConfig: true
 ```
 
 网络插件
 ```
-kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
-kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml
+kubectl apply -f https://docs.projectcalico.org/v3.4/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml
 ```
 
 #### join node
@@ -80,12 +90,19 @@ kubectl delete node <node name>
 kubeadm reset
 ```
 
+reset iptable:
+`iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X`
+
+#### 更新配置
+组件：直接更新 `/etc/kubernetes/manifests` 配置
+kubelet: 使用[configMap](https://kubernetes.io/docs/tasks/administer-cluster/reconfigure-kubelet/), 必须一开始加上 `--dynamic-config-dir` 和开启 `DynamicKubeletConfig` feature gate （默认true）。
+
 #### 相关配置
 `/etc/kubernetes/*.conf` 各组件访问 APIServer 鉴权文件。
 `/etc/kubernetes/pki/` ca公钥私钥。
 `/etc/kubernetes/manifests` 各组件静态 Pod。
 `/var/lib/kubelet/kubeadm-flags.env` kubeadm 为 kubelet 设置的 `KUBELET_EXTRA_ARGS`。
-`/var/lib/kubelet/config.yaml` kubelet 配置文件。
+`/var/lib/kubelet/config.yaml` kubelet 本地 configMap 配置文件。
 `/etc/default/kubelet` kubelet `KUBELET_EXTRA_ARGS=` 配置。
 `/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` kubelet systemd 配置，启动命令行。
 
@@ -103,6 +120,8 @@ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/exam
 ```
 
 [kube-prometheus](https://github.com/coreos/prometheus-operator/tree/master/contrib/kube-prometheus)
+
+[logging](https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/fluentd-elasticsearch)
 
 ### Tips
 kubelet alias 自动补全(Linux)：
@@ -127,7 +146,18 @@ Networking Model:
 * all nodes can communicate with all containers (and vice-versa) without NAT
 * the IP that a container sees itself as is the same IP that others see it as
 
+### 网络方案
+#### Overlay (UDP/VXLAN)
+[![img](https://cdn-images-1.medium.com/max/1600/1*JqSLd3cPv14BWDtE7YEcRA.png)](https://blog.laputa.io/kubernetes-flannel-networking-6a1cb1f8ec7c)
+代表：[flannel](https://github.com/coreos/flannel)
+
+#### Routing (Host-GW)
+![img](https://feisky.gitbooks.io/sdn/container/calico/calico.png)
+代表：[calico](https://www.projectcalico.org/)
+
 ### [CNI](https://github.com/containernetworking/cni)
+[spec](https://github.com/containernetworking/cni/blob/master/SPEC.md) / [k8s cni](https://github.com/kubernetes/community/blob/master/contributors/devel/kubelet-cri-networking.md)
+
 功能：
 
 * 在容器网络命名空间中配置网络接口。
@@ -143,7 +173,7 @@ Networking Model:
 plugin位置：`/opt/cni/bin`
 配置(Network Configuration Lists)：`/opt/cni/net.d` 只会加载按字母顺序第一个，如 `10-flannel.conflist`
 
-执行环境：由 [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/kubelet-cri-networking.md)(如dockershim) 调用: [`RunPodSandbox` -> `SetUpPod`](https://github.com/kubernetes/kubernetes/blob/4dc40aabfb9af68913986a2caf87906312c9f4ea/pkg/kubelet/dockershim/docker_sandbox.go#L177)
+执行环境：由 CRI (如dockershim) 调用: [`RunPodSandbox` -> `SetUpPod`](https://github.com/kubernetes/kubernetes/blob/4dc40aabfb9af68913986a2caf87906312c9f4ea/pkg/kubelet/dockershim/docker_sandbox.go#L177)
 
 执行参数：
 
@@ -215,6 +245,22 @@ plugin位置：`/opt/cni/bin`
 
 ## Storage
 ### [CSI](https://kubernetes-csi.github.io/)
+[spec](https://github.com/container-storage-interface/spec/blob/master/spec.md) / [k8s csi](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/storage/container-storage-interface.md)
+
+[![img](https://cdn-images-1.medium.com/max/1000/1*oMgMPjx0obXKlaItZOkRfA.png)](https://medium.com/google-cloud/understanding-the-container-storage-interface-csi-ddbeb966a3b)
+
+external components (从 kubelet 剥离，由 k8s 维护):
+
+* [node driver registrar](https://github.com/kubernetes-csi/node-driver-registrar): 向 kubelet 注册 CSI 驱动。安装驱动可执行文件。以及健康检测。
+* [cluster driver registrar](https://github.com/kubernetes-csi/cluster-driver-registrar): 为驱动创建 `CSIDriver` 对象。（非必要）
+* [external provisioner](https://github.com/kubernetes-csi/external-provisioner)：监听 `PersistentVolumeClaim` 对象，触发 CSI 端点的 `CreateVolume/DeleteVolume` 方法。
+* [external attacher](https://github.com/kubernetes-csi/external-attacher): 监听 `VolumeAttachment` 对象，触发 CSI 端点的 `ControllerPublish/Unpublish` 方法。
+
+csi driver / plugin （第三方提供）：
+
+* CSI Identity: 提供驱动的标识和基本信息。
+* CSI Controller: 提供卷的基本服务：创建，删除，attach/dettach (publish/unpublish，指将设备挂到node上，一般只有块存储需要), snapshoting 等。（volume contoller逻辑，不需要在node上操作，部署在master节点上）
+* CSI Node: 在node上执行的具体操作（由 kubelet 直接调用），如格式化以及 mount/unmount 存储路径到 pod volume 的 mount point 上。
 
 ## Runtime
 ### [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/container-runtime-interface.md)
