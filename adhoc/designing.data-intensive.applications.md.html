@@ -103,6 +103,7 @@ LSM-trees 缺点：
 * key 是分散在不同的段中的，相比 B-trees 不容易提供强事务语义。
 
 ### Other Indexing Structures
+(TODO)
 
 # 8 The Trouble with Distributed Systems
 ## Faults and Partial Failures
@@ -128,6 +129,96 @@ LSM-trees 缺点：
 
 ### Network Faults in Practice
 ### Detecting Faults
+某些特定情况下得到错误反馈：
+
+* node 在运行但进程不在监听目的端口，TCP 连接返回 RST / FIN。
+* 进程被杀或 crash，监控脚本通知其他 node。
+* 通过网络交换机硬件的管理接口侦测链路错误。
+* 路由器发现 IP 地址不可达，返回 ICMP 目的地不可达。
+
+### Timeouts and Unbounded Delays
+网络中包的延迟主要是由于队列机制（异步）：
+
+* 网络交换机排队相同目的地的包。
+* 包到达 node，如果CPU 正忙，OS 将排队请求直到应用可以处理。
+* 当 CPU 被其他虚拟机占用，虚拟机监控排队网络请求。
+* TCP 流控制，当数据被发送到网络前进行排队。
+
+### Synchronous Versus Asynchronous Networks
+传统电话网络是同步的，预分配信道，没有中间队列，最大端到端的延迟是确定的(bounded delay)。
+电话网 circuit-switched vs 以太网 packet-switched。
+必须假设网络是可能发生阻塞，排队，和无限延迟的，所以没有对超时长短的正确时间，需要由测试决定。
+
+## Unreliable Clocks
+在一个分布式系统中，涉及到多个机器，很难确定事件的发生顺序。
+最常用的时间同步机制是 NTP。
+
+### Monotonic Versus Time-of-Day Clocks
+两种时钟：
+
+* time-of-day
+ * 又称墙上时钟，主要用来根据日历返回当前的日期和时间。`clock_gettime(CLOCK_REALTIME)`
+ * 通常由 NTP 来同步。
+ * 可能发生时间回拨，不宜用来测量持续时间。
+ * 精度低。
+* monotonic
+ * 单调时钟，主要用来测量时间间隔。`clock_gettime(CLOCK_MONOTONIC)`
+ * 不会发生回拨。
+ * NTP 用来调整时钟前进的频率。
+ * 时钟的绝对值，以及比较不同机器的时钟没有意义，不需要“同步”。
+ * 精度高。
+
+### Clock Synchronization and Accuracy
+即使有 NTP，获取正确的当前时间并不是准确和可靠的。
+
+### Relying on Synchronized Clocks
+任何时钟偏移其他节点太多的节点都应被宣布死亡并从集群中移除。
+
+last write wins (LWW) 的问题：
+
+* 可能丢失写（被时钟快的节点的写覆盖）
+* 不能区分很快的连续写和真正的同时写
+* 在某个精度下的同时写是可能的
+
+逻辑时钟并不测量具体的时间或间隔（墙上时钟和单调时钟都是物理时钟），而是关心事件发生的相对顺序，可以用来排序事件。
+生成全局单调递增的事务 ID 是困难的，使用同步的墙上时间的时间戳来实现会有时钟不准确的问题。
+使用时钟同步来完成分布式事务语义还属研究领域，未在主流数据库中实现。
+
+## Process Pauses
+分布式系统里面的节点必须假设其执行可能在任意点甚至函数执行中间暂停一定时间，然后再继续执行（而未再检查时钟）。
+
+## Knowledge, Truth, and Lies
+分布式系统：没有共享内存，只有通过不可靠并有延迟网络的消息传递，系统可能经受部分错误，不可靠的时钟，及进程暂停。
+在一定的系统模型（行为假设）下，算法可以被证明是功能正确的。这表明可靠的行为是可以达成的，即使底层的系统模型只提供很少的保证。
+
+### The Truth Is Defined by the Majority
+分布式系统不能依靠单个节点（来做决定），而是节点之间投票决定(最少票数：quorum)。
+通常 quorum 数目为大于一半节点的多数。所以总节点数一般为单数，三个节点可以容忍一个节点失败，五个可以容忍两个。
+
+分布式锁（只有一个/独占操作）：
+fencing: 每次获取 lock/lease 时同时获取一个每次递增的 fencing token，服务端只允许带有相同或递增的 token 的请求。
+（可以保证操作顺序按照获取锁的顺序，不能保证并发冲突）
+
+### Byzantine Faults
+一个系统是 Byzantine 容错的，指在即使一些节点功能失常不遵守协议，或者有恶意攻击者干扰网络的情况下也能正确工作。
+Byzantine 容错的协议非常复杂，部署成本很高，不切实际。但一般可以认为数据中心不会出现此类错误。
+
+### System Model and Reality
+system model:
+
+* 计时假设
+ * 同步：确定有上限的网络延迟，进程暂停，时钟错误。
+ * 半同步：大部分时候是确定的，有时候会超出上限。常见模型，比较接近现实中的系统。
+ * 异步：算法不能做任何确定性的假设。
+* 节点错误假设
+ * 只有 crash，并不会恢复。
+ * crash 后，一定时间内可以恢复，有持久存储可以存状态，但内存中的状态会丢失。常见模型。
+ * Byzantine 错误，可能做出任意行为。
+
+定义算法的正确性：通过描述其属性。比如 fencing token 的唯一性，递增性，和可用性。
+
+* 安全性: 如果违反，在某个时间点此属性被破坏（不符合），且不能恢复。（一致性）
+* 活动性: 在某个时间点可能不符合，但可能在将来满足。（可用性）
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>
