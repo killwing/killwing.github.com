@@ -251,16 +251,111 @@ plugin位置：`/opt/cni/bin`
 
 external components (从 kubelet 剥离，由 k8s 维护):
 
-* [node driver registrar](https://github.com/kubernetes-csi/node-driver-registrar): 向 kubelet 注册 CSI 驱动。安装驱动可执行文件。以及健康检测。
-* [cluster driver registrar](https://github.com/kubernetes-csi/cluster-driver-registrar): 为驱动创建 `CSIDriver` 对象。（非必要）
-* [external provisioner](https://github.com/kubernetes-csi/external-provisioner)：监听 `PersistentVolumeClaim` 对象，触发 CSI 端点的 `CreateVolume/DeleteVolume` 方法。
-* [external attacher](https://github.com/kubernetes-csi/external-attacher): 监听 `VolumeAttachment` 对象，触发 CSI 端点的 `ControllerPublish/Unpublish` 方法。
+* [node driver registrar](https://github.com/kubernetes-csi/node-driver-registrar): [registering] 向 kubelet 注册 CSI 驱动（利用 deivce plugin 的注册机制），触发 CSI 端点的 `GetPluginInfo/GetPluginCapabilities` 方法。安装驱动可执行文件。以及健康检测。
+* [cluster driver registrar](https://github.com/kubernetes-csi/cluster-driver-registrar): 为驱动创建 `CSIDriver` 对象。自定义一些行为（attachRequired/podInfoOnMountVersion）。（非必要）
+* [external provisioner](https://github.com/kubernetes-csi/external-provisioner): [provisioning] 监听 `PersistentVolumeClaim` 对象，触发 CSI 端点的 `CreateVolume/DeleteVolume` 方法，创建对应的 `PersistentVolume`。`StorageClass.provisioner` 要和 CSI 端点 `GetPluginInfo` 返回的一致。
+* [external attacher](https://github.com/kubernetes-csi/external-attacher): [attaching] 监听 `VolumeAttachment` 对象（当 pod 调度到 node 时，由 kubelet 创建），触发 CSI 端点的 `ControllerPublish/Unpublish` 方法，更新 `VolumeAttachment` 状态为 `Attached`。
+
+挂载的一般流程：(registering) -> provisioning -> attaching -> mounting
+[mounting] kubelet 监听 `VolumeAttachment` 的状态，当为 `Attached` 时，触发 CSI 端点的 `NodePublishVolume/NodeUnpublishVolume` 方法进行实际的挂载。
 
 csi driver / plugin （第三方提供）：
 
 * CSI Identity: 提供驱动的标识和基本信息。
-* CSI Controller: 提供卷的基本服务：创建，删除，attach/dettach (publish/unpublish，指将设备挂到node上，一般只有块存储需要), snapshoting 等。（volume contoller逻辑，不需要在node上操作，部署在master节点上）
+
+```
+service Identity {
+  rpc GetPluginInfo(GetPluginInfoRequest)
+    returns (GetPluginInfoResponse) {}
+
+  rpc GetPluginCapabilities(GetPluginCapabilitiesRequest)
+    returns (GetPluginCapabilitiesResponse) {}
+
+  rpc Probe (ProbeRequest)
+    returns (ProbeResponse) {}
+}
+```
+
+* CSI Controller: 提供卷的基本服务：创建，删除，attach/dettach (publish/unpublish，指将设备挂到node上，一般只有块存储需要), snapshoting 等。（volume contoller逻辑，不需要在node上操作，部署在master节点上）。
+
+```
+service Controller {
+  rpc CreateVolume (CreateVolumeRequest)
+    returns (CreateVolumeResponse) {}
+
+  rpc DeleteVolume (DeleteVolumeRequest)
+    returns (DeleteVolumeResponse) {}
+
+  rpc ControllerPublishVolume (ControllerPublishVolumeRequest)
+    returns (ControllerPublishVolumeResponse) {}
+
+  rpc ControllerUnpublishVolume (ControllerUnpublishVolumeRequest)
+    returns (ControllerUnpublishVolumeResponse) {}
+
+  rpc ValidateVolumeCapabilities (ValidateVolumeCapabilitiesRequest)
+    returns (ValidateVolumeCapabilitiesResponse) {}
+
+  rpc ListVolumes (ListVolumesRequest)
+    returns (ListVolumesResponse) {}
+
+  rpc GetCapacity (GetCapacityRequest)
+    returns (GetCapacityResponse) {}
+
+  rpc ControllerGetCapabilities (ControllerGetCapabilitiesRequest)
+    returns (ControllerGetCapabilitiesResponse) {}
+
+  rpc CreateSnapshot (CreateSnapshotRequest)
+    returns (CreateSnapshotResponse) {}
+
+  rpc DeleteSnapshot (DeleteSnapshotRequest)
+    returns (DeleteSnapshotResponse) {}
+
+  rpc ListSnapshots (ListSnapshotsRequest)
+    returns (ListSnapshotsResponse) {}
+
+  rpc ControllerExpandVolume (ControllerExpandVolumeRequest)
+    returns (ControllerExpandVolumeResponse) {}
+}
+```
+
 * CSI Node: 在node上执行的具体操作（由 kubelet 直接调用），如格式化以及 mount/unmount 存储路径到 pod volume 的 mount point 上。
+
+```
+service Node {
+  rpc NodeStageVolume (NodeStageVolumeRequest)
+    returns (NodeStageVolumeResponse) {}
+
+  rpc NodeUnstageVolume (NodeUnstageVolumeRequest)
+    returns (NodeUnstageVolumeResponse) {}
+
+  rpc NodePublishVolume (NodePublishVolumeRequest)
+    returns (NodePublishVolumeResponse) {}
+
+  rpc NodeUnpublishVolume (NodeUnpublishVolumeRequest)
+    returns (NodeUnpublishVolumeResponse) {}
+
+  rpc NodeGetVolumeStats (NodeGetVolumeStatsRequest)
+    returns (NodeGetVolumeStatsResponse) {}
+
+  rpc NodeExpandVolume(NodeExpandVolumeRequest)
+    returns (NodeExpandVolumeResponse) {}
+
+  rpc NodeGetCapabilities (NodeGetCapabilitiesRequest)
+    returns (NodeGetCapabilitiesResponse) {}
+
+  rpc NodeGetInfo (NodeGetInfoRequest)
+    returns (NodeGetInfoResponse) {}
+}
+```
+
+部署：
+![img](https://raw.githubusercontent.com/kubernetes/community/master/contributors/design-proposals/storage/container-storage-interface_diagram1.png)
+
+(StatefulSet/Deployment) external-attacher/provisioner 通过 emptyDir 里的由 CSI Driver 创建的 socket 和其通信。
+(DaemonSet) node-driver-registrar 通过 hostpath `/var/lib/kubelet/plugins_registry/[SanitizedCSIDriverName]-reg.sock` 和 CSI Driver 通信。
+kubelet 通过 hostpath `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock` 和 CSI Driver 通信。
+`/var/lib/kubelet/pods/` 必须以 `mountPropagation: "Bidirectional"` 挂载进 CSI Driver，这样 CSI Driver 里的挂载在 host 上及用户容器里才能看到。
+
 
 ## Runtime
 ### [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/container-runtime-interface.md)
@@ -270,9 +365,46 @@ csi driver / plugin （第三方提供）：
 ### [Controller](https://github.com/kubernetes/community/blob/master/contributors/devel/controllers.md)
 ### [Device Plugin](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/resource-management/device-plugin.md)
 
+![img](https://raw.githubusercontent.com/kubernetes/community/master/contributors/design-proposals/resource-management/device-plugin-overview.png)
+DP 通过 Daemonset 部署在每个 node 上。
+
+DP 通过 `/var/lib/kubelet/device-plugins/kubelet.sock` 向 kubelet 注册:
+
+ * DP 的版本
+ * 端点名字，在 `/var/lib/kubelet/device-plugins/` 下
+ * 资源名字
+
+```
+service Registration {
+	rpc Register(RegisterRequest) returns (Empty) {}
+}
+```
+
+kubelet 通过 `/var/lib/kubelet/device-plugins/{注册的端点名字}` 向 DP 请求：
+```
+service DevicePlugin {
+	// returns a stream of []Device
+	rpc ListAndWatch(Empty) returns (stream ListAndWatchResponse) {}
+	rpc Allocate(AllocateRequest) returns (AllocateResponse) {}
+}
+```
+
+`ListAndWatch`: 返回一组设备，包括其 ID 和健康状况。
+`Allocate`: 请求一组设备（请求哪些空闲的设备是 kubelet 决定的），返回其在容器内的运行时设置。运行时设置包括: 一组环境变量，需要从 node 上 mount 的一组目录（通常包括驱动和工具文件），需要 mount 的具体设备文件。
+
+
+DP 可以通过 `/var/lib/kubelet/pod-resources/kubelet.sock` 向 kubelet 查询设备资源在 node 上的分配情况。
+```
+// PodResources is a service provided by the kubelet that provides information about the
+// node resources consumed by pods and containers on the node
+service PodResources {
+    rpc List(ListPodResourcesRequest) returns (ListPodResourcesResponse) {}
+}
+```
+
 ## Utilities
 ### Leader Election
-[![img](https://cdn-images-1.medium.com/max/1600/0*1bwwLXjQrLWL67RQ&resize=w1280)](https://medium.com/@dominik.tornow/kubernetes-high-availability-d2c9cbbdd864)
+[![img](https://cdn-images-1.medium.com/max/800/0*1bwwLXjQrLWL67RQ)](https://medium.com/@dominik.tornow/kubernetes-high-availability-d2c9cbbdd864)
 
 `k8s.io/client-go/tools/leaderelection`
 
