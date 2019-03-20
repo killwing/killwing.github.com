@@ -402,6 +402,16 @@ service PodResources {
 }
 ```
 
+## Resources
+### [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
+[Source ip 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
+kube-proxy 使用 iptable 的情况，通过下面方式访问
+
+* ClusterIP: 不做 SNAT
+* NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地node上的endpoint来避免（要求node上有对应endpoint），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
+* LoadBalancer: 情况和 NodePort 类似，如果`service.spec.externalTrafficPolicy`设为`Local`，LB只会转发流量到有对应endpoint的node上（通过health check `service.spec.healthCheckNodePort`）。
+
+
 ## Utilities
 ### Leader Election
 [![img](https://cdn-images-1.medium.com/max/800/0*1bwwLXjQrLWL67RQ)](https://medium.com/@dominik.tornow/kubernetes-high-availability-d2c9cbbdd864)

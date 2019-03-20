@@ -176,14 +176,14 @@ rule-specs:
     * state: --state NEW/ESTABLISHED/RELATED/INVALID
     * conntrack: --ctstate NEW/ESTABLISHED/RELATED/INVALID
 
-SNAT(源地址的转换)/MASQUERADE(伪装)
+SNAT(源地址的转换)/MASQUERADE(伪装)：POSTROUTING
 把内网某个网段的地址在经过时转为外网地址（源端口不变，若有数据发回时从外网地址映射回内网地址UN-SNAT）：
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j SNAT --to-source 142.10.0.1`
 如果外网地址不固定，使用MASQUERADE可以自动从网卡获取外网地址：
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE`
 场景：局域网共享一个公网IP上网
 
-DNAT(目标地址转换)
+DNAT(目标地址转换)：PREROUTING/OUTPUT
 访问外网IP时转向内网主机（有数据返回时，从内网地址映射回外网地址UN-DNAT）：
 `iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
 场景：端口映射，以让外部访问内网

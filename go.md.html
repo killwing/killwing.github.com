@@ -1510,7 +1510,7 @@ extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 ## pragmas
 https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 
-`//go:noescape` 表示函数里的内存分配不会逃逸到堆上
+`//go:noescape` 表示函数里的内存分配不会逃逸到堆上 `-gcflags -m` 查看逃逸情况
 `//go:norace`
 `//go:nosplit`
 `//go:noinline`
