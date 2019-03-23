@@ -149,11 +149,62 @@ Networking Model:
 ### 网络方案
 #### Overlay (UDP/VXLAN)
 [![img](https://cdn-images-1.medium.com/max/1600/1*JqSLd3cPv14BWDtE7YEcRA.png)](https://blog.laputa.io/kubernetes-flannel-networking-6a1cb1f8ec7c)
-代表：[flannel](https://github.com/coreos/flannel)
+
+[flannel](https://github.com/coreos/flannel)
 
 #### Routing (Host-GW)
 ![img](https://feisky.gitbooks.io/sdn/container/calico/calico.png)
-代表：[calico](https://www.projectcalico.org/)
+
+[calico](https://www.projectcalico.org/)
+
+组件：
+
+[bird](http://bird.network.cz/): 使用 [BGP](https://www.projectcalico.org/why-bgp/) 协议，在节点之间共享路由信息。
+[felix](https://github.com/projectcalico/felix): 监听 etcd 中的网络配置，根据配置更新节点的路由和 iptables。
+[confd](https://github.com/kelseyhightower/confd): 监听 etcd 的数据，实时更新 bird 的配置文件，并重新启动 bird 进程以加载最新配置。
+[controller](https://github.com/projectcalico/kube-controllers): 使用独立的 etcd 需要，使其中的数据和 k8s 同步。
+[cni](https://github.com/projectcalico/cni-plugin): k8s 网络管理插件（同时管理 `WorkloadEndpoint` 资源）（纯 docker 使用 [libnetwork](https://github.com/projectcalico/libnetwork-plugin)）。
+
+ * calico 主插件
+ * calico-ipam ip分配
+ * `/etc/cni/net.d/10-calico.conflist`
+```
+{
+    "name": "k8s-pod-network",
+    "cniVersion": "0.3.0",
+    "plugins": [
+      {
+        "type": "calico", # 插件名字
+        "log_level": "info",
+        "datastore_type": "kubernetes",
+        "nodename": "node1",
+        "mtu": 1440,
+        "ipam": {
+          "type": "host-local", # 使用本地 ipam 插件 而不是 calico-ipam
+          "subnet": "usePodCidr"
+        },
+        "policy": {
+            "type": "k8s"
+        },
+        "kubernetes": {
+            "kubeconfig": "/etc/cni/net.d/calico-kubeconfig"
+        }
+      },
+      {
+        "type": "portmap",
+        "snat": true,
+        "capabilities": {"portMappings": true}
+      }
+    ]
+}
+```
+
+资源：
+
+* HostEndpoint: 对应 node 上的网络接口。
+* WorloadEndpoint: 对应 pod 的 veth 网络接口（`cali*`），区分 namespace。
+* Profile: 应用于某个单独的 endpoint，每个 endpoint 可以有多个 profile。
+* NetworkPolicy: 通过 label selector 应用于一组 endpoint (label 从 pod 复制)，对应于 k8s 的 `NetworkPolicy`。
 
 ### [CNI](https://github.com/containernetworking/cni)
 [spec](https://github.com/containernetworking/cni/blob/master/SPEC.md) / [k8s cni](https://github.com/kubernetes/community/blob/master/contributors/devel/kubelet-cri-networking.md)
@@ -171,7 +222,7 @@ Networking Model:
 * meta: 其他(内置flannel)
 
 plugin位置：`/opt/cni/bin`
-配置(Network Configuration Lists)：`/opt/cni/net.d` 只会加载按字母顺序第一个，如 `10-flannel.conflist`
+配置(Network Configuration Lists)：`/etc/cni/net.d` 只会加载按字母顺序第一个，如 `10-flannel.conflist`
 
 执行环境：由 CRI (如dockershim) 调用: [`RunPodSandbox` -> `SetUpPod`](https://github.com/kubernetes/kubernetes/blob/4dc40aabfb9af68913986a2caf87906312c9f4ea/pkg/kubelet/dockershim/docker_sandbox.go#L177)
 
@@ -265,14 +316,9 @@ csi driver / plugin （第三方提供）：
 
 ```
 service Identity {
-  rpc GetPluginInfo(GetPluginInfoRequest)
-    returns (GetPluginInfoResponse) {}
-
-  rpc GetPluginCapabilities(GetPluginCapabilitiesRequest)
-    returns (GetPluginCapabilitiesResponse) {}
-
-  rpc Probe (ProbeRequest)
-    returns (ProbeResponse) {}
+  rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse) {}
+  rpc GetPluginCapabilities(GetPluginCapabilitiesRequest) returns (GetPluginCapabilitiesResponse) {}
+  rpc Probe (ProbeRequest) returns (ProbeResponse) {}
 }
 ```
 
@@ -280,41 +326,18 @@ service Identity {
 
 ```
 service Controller {
-  rpc CreateVolume (CreateVolumeRequest)
-    returns (CreateVolumeResponse) {}
-
-  rpc DeleteVolume (DeleteVolumeRequest)
-    returns (DeleteVolumeResponse) {}
-
-  rpc ControllerPublishVolume (ControllerPublishVolumeRequest)
-    returns (ControllerPublishVolumeResponse) {}
-
-  rpc ControllerUnpublishVolume (ControllerUnpublishVolumeRequest)
-    returns (ControllerUnpublishVolumeResponse) {}
-
-  rpc ValidateVolumeCapabilities (ValidateVolumeCapabilitiesRequest)
-    returns (ValidateVolumeCapabilitiesResponse) {}
-
-  rpc ListVolumes (ListVolumesRequest)
-    returns (ListVolumesResponse) {}
-
-  rpc GetCapacity (GetCapacityRequest)
-    returns (GetCapacityResponse) {}
-
-  rpc ControllerGetCapabilities (ControllerGetCapabilitiesRequest)
-    returns (ControllerGetCapabilitiesResponse) {}
-
-  rpc CreateSnapshot (CreateSnapshotRequest)
-    returns (CreateSnapshotResponse) {}
-
-  rpc DeleteSnapshot (DeleteSnapshotRequest)
-    returns (DeleteSnapshotResponse) {}
-
-  rpc ListSnapshots (ListSnapshotsRequest)
-    returns (ListSnapshotsResponse) {}
-
-  rpc ControllerExpandVolume (ControllerExpandVolumeRequest)
-    returns (ControllerExpandVolumeResponse) {}
+  rpc CreateVolume (CreateVolumeRequest) returns (CreateVolumeResponse) {}
+  rpc DeleteVolume (DeleteVolumeRequest) returns (DeleteVolumeResponse) {}
+  rpc ControllerPublishVolume (ControllerPublishVolumeRequest) returns (ControllerPublishVolumeResponse) {}
+  rpc ControllerUnpublishVolume (ControllerUnpublishVolumeRequest) returns (ControllerUnpublishVolumeResponse) {}
+  rpc ValidateVolumeCapabilities (ValidateVolumeCapabilitiesRequest) returns (ValidateVolumeCapabilitiesResponse) {}
+  rpc ListVolumes (ListVolumesRequest) returns (ListVolumesResponse) {}
+  rpc GetCapacity (GetCapacityRequest) returns (GetCapacityResponse) {}
+  rpc ControllerGetCapabilities (ControllerGetCapabilitiesRequest) returns (ControllerGetCapabilitiesResponse) {}
+  rpc CreateSnapshot (CreateSnapshotRequest) returns (CreateSnapshotResponse) {}
+  rpc DeleteSnapshot (DeleteSnapshotRequest) returns (DeleteSnapshotResponse) {}
+  rpc ListSnapshots (ListSnapshotsRequest) returns (ListSnapshotsResponse) {}
+  rpc ControllerExpandVolume (ControllerExpandVolumeRequest) returns (ControllerExpandVolumeResponse) {}
 }
 ```
 
@@ -322,29 +345,14 @@ service Controller {
 
 ```
 service Node {
-  rpc NodeStageVolume (NodeStageVolumeRequest)
-    returns (NodeStageVolumeResponse) {}
-
-  rpc NodeUnstageVolume (NodeUnstageVolumeRequest)
-    returns (NodeUnstageVolumeResponse) {}
-
-  rpc NodePublishVolume (NodePublishVolumeRequest)
-    returns (NodePublishVolumeResponse) {}
-
-  rpc NodeUnpublishVolume (NodeUnpublishVolumeRequest)
-    returns (NodeUnpublishVolumeResponse) {}
-
-  rpc NodeGetVolumeStats (NodeGetVolumeStatsRequest)
-    returns (NodeGetVolumeStatsResponse) {}
-
-  rpc NodeExpandVolume(NodeExpandVolumeRequest)
-    returns (NodeExpandVolumeResponse) {}
-
-  rpc NodeGetCapabilities (NodeGetCapabilitiesRequest)
-    returns (NodeGetCapabilitiesResponse) {}
-
-  rpc NodeGetInfo (NodeGetInfoRequest)
-    returns (NodeGetInfoResponse) {}
+  rpc NodeStageVolume (NodeStageVolumeRequest) returns (NodeStageVolumeResponse) {}
+  rpc NodeUnstageVolume (NodeUnstageVolumeRequest) returns (NodeUnstageVolumeResponse) {}
+  rpc NodePublishVolume (NodePublishVolumeRequest) returns (NodePublishVolumeResponse) {}
+  rpc NodeUnpublishVolume (NodeUnpublishVolumeRequest) returns (NodeUnpublishVolumeResponse) {}
+  rpc NodeGetVolumeStats (NodeGetVolumeStatsRequest) returns (NodeGetVolumeStatsResponse) {}
+  rpc NodeExpandVolume(NodeExpandVolumeRequest) returns (NodeExpandVolumeResponse) {}
+  rpc NodeGetCapabilities (NodeGetCapabilitiesRequest) returns (NodeGetCapabilitiesResponse) {}
+  rpc NodeGetInfo (NodeGetInfoRequest) returns (NodeGetInfoResponse) {}
 }
 ```
 
@@ -358,11 +366,50 @@ kubelet 通过 hostpath `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.s
 
 
 ## Runtime
-### [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/container-runtime-interface.md)
+### [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-node/container-runtime-interface.md)
+
+```
+service RuntimeService {
+    rpc Version(VersionRequest) returns (VersionResponse) {}
+    rpc RunPodSandbox(RunPodSandboxRequest) returns (RunPodSandboxResponse) {}
+    rpc StopPodSandbox(StopPodSandboxRequest) returns (StopPodSandboxResponse) {}
+    rpc RemovePodSandbox(RemovePodSandboxRequest) returns (RemovePodSandboxResponse) {}
+    rpc PodSandboxStatus(PodSandboxStatusRequest) returns (PodSandboxStatusResponse) {}
+    rpc ListPodSandbox(ListPodSandboxRequest) returns (ListPodSandboxResponse) {}
+    rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse) {}
+    rpc StartContainer(StartContainerRequest) returns (StartContainerResponse) {}
+    rpc StopContainer(StopContainerRequest) returns (StopContainerResponse) {}
+    rpc RemoveContainer(RemoveContainerRequest) returns (RemoveContainerResponse) {}
+    rpc ListContainers(ListContainersRequest) returns (ListContainersResponse) {}
+    rpc ContainerStatus(ContainerStatusRequest) returns (ContainerStatusResponse) {}
+    rpc UpdateContainerResources(UpdateContainerResourcesRequest) returns (UpdateContainerResourcesResponse) {}
+    rpc ReopenContainerLog(ReopenContainerLogRequest) returns (ReopenContainerLogResponse) {}
+    rpc ExecSync(ExecSyncRequest) returns (ExecSyncResponse) {}
+    rpc Exec(ExecRequest) returns (ExecResponse) {}
+    rpc Attach(AttachRequest) returns (AttachResponse) {}
+    rpc PortForward(PortForwardRequest) returns (PortForwardResponse) {}
+    rpc ContainerStats(ContainerStatsRequest) returns (ContainerStatsResponse) {}
+    rpc ListContainerStats(ListContainerStatsRequest) returns (ListContainerStatsResponse) {}
+    rpc UpdateRuntimeConfig(UpdateRuntimeConfigRequest) returns (UpdateRuntimeConfigResponse) {}
+    rpc Status(StatusRequest) returns (StatusResponse) {}
+}
+
+ervice ImageService {
+    rpc ListImages(ListImagesRequest) returns (ListImagesResponse) {}
+    rpc ImageStatus(ImageStatusRequest) returns (ImageStatusResponse) {}
+    rpc PullImage(PullImageRequest) returns (PullImageResponse) {}
+    rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse) {}
+    rpc ImageFsInfo(ImageFsInfoRequest) returns (ImageFsInfoResponse) {}
+}
+```
+
 
 ## Components
 ### [Scheduler](https://github.com/kubernetes/community/blob/master/contributors/devel/scheduler.md)
 ### [Controller](https://github.com/kubernetes/community/blob/master/contributors/devel/controllers.md)
+#### [client-go](https://github.com/kubernetes/client-go/)
+[![img](https://raw.githubusercontent.com/kubernetes/sample-controller/master/docs/images/client-go-controller-interaction.jpeg)](https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md)
+
 ### [Device Plugin](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/resource-management/device-plugin.md)
 
 ![img](https://raw.githubusercontent.com/kubernetes/community/master/contributors/design-proposals/resource-management/device-plugin-overview.png)
