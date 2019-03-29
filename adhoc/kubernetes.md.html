@@ -403,6 +403,33 @@ ervice ImageService {
 }
 ```
 
+```
+[kubelet] -- (CRI) -- [dockershim] -- [docker daemon] -- [containerd] -- (OCI) -- [runc]
+                   -- [cri-containerd] ------------------^               ^
+                   -- [cri-o] -------------------------------------------'
+```
+
+默认 kubelet (`--container-runtime=docker`) 通过 `--container-runtime-endpoint=/var/run/dockershim.sock`（image 默认和 runtime 相同） 和实现了 CRI 的 dockershim GRPC server 通信。
+若使用 cri-o, 则配置 `--container-runtime=remote` 及 `--container-runtime-endpoint=/var/run/crio/crio.sock`。
+
+在 docker runtime 下，Exec/Attach/PortForward 会被重定向到 kubelet 的 `/cri/` 路径下，由 streaming server 处理（可以是独立 HTTP server，实际直接注册 handler 到 kubelet 中），最终由实现了 `Runtime` 接口的 `streamingRuntime` 执行。
+```
+type Runtime interface {
+	Exec(containerID string, cmd []string, in io.Reader, out, err io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize) error
+	Attach(containerID string, in io.Reader, out, err io.WriteCloser, tty bool, resize <-chan remotecommand.TerminalSize) error
+	PortForward(podSandboxID string, port int32, stream io.ReadWriteCloser) error
+}
+```
+即 `apiserver -(exec cmd)-> kubelet -(cri.Exec)-> dockershim -(redirect /cri/exec/)-> kubelet -(runtime.Exec)-> streamingServer -(exec container)-> container`
+
+
+`kubeGenericRuntimeManager.SyncPod`
+
+1. 创建并启动 sandbox 容器，使用 pause 镜像，调用 CNI 插件配置网络。
+1. 按顺序创建并启动 init 容器。
+1. 创建并启动普通容器。容器共享 sandbox 的 Network/Ipc namespace，UTS 根据 `podSpec.hostNetwork` 是否和 node 共享，Pid 根据 `podSpec.shareProcessNamespace` 是否和 sandbox 共享。
+
+### [cri-o](https://cri-o.io/)
 
 ## Components
 ### [Scheduler](https://github.com/kubernetes/community/blob/master/contributors/devel/scheduler.md)
