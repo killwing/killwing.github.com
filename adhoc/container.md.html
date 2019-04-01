@@ -3,7 +3,7 @@
 <meta charset="utf-8" />
 <title>Container</title>
 <xmp theme="united" style="display:none;">
-## Namespace
+## [namespace](http://man7.org/linux/man-pages/man7/namespaces.7.html)
 内核级别全局系统资源隔离。
 
 类型|        定义|             内容
@@ -30,10 +30,10 @@ nsenter
 unshare
 lsns (util-linux 2.28+)
 
-## cgroup
+## [cgroup](http://man7.org/linux/man-pages/man7/cgroups.7.html)
 对一组进程进行资源的限制和控制。
 
-subsystems:
+subsystems(controllers):
 
 cpu: 限制CPU使用率。
 cpuacct: 统计CPU使用率。
@@ -41,27 +41,150 @@ cpuset: 绑定指定CPU集。
 memory: 统计和限制内存使用率。
 devices: 限制创建(mknod)和访问设备的权限。
 freezer: suspend和restore组中所有进程。
-net_cls: 创建的所有网络包加上一个classid标记，用于tc和iptables。
+net_cls: 创建的所有网络包加上一个classid标记，用于tc（流量控制）和iptables。
 blkio: 限制访问块设备的IO速度。
 perf_event: 对cgroup进行性能监控
-net_prio: 针对每个网络接口设置访问优先级。
+net_prio: 针对每个网络接口设置访问优先级权重。
 hugetlb: 限制huge pages的使用量。
 pids: 限制总进程数。
 
 查看系统 `/proc/cgroups`
-查看进程 `/proc/[pid]/cgroup`
-控制 `/sys/fs/cgroup`
+查看进程 `/proc/[pid]/cgroup` 格式：{hierarchy id}:{subsystem}:{相对cgroup root路径}
+控制 `/sys/fs/cgroup` subsystem 下建立子目录
 
-cgroup.clone_children 只对cpuset有影响，内容为1时，新创建的cgroup将会继承父cgroup的配置。
-cgroup.procs cgroup中的所有进程ID。
+ * 子进程 cgroup 和父进程同属一个 cgroup。
+ * 进程退出自动从 tasks 里面删除。
+
+主要控制文件
+cpu.cfs_period_us: 默认 100ms，表示一段 cpu 时间。
+cpu.cfs_quota_us: 默认 -1，在 cfs_period_us 内的最多能占用的时间。超过时通过 throttling 限制(cpu.stat 查看)。
+cpu.shares: 设置 cpu 总量（默认 1024），可以让子 cgroup 按比例分配 cpu 资源。
+memory.limit_in_bytes: 限制内存使用大小。超过时会回收缓存(page cache)或OOM kill 进程(memory.failcnt 查看)。
+pid.max: 总进程（线程）数。
+blkio.throttle.read_bps_device: 限制块设备读取速度。
+cgroup.clone_children: 只对cpuset有影响，内容为1时，新创建的cgroup将会继承父cgroup的配置。
+cgroup.procs: cgroup 中的所有受控制的进程ID。
 cgroup.sane_behavior
-notify_on_release 内容为1时，当cgroup退出时（不再包含任何进程和子cgroup），将调用release_agent里面配置的命令。
-release_agent cgroup退出时将会执行的命令，系统调用该命令时会将相应cgroup的相对路径当作参数传进去。
-tasks cgroup中的所有线程ID。
+notify_on_release: 内容为1时，当cgroup退出时（不再包含任何进程和子cgroup），将调用release_agent里面配置的命令。
+release_agent: cgroup退出时将会执行的命令，系统调用该命令时会将相应cgroup的相对路径当作参数传进去。
+tasks: 线程级别控制，cgroup 中的所有受控制的线程ID。
+
+`/proc` 文件系统并不反映被 cgroup 限制的情况，可以用 [lxcfs](https://github.com/lxc/lxcfs) 解决。
 
 ### tools
+cgset
+cgget
 cgcreate
+cgdelete
+cgclassify
 cgexec
+
+## rootfs
+一个操作系统所包含的文件和目录，但不包含内核。
+利用 `chroot`/`pivot_root` 切换进程根目录，达到文件系统隔离的效果。
+
+UnionFS: 将不同目录合并挂载到同一目录下。
+
+### AUFS
+[![img](https://docs.docker.com/storage/storagedriver/images/aufs_layers.jpg)](https://docs.docker.com/storage/storagedriver/aufs-driver/)
+
+只读层（多层，镜像层）：ro+wh 挂载，固定不变内容。
+init 层：ro+wh 挂载，动态内容，不需要保存到镜像，例 `/etc/hosts`。
+读写层（容器层）：rw 挂载，修改：利用 COW 保存修改文件，删除：whiteout，生成 `.wh.foo` 遮挡文件。
+
+### OverlayFS
+[![img](https://docs.docker.com/storage/storagedriver/images/overlay_constructs.jpg)](https://docs.docker.com/storage/storagedriver/overlayfs-driver/)
+
+lowerdir: 镜像层
+upperdir: 容器层，读写层
+mergeddir: 合并层，容器挂载点
+
+读：优先从 upperdir 读
+写：copy_up (COW)，复制到 upperdir 写入更新
+删：使用 whiteout 文件遮挡
+重命名：只允许都在 upperdir 的情况，否则只能复制再删除原来的
+
+性能优越：
+
+* page caching: 多个容器访问（同层）同一个文件，可以共享同一个 page cache。
+* copy_up: 相比 AUFS 都是采用了 COW 机制，但 AUFS 需要在多层里面搜索文件，而 OverlayFS 只有两层，且可以利用缓存。
+* inode limits: overlay2 解决了 overlay 的 inode 消耗问题。(overlay2 / overlay 为 docker 的 overlayfs 存储引擎)
+
+overlay2 和 overlay 的主要区别就是为了在单层 lowerdir 中支持多层镜像而采用了不同方式:
+
+* overlay: overlayfs lowerdir 只支持单层。使用硬链接的方式，在 lowerdir 层中共享不同镜像层的文件。由于每层都会建立对底层文件的硬链接，这些链接文件所在的大量的新目录会（目录不能做硬链接）消耗大量 inode 数量。
+* overlay2: overlayfs (kernel 4.0+) 直接支持 lowerdir 用`:`隔开使用多层目录，但最多 128 层。
+
+docker:
+`/var/lib/docker/overlay2/l`: 使用缩短的 ID 层软链接，避免 mount 命令参数超出页大小限制。
+
+每层内容
+
+* link 文件：包含缩短ID
+* diff 目录：实际内容
+* lower 文件：只有上层有，所有本层的下层的缩短ID列表
+* merged 目录：合并 upperdir 和 lowerdir 的内容
+* work 目录：overlayfs 内部使用，如实现 COW
+
+例子(`docker run ubuntu:16.04`)：
+```
+// docker image inspect
+"GraphDriver": {
+    "Data": {
+        "LowerDir": "/var/lib/docker/overlay2/07658f200ae0d7953ba35aaf7327ced46fa174ae9c53c3e9a393d0a5386f1d64/diff:     # 底下 4 层
+                     /var/lib/docker/overlay2/527c42d27c58740ad41d4ec02ec7b4a92ab477140e7f4bbf9ed430b08d85658b/diff:
+                     /var/lib/docker/overlay2/7245916f11daaca5bf0dd59660b664a4d62a62a748f868e97fd8b74c0dbf459c/diff:
+                     /var/lib/docker/overlay2/f3b6eec681496d4a8b3e8a7dfddc2918cabcf7b01b97260dbd0016c90bc62cfa/diff",
+        "MergedDir": "/var/lib/docker/overlay2/210f88b50e92e5000061e33cc7e8a1af47b1d3f0323fefcf4b7844a13680c2aa/merged", # 合并层
+        "UpperDir": "/var/lib/docker/overlay2/210f88b50e92e5000061e33cc7e8a1af47b1d3f0323fefcf4b7844a13680c2aa/diff",    # 顶层
+        "WorkDir": "/var/lib/docker/overlay2/210f88b50e92e5000061e33cc7e8a1af47b1d3f0323fefcf4b7844a13680c2aa/work"
+    },
+    "Name": "overlay2"
+},
+"RootFS": { # 共 5 层
+    "Type": "layers",
+    "Layers": [
+        "sha256:8823818c474862932702f8a920abea43b2560ddceb910d145be9ba0eb149a643",
+        "sha256:4a7a5ec0f29e4172be88650833b9e6ba9e3dd6c231359357a778bdc6bfbbe86f",
+        "sha256:87a2d000062258f5b4628561771fa14780688808cf6df7cb93f948695b96e1f8",
+        "sha256:07663827a77f781d46aaeb1b1492484f45970d1cdd5b9e1e4e35680ce15d41d9",
+        "sha256:d7232280c8c479f251dffc9baf4eb025b8d372820678fac87fe0c4dde00ca9cb"
+    ]
+},
+
+// mount info
+overlay on /var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672/merged type overlay
+(rw,relatime,
+lowerdir=/var/lib/docker/overlay2/l/IBHM6VAXQLYIL5UE62M6SLJSMX:
+         /var/lib/docker/overlay2/l/XLR3UQOJ56H6N5NEU5XHYOPE56:
+         /var/lib/docker/overlay2/l/NJJWYRTW3ALLCTMXXMWJRJAIGW:
+         /var/lib/docker/overlay2/l/U4BLJW56SOJMZ5XKVUHTMKHBG3:
+         /var/lib/docker/overlay2/l/5ZOHJPJHUMRBSFTAZZQUUZCVOU:
+         /var/lib/docker/overlay2/l/P4RWIRDVRNUFKOGVPIVZAW2DP5,
+upperdir=/var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672/diff,
+workdir=/var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672/work)
+
+// docker container inspect
+"GraphDriver": {
+    "Data": {
+        "LowerDir": "/var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672-init/diff:  # init 层
+                     /var/lib/docker/overlay2/210f88b50e92e5000061e33cc7e8a1af47b1d3f0323fefcf4b7844a13680c2aa/diff:       # 镜像顶层
+                     /var/lib/docker/overlay2/07658f200ae0d7953ba35aaf7327ced46fa174ae9c53c3e9a393d0a5386f1d64/diff:       # 镜像下层
+                     /var/lib/docker/overlay2/527c42d27c58740ad41d4ec02ec7b4a92ab477140e7f4bbf9ed430b08d85658b/diff:
+                     /var/lib/docker/overlay2/7245916f11daaca5bf0dd59660b664a4d62a62a748f868e97fd8b74c0dbf459c/diff:
+                     /var/lib/docker/overlay2/f3b6eec681496d4a8b3e8a7dfddc2918cabcf7b01b97260dbd0016c90bc62cfa/diff",
+        "MergedDir": "/var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672/merged",   # 合并层
+        "UpperDir": "/var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672/diff",      # 容器层
+        "WorkDir": "/var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672/work"
+    },
+    "Name": "overlay2"
+},
+```
+
+镜像分析工具 [dive](https://github.com/wagoodman/dive)
+
+### DeviceMapper
+块设备
 
 ## Reference
 http://lwn.net/Articles/531114/
