@@ -430,6 +430,14 @@ type Runtime interface {
 1. 创建并启动普通容器。容器共享 sandbox 的 Network/Ipc namespace，UTS 根据 `podSpec.hostNetwork` 是否和 node 共享，Pid 根据 `podSpec.shareProcessNamespace` 是否和 sandbox 共享。
 
 ### [cri-o](https://cri-o.io/)
+* kubelet 运行 pod，pod 里的容器共享同样的 IPC/NET/PID namespace 和 cgroup。
+* kubelet 通过 CRI 接口向 CRI-O daemon 发送运行 pod 的请求。
+* CRI-O 使用 `containers/image` 库从 registry 拉取镜像。
+* CRI-O 使用 `containers/storage` 库将镜像解压成 rootfs，存放于 COW 文件系统里。
+* 当容器的 rootfs 创建后，CRI-O 使用 OCI 生成工具生成一份描述如何运行容器的 OCI 运行时 json 配置。
+* CRI-O 启动 OCI 兼容的运行时（默认 [runc](https://github.com/opencontainers/runc)）根据配置来运行容器进程。
+* 每个容器都被一个独立的 conmon 进程监控，监控进程还持有容器进程(PID1)的 pty 终端，处理日志和记录容器进程的退出码。
+* Pod 的网络由 CNI 设置，CRI-O 可以使用任何 CNI 插件。
 
 ## Components
 ### [Scheduler](https://github.com/kubernetes/community/blob/master/contributors/devel/scheduler.md)
@@ -485,6 +493,21 @@ kube-proxy 使用 iptable 的情况，通过下面方式访问
 * NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地node上的endpoint来避免（要求node上有对应endpoint），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
 * LoadBalancer: 情况和 NodePort 类似，如果`service.spec.externalTrafficPolicy`设为`Local`，LB只会转发流量到有对应endpoint的node上（通过health check `service.spec.healthCheckNodePort`）。
 
+## Misc.
+### [QoS](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/pod-resource-management.md)
+* Guaranteed: Pod 里每个容器 CPU/Memory 的 request 和 limit 都必须设置且值一样。
+* Burstable: Pod 里至少有一个容器设置了 CPU/Memory 的 request。
+* BestEffort: Pod 里所有容器都没有设置 CPU/Memory 的 request 和 limit。
+
+cgroup 设置
+```
+[cpu/memory]/kubepods/[besteffort/burstable]/pod{uid}/containersxxx/
+                     /pod{uid}/containersxxx/   # guaranteed
+```
+cpu limit: cpu.cfs_quota_us, cpu_period_us
+cpu request: cpu.shares
+memory limit: memory.limit_in_bytes
+memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/burstable] cgroup 进行预留控制
 
 ## Utilities
 ### Leader Election

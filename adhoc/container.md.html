@@ -57,7 +57,7 @@ pids: 限制总进程数。
 
 主要控制文件
 cpu.cfs_period_us: 默认 100ms，表示一段 cpu 时间。
-cpu.cfs_quota_us: 默认 -1，在 cfs_period_us 内的最多能占用的时间。超过时通过 throttling 限制(cpu.stat 查看)。
+cpu.cfs_quota_us: 默认 -1，在 cfs_period_us 内的最多能占用的时间，如果大于 cpu.cfs_period_us 表示占用多于一核。超过时通过 throttling 限制(cpu.stat 查看)。
 cpu.shares: 设置 cpu 总量（默认 1024），可以让子 cgroup 按比例分配 cpu 资源。
 memory.limit_in_bytes: 限制内存使用大小。超过时会回收缓存(page cache)或OOM kill 进程(memory.failcnt 查看)。
 pid.max: 总进程（线程）数。
