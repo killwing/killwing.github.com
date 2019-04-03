@@ -219,6 +219,23 @@ system model:
 
 * 安全性: 如果违反，在某个时间点此属性被破坏（不符合），且不能恢复。（一致性）
 * 活动性: 在某个时间点可能不符合，但可能在将来满足。（可用性）
+
+# 9 Consistency and Consensus
+## Consistency Guarantees
+最终一致性：写完以后，等待一个不确定的时间，最终所有的读请求都能返回其值。是一个较弱的保证。
+强一致性：写完以后所有读请求都立即能读到其值。性能不如更弱的保证。
+
+## Linearizability
+线性一致性是一种强一致性保证。
+
+### What Makes a System Linearizable?
+系统看上去只有一份数据，没有其他备份或缓存可以读。
+操作具有原子性。比如写入使用 CAS 操作。
+
+串行化：事务隔离属性，保证事务执行像按一定顺序执行。
+
+### Relying on Linearizability
+
 </xmp>
 <script src="../js/strapdown-zeta.js"></script>
 </html>
