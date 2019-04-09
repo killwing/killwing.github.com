@@ -93,6 +93,13 @@ len([]int8(s)) // compile error
 ```
 `\n\.abc\t\` 相当于 "\\n\\.abc\\t\\"
 ```
+* 底层结构`reflect.StringHeader`
+```
+type StringHeader struct {
+    Data uintptr
+    Len  int
+}
+```
 
 指针：
 
@@ -337,7 +344,7 @@ label也可以在`goto`中使用。
 
 ## 复杂类型
 ### Array
-声明: `var ar [3]int`, 长度: `len(ar)`
+声明: `var ar [3]int`, 长度: `len(ar)`，长度是类型的一部分。
 按值传递，但可以用指针避免复制(更多的是使用slice)。
 初始化
 ```
@@ -349,10 +356,20 @@ label也可以在`goto`中使用。
 ```
 
 ### [Slice](http://blog.golang.org/go-slices-usage-and-internals)
-Slice是一个引用类型，是对一个Array的部分引用。只要有slice在引用着，底层Array就不会被GC掉。
+Slice是一个引用类型，是对一个Array的部分引用，长度不是类型的一部分。只要有slice在引用着，底层Array就不会被GC掉。
 声明: `var a []int`, 不指定长度。
 `len()`可以取得长度，而`cap()`则返回slice的容量(默认一直至被引用数组结尾的大小)。基于slice创建的slice不能超过cap大小。
 string也可以被slice。不可修改。
+
+底层结构`reflect.SliceHeader`
+```
+type SliceHeader struct {
+    Data uintptr
+    Len  int
+    Cap  int
+}
+```
+
 初始化，赋值
 ```
 a = ar[7:9] // 长度为2, [7,9)
@@ -402,7 +419,7 @@ for _, x := range a {
 }
 ```
 
-更多：[Slice详解](http://blog.golang.org/slices), [SliceTricks](https://github.com/golang/go/wiki/SliceTricks), [Slice Internals](https://blog.golang.org/go-slices-usage-and-internals)
+更多：[Slice详解](http://blog.golang.org/slices), [SliceTricks](https://github.com/golang/go/wiki/SliceTricks)
 
 ### [Map](https://blog.golang.org/go-maps-in-action)
 Map是哈希表（key可以为任何定义了等于操作符的类型），引用类型。
@@ -484,6 +501,7 @@ func MySqrt(f float32) (v float32, ok bool) {
     return // implicit
 }
 ```
+参数和返回值都是以传值的方式。
 可以指定每个参数的名字或者不指定任何参数名字，不能只指定部分函数参数的名字。
 如果是相邻的参数是相同的类型，也可以统一指定类型。
 如果命名了返回值参数（局部变量），return可以不带参数返回当前值（不被其他同名变量遮盖(shadowed)的情况下）。
@@ -535,7 +553,7 @@ foo(100, append([]int{101}, a...)...) // 复制了a的元素，效率低
 ```
 
 ### method
-可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针类型）。
+可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针类型）。编译时静态绑定。
 无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用（编译器会转成接收者对应的类型），但只有用指针接收者的形式才能避免值拷贝传递以及做修改（类似函数参数）。
 用值调用指针接收方法时，值要可以取址。有着非指针类型struct元素值的Map如`m[1]`不可取址（slice却可以），也不能直接赋值`m[1].x=2`，必须使用临时变量。
 只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
@@ -586,7 +604,7 @@ se(&p)
 ### interface
 > [Accept interfaces, return structs.](https://blog.chewxy.com/2018/03/18/golang-interfaces/)
 
-一个interface是许多method的集合。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
+一个interface是许多method的集合。运行时绑定。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
 interface变量仅在实际类型和值都为nil时才为nil: `val==nil`。如果只是值为nil，那么也会打印出`<nil>`。
 ```
 func foo() *int {
@@ -680,7 +698,7 @@ s.String()
 读写大于一个机器字长的变量的操作顺序是未定义的。
 
 注意：r能读到与其并发的w，并不代表在r之后发生的r'能读到在w之前发生的w'。
-问题：双锁检测问题，重复检测问题，解决：使用显式的同步机制。
+问题：双重检测锁问题，重复检测问题，解决：使用显式的同步机制。
 
 * 语句可能乱序，造成另一个goroutine逻辑判断错误
 * 语句直接被优化掉，对另一个goroutine不可见

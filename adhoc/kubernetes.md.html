@@ -499,6 +499,8 @@ kube-proxy 使用 iptable 的情况，通过下面方式访问
 * Burstable: Pod 里至少有一个容器设置了 CPU/Memory 的 request。
 * BestEffort: Pod 里所有容器都没有设置 CPU/Memory 的 request 和 limit。
 
+（如果设置 limit，而没有设置对应的 request，默认和 limit 一样）
+
 cgroup 设置
 ```
 [cpu/memory]/kubepods/[besteffort/burstable]/pod{uid}/containersxxx/

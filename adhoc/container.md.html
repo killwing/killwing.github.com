@@ -20,6 +20,9 @@ UTS         |CLONE_NEWUTS      |主机名和NIS域名
 数字是inode号，如果两个进程某个类型的namespace的inode一样，说明同属一个namespace。
 当一个namespace中的所有进程都退出时，该namespace将会被删除。
 
+[Cgroup](https://lwn.net/Articles/618873/): 使每个容器有独立的 cgroup root 和 cgroup filesytem 视图，隐藏了 host 的 cgroup 信息，更安全；不同 host 间迁移cgroup变得容易。
+Mount: 只有新挂载才被隔离，原有挂载点（如tmpfs, proc）继承。
+
 ### syscall
 clone：在新namespace中创建一个新的进程
 setns：设置当前进程的一个namespace为指定的namespace
