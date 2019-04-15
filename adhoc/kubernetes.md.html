@@ -524,10 +524,18 @@ condition
 * ContainersReady: 所有容器已 ready
 
 ### Deployment
-滚动更新策略：
+部署策略
 
-* maxSurge: 允许除 desired 外创建多余的新 pod 数目，默认 %25 desired。
-* maxUnavailable: 最多不可用的 pod 数目，默认 %25 desired。
+[![img](https://raw.githubusercontent.com/ContainerSolutions/k8s-deployment-strategies/master/decision-diagram.png)](https://container-solutions.com/kubernetes-deployment-strategies/)
+
+* 重建 recreate: 先删掉旧的版本，再发布新的版本。`.spec.strategy.type==Recreate`
+* 滚动更新 ramped: 一个接一个更新，更新时新旧版本共存。 `.spec.strategy.type==RollingUpdate`（默认）
+  * maxSurge: 允许除 desired 外创建多余的新 pod 数目，默认 %25 desired。
+  * maxUnavailable: 最多不可用的 pod 数目，默认 %25 desired。
+* 蓝/绿 blue/green: 先发布新版本，再将流量从旧版本切到新版本，最后删掉旧版本。通过 service.selector 更新不同版本切换。
+* 金丝雀 canary: 先发布新版本，再将部分流量切到新版本，最后再切全量。使用两个 deployment，设置不同的 replicas 比例。
+* a/b 测试: 类似 canary，但以更精确的方式（比如 HTTP 头）针对发布。利用 Istio, Nginx 等控制。
+* 阴影 shadow: 新版本和旧版本共存，但只接收少部分流量，且不影响回应。可以通过 Istio 复制请求等方式。
 
 用 `spec.revisionHistoryLimit` 控制历史版本数。
 
