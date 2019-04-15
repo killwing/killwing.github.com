@@ -427,7 +427,7 @@ type Runtime interface {
 
 1. 创建并启动 sandbox 容器，使用 pause 镜像，调用 CNI 插件配置网络。
 1. 按顺序创建并启动 init 容器。
-1. 创建并启动普通容器。容器共享 sandbox 的 Network/Ipc namespace，UTS 根据 `podSpec.hostNetwork` 是否和 node 共享，Pid 根据 `podSpec.shareProcessNamespace` 是否和 sandbox 共享。
+1. 创建并启动普通容器。默认情况下容器共享 sandbox 的 Network/Ipc/UTS namespace。
 
 ### [cri-o](https://cri-o.io/)
 * kubelet 运行 pod，pod 里的容器共享同样的 IPC/NET/PID namespace 和 cgroup。
@@ -441,9 +441,21 @@ type Runtime interface {
 
 ## Components
 ### [Scheduler](https://github.com/kubernetes/community/blob/master/contributors/devel/scheduler.md)
-### [Controller](https://github.com/kubernetes/community/blob/master/contributors/devel/controllers.md)
+### [Controller](https://git.k8s.io/community/contributors/devel/sig-api-machinery/controllers.md)
 #### [client-go](https://github.com/kubernetes/client-go/)
 [![img](https://raw.githubusercontent.com/kubernetes/sample-controller/master/docs/images/client-go-controller-interaction.jpeg)](https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md)
+
+client-go 库内部组件：
+
+* Reflector: 从 Kubernetes API 监听 (watch) 特定的资源类型 (kind)，可以是内置资源，也可以是自定义资源。当它收到新增资源对象的通知时，会把新的资源对象从 APIServer 取出 (list) 并放入 Delta Fifo 队列。
+* Informer: 从 Delta Fifo 队列中取出对象放入本地 Indexer 缓存，然后调用自定义控制器注册的事件处理函数。定期同步功能，将 Indexer 中已知的对象重新放入 Delta Fifo 中。
+* Indexer: 提供对象的索引功能，可以根据对象的标签创建索引提高对象查询效率。它使用一个线程安全的数据存储作为后端缓存存储对象和其键值（一般为`<namespace>/<name>`）。
+
+自定义控制器组件：
+
+* Resource Event Handlers: 注册在 Informer 里的针对特定资源的事件处理回调函数，通常作法是将对象的键值放入 Work Queue 以供后续处理。之所以只存键值，是因为 Indexer 里的缓存的对象可能被更新，这样处理时可以取得最新的对象。
+* Work Queue: 将对象的投递和处理分离开，异步处理，起到了解藕的作用。
+* Object Sync Handler: 从 Work Queue 里取出对象的键值，以从 Indexer 获得实际的对象进行处理。
 
 ### [Device Plugin](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/resource-management/device-plugin.md)
 
@@ -485,6 +497,40 @@ service PodResources {
 ```
 
 ## Resources
+### Pod
+#### namesapce
+默认情况下容器共享 sandbox 的 Network/Ipc namespace，共享 host 的 Cgroup/User namespace，创建独立的 PID/Mount/UTS namespace。
+
+`spec.hostNetwork` 是否和 host 共享 Network/UTS namespace。
+`spec.hostIPC` 是否和 host 共享 IPC namespace。
+`spec.hostPID` 是否和 host 共享 PID namespace。
+`spec.shareProcessNamespace` 是否和 sandbox 共享 PID namespace。
+
+#### status
+phase
+
+* Pending: 没有容器启动，可能还未绑定到 node 等待调度，或者在拉镜像
+* Running: 所有容器已经启动，至少有一个容器在运行或在重启
+* Succeed: 所有容器成功退出，而不重启
+* Failed: 所有容器已终止，但至少有一个退出码不为0
+* Unknown: 不能获取状态，通常是通信问题
+
+condition
+
+* PodScheduled: 已进行调度
+* Ready: 可以提供服务，加入 service 负载平衡
+* Initialized: init 容器成功完成
+* Unschedulable: 未能成功调度
+* ContainersReady: 所有容器已 ready
+
+### Deployment
+滚动更新策略：
+
+* maxSurge: 允许除 desired 外创建多余的新 pod 数目，默认 %25 desired。
+* maxUnavailable: 最多不可用的 pod 数目，默认 %25 desired。
+
+用 `spec.revisionHistoryLimit` 控制历史版本数。
+
 ### [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
 [Source ip 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
 kube-proxy 使用 iptable 的情况，通过下面方式访问

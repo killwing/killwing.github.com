@@ -108,6 +108,17 @@ type StringHeader struct {
 * 用`&`取得变量的指针，一律用`.`访问目标。
 * 函数中可以返回局部变量的指针，因为局部变量不一定分配在栈上。
 
+对象的地址可能变化，对应指针类型变量会同步更新，但从其它非指针类型的值生成的指针不行：
+```
+func main() {
+    var x int = 10
+    var p uintptr = uintptr(unsafe.Pointer(&x))
+    runtime.GC()
+    var px *int = (*int)(unsafe.Pointer(p))
+    println(*px)
+}
+```
+
 类型转换
 
 * 转换只适用于几种简单的情况：转换整数(int)到去其他的精度和大小，整数(int)与浮点数(float)的转换，底层一样但类型名不一样之间的转换
@@ -183,6 +194,20 @@ v := new(int)   // v has type *int
 * 字面定义`m := map[string]int {}` 和 `m := make(map[string]int)`
 
 `++`/`--` 是语句不是表达式，只能后置使用。
+
+
+模拟三元表达式：
+```
+func If(condition bool, trueVal, falseVal interface{}) interface{} {
+    if condition {
+        return trueVal
+    }
+    return falseVal
+}
+
+x, y := 1, 2
+max := If(x > y, x, y).(int)
+```
 
 ### predeclared type
 #### defined type
