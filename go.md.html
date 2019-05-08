@@ -1062,6 +1062,7 @@ replace: 只作用于当前 module
 `go mod vendor` 可以把依赖从缓存 copy 到 module 的 vendor 目录下。
 `go build` 自动分析下载依赖并更新`go.mod`(require)，然后编译。
 `go list -m -json all` 显示 build list，编译依赖的所有 module。
+`go clean -modcache` && `go mod tidy` 重新更新缓存。
 
 ### 依赖管理
 `go get -u` to use the latest minor or patch releases

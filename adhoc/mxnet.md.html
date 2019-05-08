@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>MXNet</title>
+<xmp theme="united" style="display:none;">
+## Concept
+### id & rank
+id 1-7 表示node group，后面的id（>=8）表示单个的node。
+
+id: 1,2,4分别表示Scheduler, ServerGroup, WorkerGroup。
+
+server id = rank*2 + 8
+
+worker id = rank*2 + 9
+
+其中 rank: 表示第N个server/worker
+
+log e.g.: [11:39:43] src/van.cc:235: assign rank=8 to node role=server, ip=172.17.0.6, port=42763, is_recovery=0 （此处应该是ID，即 rank=0, id=8）
+
+
+
+### batch size
+> Assume a batch size b and assume there are k GPUs, then in one iteration each GPU will perform forward and backward on b/k examples. The gradients are then summed over all GPUs before updating the model.
+> if there are n machines and we use batch size b, then dist_sync behaves like local with batch size n*b.
+
+### LR
+factor: Reduce the learning rate by a factor for every n steps.
+`base_lr * pow(factor, floor(num_update/step))` 即每过N个step，改变lr（乘系数）
+
+multifactor: Reduce the learning rate by given a list of steps.
+Assume there exists k such that: `step[k] <= num_update && num_update < step[k+1]`
+Then calculate the new learning rate by: `base_lr * pow(factor, k+1)` 即每经过指定的step，改变lr（乘系数）
+
+mxnet里step通常是batch，所以 `steps = [(num_examples / batch_size) * (x-begin_epoch) for x in step_epochs if x-begin_epoch > 0]`
+
+## Config
+scheduler
+`export DMLC_PS_ROOT_URI=172.17.0.2; export DMLC_ROLE=scheduler; export DMLC_PS_ROOT_PORT=9091; export DMLC_NUM_WORKER=3; export DMLC_NUM_SERVER=3; cd /opt/mxnet/example/image-classification/common; PS_VERBOSE=1 python find_mxnet.py`
+
+server
+`export DMLC_PS_ROOT_URI=172.17.0.2; export DMLC_ROLE=worker; export DMLC_PS_ROOT_PORT=9091; export DMLC_NUM_WORKER=3; export DMLC_NUM_SERVER=3; cd /opt/mxnet/example/image-classification/common; PS_VERBOSE=1 python find_mxnet.py`
+
+worker
+`export DMLC_PS_ROOT_URI=172.17.0.2; export DMLC_ROLE=server; export DMLC_PS_ROOT_PORT=9091; export DMLC_NUM_WORKER=3; export DMLC_NUM_SERVER=3; cd /opt/mxnet/example/image-classification/; PS_VERBOSE=1 python train_mnist.py --kv-store dist_sync`
+
+
+scheduler & server 无需训练代码，只需导入mxnet即可
+
+## Code
+数据分组：`mx.io.ImageRecordIter(num_parts = nworker, part_index = rank)`
+
+Finetune：每个worker生成／加载自己的snapshot：`{modelPrefix}-{rank}-symbol.json`
+
+_get_lr_scheduler: 用到batch_size的地方要考虑worker数目 `epoch_size /= kv.num_workers1`
+
+## Reference
+http://mxnet.io/how_to/multi_devices.html
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
