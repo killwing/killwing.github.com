@@ -127,6 +127,11 @@ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/exam
 kubelet alias 自动补全(Linux)：
 `source <(kubectl completion bash | sed 's/kubectl/kc/g')`
 
+plugins:
+kubectl-ctx [kubectx](https://github.com/ahmetb/kubectx)
+kubectl-ns [kubens](https://github.com/ahmetb/kubectx)
+kubectl-tail [stern](https://github.com/wercker/stern)
+
 ### 验证
 #### [Node Conformance Test](https://kubernetes.io/docs/setup/node-conformance/)
 在 node 加入集群之前验证。
@@ -302,13 +307,13 @@ plugin位置：`/opt/cni/bin`
 
 external components (从 kubelet 剥离，由 k8s 维护):
 
-* [node driver registrar](https://github.com/kubernetes-csi/node-driver-registrar): [registering] 向 kubelet 注册 CSI 驱动（利用 deivce plugin 的注册机制），触发 CSI 端点的 `GetPluginInfo/GetPluginCapabilities` 方法。安装驱动可执行文件。以及健康检测。
+* [node driver registrar](https://github.com/kubernetes-csi/node-driver-registrar): [registering] 向 kubelet 注册 CSI 驱动（利用 deivce plugin/KubeletPluginsWatcher 的注册机制），触发 CSI Identity 端点的 `GetPluginInfo/GetPluginCapabilities` 方法。安装驱动可执行文件。以及健康检测。
 * [cluster driver registrar](https://github.com/kubernetes-csi/cluster-driver-registrar): 为驱动创建 `CSIDriver` 对象。自定义一些行为（attachRequired/podInfoOnMountVersion）。（非必要）
-* [external provisioner](https://github.com/kubernetes-csi/external-provisioner): [provisioning] 监听 `PersistentVolumeClaim` 对象，触发 CSI 端点的 `CreateVolume/DeleteVolume` 方法，创建对应的 `PersistentVolume`。`StorageClass.provisioner` 要和 CSI 端点 `GetPluginInfo` 返回的一致。
-* [external attacher](https://github.com/kubernetes-csi/external-attacher): [attaching] 监听 `VolumeAttachment` 对象（当 pod 调度到 node 时，由 kubelet 创建），触发 CSI 端点的 `ControllerPublish/Unpublish` 方法，更新 `VolumeAttachment` 状态为 `Attached`。
+* [external provisioner](https://github.com/kubernetes-csi/external-provisioner): [provisioning] 监听 `PersistentVolumeClaim` 对象，触发 CSI 端点的 `CreateVolume/DeleteVolume` 方法创建实际的卷，进而创建出对应的 `PersistentVolume`。`StorageClass.provisioner` 要和 CSI 端点 `GetPluginInfo` 返回的一致。
+* [external attacher](https://github.com/kubernetes-csi/external-attacher): [attaching] 监听 `VolumeAttachment` 对象（当 pod 调度到 node 时，由 kube-contoller-manager 创建），触发 CSI Controller 端点的 `ControllerPublishVolume/Unpublish` 方法，更新 `VolumeAttachment` 状态为 `Attached`。
 
 挂载的一般流程：(registering) -> provisioning -> attaching -> mounting
-[mounting] kubelet 监听 `VolumeAttachment` 的状态，当为 `Attached` 时，触发 CSI 端点的 `NodePublishVolume/NodeUnpublishVolume` 方法进行实际的挂载。
+[mounting] kubelet 监听 `VolumeAttachment` 的状态，当为 `Attached` 时，触发 CSI Node 端点的 `NodeStageVolume/NodeUnstageVolume`格式化准备和 `NodePublishVolume/NodeUnpublishVolume` 方法进行实际的挂载。
 
 csi driver / plugin （第三方提供）：
 
@@ -360,8 +365,8 @@ service Node {
 ![img](https://raw.githubusercontent.com/kubernetes/community/master/contributors/design-proposals/storage/container-storage-interface_diagram1.png)
 
 (StatefulSet/Deployment) external-attacher/provisioner 通过 emptyDir 里的由 CSI Driver 创建的 socket 和其通信。
-(DaemonSet) node-driver-registrar 通过 hostpath `/var/lib/kubelet/plugins_registry/[SanitizedCSIDriverName]-reg.sock` 和 CSI Driver 通信。
-kubelet 通过 hostpath `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock` 和 CSI Driver 通信。
+(DaemonSet) node-driver-registrar 通过 hostpath `/var/lib/kubelet/plugins_registry/[SanitizedCSIDriverName]-reg.sock` 和 kubelet 通信。
+kubelet/resgistrar 通过 hostpath `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock` 和 CSI Driver 通信。
 `/var/lib/kubelet/pods/` 必须以 `mountPropagation: "Bidirectional"` 挂载进 CSI Driver，这样 CSI Driver 里的挂载在 host 上及用户容器里才能看到。
 
 
@@ -496,6 +501,16 @@ service PodResources {
 }
 ```
 
+KubeletPluginsWatcher: 被动注册机制，CSI/CNI 等插件使用。
+kubelet 通过监控 `/var/lib/kubelet/plugins_registry/` 里面的端点向 DP 请求：
+```
+service Registration {
+	rpc GetInfo(InfoRequest) returns (PluginInfo) {}
+	rpc NotifyRegistrationStatus(RegistrationStatus) returns (RegistrationStatusResponse) {}
+}
+```
+PluginInfo 返回了插件类型（CSIPlugin, DevicePlugin）和插件实际 endpoint（一般在 `/var/lib/kubelet/plugins/`），后续对 plugin 的请求（如 CSI.Identity）会向这个 endpoint 发送。
+
 ## Resources
 ### Pod
 #### namesapce
@@ -537,15 +552,83 @@ condition
 * a/b 测试: 类似 canary，但以更精确的方式（比如 HTTP 头）针对发布。利用 Istio, Nginx 等控制。
 * 阴影 shadow: 新版本和旧版本共存，但只接收少部分流量，且不影响回应。可以通过 Istio 复制请求等方式。
 
-用 `spec.revisionHistoryLimit` 控制历史版本数。
+用 `spec.revisionHistoryLimit` 控制历史版本数 （旧`ReplicaSet`数目）。
 
-### [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
+### StatefulSet
+指定 `serviceName` 为对应的 Headless Service。
+
+* 利用 Headless Service，每个 pod 的 DNS 域名：`<statefulset-name>-<seq>.<svc-name>.<namespace>.svc.cluster.local`
+* 如果申请了持久存储，名字也一一和 pod 对应：`<pvc-name>-<statefulset-name>-<seq>`
+* 创建和删除 pod 时，严格按照编号顺序（删除反序）。
+
+更新策略：`.spec.updateStrategy.type`
+
+* `rollingUpdate`（默认）: 滚动更新，按照删除的顺序更新，每次更新一个 pod。
+  * `partition`: 分区，只有序号大于等于其值的才会更新。
+* `onDelete`: 不更新，必须手动删除老 pod，让 controller 创建新 pod 来更新。
+
+### DaemonSet
+通过 `nodeAffinity` 和 `toleration` 保证每个 node 上运行一个 pod 实例。
+
+DaemonSet 和 StatefulSet 都通过 `ControllerRevision`（保存了历史版本内容） 进行版本控制，而 Deployment 是直接通过 `ReplicaSet`。
+
+### Job & CronJob
+Job 通过 controller 生成的 `controller-uid=` 作为 selector，控制选中的 pod，是为了保证一个 Job 和其控制 pod 的唯一对应关系（新 Job 不应再控制旧的正在运行或已完成的 pod）。相比 Deployment/STS/DS 使用用户定义的 label 作为 selector，因为是 RLS 不要求这种唯一对应关系。
+
+restartPolicy 在 Job 对象里只允许被设置为 Never/OnFailure, 在 Deployment 里只能是 Always。
+
+* 当 Nerver 时，用 `spec.backoffLimit` 控制失败次数（重新创建 pod 次数）。
+* `spec.activeDeadlineSeconds` 控制运行超时，也可以防止 OnFailure 时一直重启。
+
+并发控制
+
+* 不需要并发：不设置 `.spec.completions` 和 `.spec.parallelism`，默认都为1。
+* 固定成功完成数：设置 `.spec.completions`，不设置 `.spec.parallelism` （默认为1，可设大于1）。
+* 工作队列：不设置 `.spec.completions`，只设置 `.spec.parallelism`。完成数不能确定，只要有一个 pod 成功，Job 就算成功（其他 pod 应该自动退出）。
+
+CronJob 是定时任务，控制 Job。
+`spec.concurrencyPolicy`: Allow Job可以同时存在；Forbid 跳过，Job不会被创建；Replace 新 Job 替换旧 Job。
+
+### Service
+Headless Service: `spec.ClusterIP: None`
+
+* 没有 VIP，DNS 服务名直接解析为选中的多个 pod IP 的 A 记录。
+* 每个选中的 pod 有唯一网络标识：`<pod-name>.<svc-name>.<namespace>.svc.cluster.local`
+
 [Source ip 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
 kube-proxy 使用 iptable 的情况，通过下面方式访问
 
 * ClusterIP: 不做 SNAT
 * NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地node上的endpoint来避免（要求node上有对应endpoint），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
 * LoadBalancer: 情况和 NodePort 类似，如果`service.spec.externalTrafficPolicy`设为`Local`，LB只会转发流量到有对应endpoint的node上（通过health check `service.spec.healthCheckNodePort`）。
+
+### PersistentVolume & PersistentVolumeClaim & StorageClass
+PVC 和 PV 一一绑定：PV 的 spec （容量等）满足 PVC 的要求；storage class 一致（StorageClass 可以设置缺省值`storageclass.kubernetes.io/is-default-class`）。
+
+provisioning:
+静态 provisioning:（StorageClass provisioner=kubernetes.io/no-provisioner）手动创建 PV。
+动态 provisioning:（StorageClass 指定了具体的 provisoner）: PVC 指定 storage class 名字，provisoner 根据 PVC 的要求及 StorageClass 的属性，创建出 PVC 对应的 PV。
+绑定执行：kube-controller-manager `PersistentVolumeController`
+
+attaching:
+为 node 挂载磁盘（一般为块设备，其他比如分布式文件系统 NFS，CephFS 并不需要）。
+执行：kube-controller-manager (`AttachDetachController`调用具体 volume plugin，如rbd, csi...的`Attacher.Attach`)
+
+mounting:
+格式化磁盘（或直接用远程存储）并 mount 到 pod 的 volume 目录 `/var/lib/kubelet/pods/<Pod-ID>/volumes/kubernetes.io~<Volume-Type>/<Volume-Name>`。
+执行：kubelet (`VolumeManager`调用具体 volume plugin 的 `DeviceMounter.MountDevice`格式化等准备工作和 `Mounter.SetUp`具体挂载)
+
+#### local PV
+```
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+```
+不支持动态 provisioning: 需要手动创建 PV（指定节点信息），可以利用 [local-static-provisioner](https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner)自动创建 PV（当对应绑定的 PVC 删除后，对应 PV 会清除并重建）。
+延迟绑定: PVC 和 PV 不立即绑定，等到第一个使用 PVC 的 Pod 调度的时候，由调度器综合考虑 PV 节点情况再绑定。（删除 Pod 后，PVC 和 PV 还是绑定状态，若不删除，下次 Pod 还是会调度到这个节点上）
 
 ## Misc.
 ### [QoS](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/pod-resource-management.md)
@@ -564,6 +647,23 @@ cpu limit: cpu.cfs_quota_us, cpu_period_us
 cpu request: cpu.shares
 memory limit: memory.limit_in_bytes
 memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/burstable] cgroup 进行预留控制
+
+### Initializer
+1. `InitializerConfiguration` 配置所用 Initializer 的名字及需匹配的资源。
+1. 资源的 `metadata.initializers.pending` 中增加 Initializer 名字，并不被创建等待初始化。
+1. Initializer (自定义 controller) 根据配置初始化资源，并删除 `metadata.initializers.pending` 对应项。
+1. 资源被创建。
+
+### RBAC
+* `Role`/`ClusterRole`: 角色，及具体资源的权限规则
+* Subject: 作用对象
+* `RoleBinding`/`ClusterRoleBinding`: Role 和 Subject 的绑定关系
+
+Subject:
+
+* `ServiceAccount`, pod 指定后认证信息(对应`kubernetes.io/service-account-token`类型的Secret)会挂载在 `/var/run/secrets/kubernetes.io/serviceaccount` 目录。
+* `User`: `system:serviceaccount:<ServiceAccount-Name>` （SA对应）
+* `Group`: `system:serviceaccounts:<Namespace-Name>` （内置，对应Namespace里面的所有SA）
 
 ## Utilities
 ### Leader Election
