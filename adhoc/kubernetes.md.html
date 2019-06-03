@@ -131,6 +131,7 @@ plugins:
 kubectl-ctx [kubectx](https://github.com/ahmetb/kubectx)
 kubectl-ns [kubens](https://github.com/ahmetb/kubectx)
 kubectl-tail [stern](https://github.com/wercker/stern)
+kubectl-debug [kubectl-debug](https://github.com/aylei/kubectl-debug)
 
 ### 验证
 #### [Node Conformance Test](https://kubernetes.io/docs/setup/node-conformance/)
@@ -432,7 +433,7 @@ type Runtime interface {
 
 1. 创建并启动 sandbox 容器，使用 pause 镜像，调用 CNI 插件配置网络。
 1. 按顺序创建并启动 init 容器。
-1. 创建并启动普通容器。默认情况下容器共享 sandbox 的 Network/Ipc/UTS namespace。
+1. 创建并启动普通容器。默认情况下容器共享 sandbox 的 Network/Ipc namespace。
 
 ### [cri-o](https://cri-o.io/)
 * kubelet 运行 pod，pod 里的容器共享同样的 IPC/NET/PID namespace 和 cgroup。
@@ -445,7 +446,47 @@ type Runtime interface {
 * Pod 的网络由 CNI 设置，CRI-O 可以使用任何 CNI 插件。
 
 ## Components
-### [Scheduler](https://github.com/kubernetes/community/blob/master/contributors/devel/scheduler.md)
+### APIServer
+
+### [Scheduler](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-scheduling/scheduler.md)
+1. 通过 Predicates 过滤出符合条件的 node。
+1. 通过 Priorities 为符合条件的 node 打分。`finalScoreNodeA = (weight1 * priorityFunc1) + (weight2 * priorityFunc2)`
+1. 选择最高分的那个 node 作为目标，设置 Pod 的 `spec.nodeName`。
+
+#### [Predicates & Priorities](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-scheduling/scheduler_algorithm.md)
+Predicates
+GeneralPredicates (也会被 kubelet 启动 Pod 前再次检查)：
+
+`PodFitsResources`: 资源是否满足 [node]capacity - sum([Pod]spec.resources.requests)
+`PodFitsHost`: node 名字是否和 `spec.nodeName` 一致
+`PodFitsHostPorts`: host port 在 node 上是否已被占用
+`PodMatchNodeSelector`: nodeSelector 或 nodeAffinity 是否和 node 匹配
+
+Volume 相关：
+`NoDiskConflict`: Pod 声明挂载的持久化 Volume 与 node 上已挂载的是否有冲突
+`MaxPDVolumeCountPredicate`: node 持久化 Volume 的最大数目
+`VolumeZonePredicate`: 持久化 Volume 的 Zone 标签，是否与 node 的 Zone 匹配
+`VolumeBindingPredicate`: Pod 的 PVC 对应的 PV nodeAffinity, 是否与 node 匹配（没绑定 PV 的则检查是否有符合的 PV）
+
+`PodToleratesNodeTaints`: Pod 是否能 tolerate node 的 taint
+`NodeMemoryPressurePredicate` 检查 node 内存是否已经不够
+`PodAffinityPredicate`: Pod 与 node 上已有 Pod 间的 affinity 和 anti-affinity
+
+Priorities
+`LeastRequestedPriority`: 选择空闲 CPU 和 Memory 最多的 node `score = (cpu((capacity-sum(requested))10/capacity) + memory((capacity-sum(requested))10/capacity))/2`
+`BalancedResourceAllocation`:  选择调度完成后 node 各种资源分配最均衡的 `score = 10 - variance(cpuFraction,memoryFraction,volumeFraction)*10`
+`NodeAffinityPriority`, `TaintTolerationPriority`, `InterPodAffinityPriority`: 选择匹配字段最多的
+`ImageLocalityPriority`: 选择已经有镜像缓存的 node
+
+#### Priority & Preemption
+使用：创建 `PriorityClass` 对象，在 Pod 里设置 `spec.priorityClassName` 指定。值越大越高，未设置默认`globalDefault`，Pod 未声明使用的话则 priority 为0。
+调度时，优先级高的 Pod 先出队列(`activeQ`)优先调度。
+
+抢占：当一个 Pod 调度失败时（放入`unschedulableQ`），调度器找一个 node，当 node 上一个或多个比其优先级底的 Pod 删除之后，它可以调度上去。先设置 `spec.nominatedNodeName` 为目标 node（放回`activeQ`，进入下一调度周期），然后删除 node 上的低优先级的 Pod，此时如果有更高优先级的 Pod 也来抢占这个 node，原 Pod 的`spec.nominatedNodeName`就被清除。考虑到 pod affinity, 调度新 Pod 时也需要考虑 node 上也有（或者没有）抢占 Pod 的情况（nominatedNodeName 指定了此 node）。
+
+#### [Scheduling Framework](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling/20180409-scheduling-framework.md)
+
+
 ### [Controller](https://git.k8s.io/community/contributors/devel/sig-api-machinery/controllers.md)
 #### [client-go](https://github.com/kubernetes/client-go/)
 [![img](https://raw.githubusercontent.com/kubernetes/sample-controller/master/docs/images/client-go-controller-interaction.jpeg)](https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md)
@@ -471,7 +512,7 @@ DP 通过 `/var/lib/kubelet/device-plugins/kubelet.sock` 向 kubelet 注册:
 
  * DP 的版本
  * 端点名字，在 `/var/lib/kubelet/device-plugins/` 下
- * 资源名字
+ * 资源名字 (Extended Resource)
 
 ```
 service Registration {
@@ -502,7 +543,7 @@ service PodResources {
 ```
 
 KubeletPluginsWatcher: 被动注册机制，CSI/CNI 等插件使用。
-kubelet 通过监控 `/var/lib/kubelet/plugins_registry/` 里面的端点向 DP 请求：
+kubelet 通过监控 `/var/lib/kubelet/plugins_registry/` 里面的端点向 plugin 请求进行注册：
 ```
 service Registration {
 	rpc GetInfo(InfoRequest) returns (PluginInfo) {}
@@ -512,6 +553,8 @@ service Registration {
 PluginInfo 返回了插件类型（CSIPlugin, DevicePlugin）和插件实际 endpoint（一般在 `/var/lib/kubelet/plugins/`），后续对 plugin 的请求（如 CSI.Identity）会向这个 endpoint 发送。
 
 ## Resources
+`kubectl api-resources`
+
 ### Pod
 #### namesapce
 默认情况下容器共享 sandbox 的 Network/Ipc namespace，共享 host 的 Cgroup/User namespace，创建独立的 PID/Mount/UTS namespace。
@@ -635,8 +678,8 @@ volumeBindingMode: WaitForFirstConsumer
 * Guaranteed: Pod 里每个容器 CPU/Memory 的 request 和 limit 都必须设置且值一样。
 * Burstable: Pod 里至少有一个容器设置了 CPU/Memory 的 request。
 * BestEffort: Pod 里所有容器都没有设置 CPU/Memory 的 request 和 limit。
-
 （如果设置 limit，而没有设置对应的 request，默认和 limit 一样）
+当发生 Pod Eviction 的时候按照 BestEffort, Burstable, Guaranteed 的优先级别进行删除。
 
 cgroup 设置
 ```
@@ -664,6 +707,55 @@ Subject:
 * `ServiceAccount`, pod 指定后认证信息(对应`kubernetes.io/service-account-token`类型的Secret)会挂载在 `/var/run/secrets/kubernetes.io/serviceaccount` 目录。
 * `User`: `system:serviceaccount:<ServiceAccount-Name>` （SA对应）
 * `Group`: `system:serviceaccounts:<Namespace-Name>` （内置，对应Namespace里面的所有SA）
+
+### Monitoring
+#### metrics
+node: 通过 [node exporter](https://github.com/prometheus/node_exporter)
+核心组件：通过 `/metrics` API
+core metrics: pod, container, node等: 通过 [MetricsServer](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/metrics-server.md) (`/stats/summary` from kubelet cAdvisor)
+
+#### ServiceMonitor
+1. 应用暴露指标 `http.Handle("/metrics", promhttp.Handler())`
+1. Service 暴露端口
+1. 创建 `ServiceMonitor`
+
+```
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: myapp
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: http-metrics
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      app: myapp
+```
+
+#### MetricsServer
+利用 [apiserver aggregation](https://kubernetes.io/docs/tasks/access-kubernetes-api/setup-extension-api-server/)
+将 [prometheus adapter](https://github.com/DirectXMan12/k8s-prometheus-adapter) 作为 MetricsServer
+```
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta1.metrics.k8s.io
+spec:
+  group: metrics.k8s.io
+  groupPriorityMinimum: 100
+  insecureSkipTLSVerify: true
+  service:
+    name: prometheus-adapter
+    namespace: monitoring
+  version: v1beta1
+  versionPriority: 100
+```
 
 ## Utilities
 ### Leader Election

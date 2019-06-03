@@ -84,7 +84,7 @@ cgexec
 
 ## rootfs
 一个操作系统所包含的文件和目录，但不包含内核。
-利用 `chroot`/`pivot_root` 切换进程根目录，达到文件系统隔离的效果。
+利用 `chroot`/`pivot_root` 切换进程根目录(`/proc/[pid]/root/`)，达到文件系统隔离的效果。
 
 UnionFS: 将不同目录合并挂载到同一目录下。
 

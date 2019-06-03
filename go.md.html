@@ -1473,6 +1473,28 @@ function: 预定义的全局函数。
 https://github.com/google/re2/wiki/Syntax
 https://github.com/StefanSchroeder/Golang-Regex-Tutorial
 
+### sync
+条件变量：有一个关联锁，当条件改变的时候（保护条件检查相关数据），及调用 Wait 的时候必须持有这个锁。
+```
+type Cond struct {
+        // L is held while observing or changing the condition
+        L Locker
+        // contains filtered or unexported fields
+}
+```
+
+Wait 自动释放锁，然后暂停此 goroutine 的执行，当被唤醒的时候，获得锁然后才返回。
+因为在等待的时候，是不持有锁的，所有当 Wait 返回后需要重新检查条件是否满足（用循环）：
+```
+c.L.Lock()
+for !condition() {
+    c.Wait()
+}
+... make use of condition ...
+c.L.Unlock()
+```
+当调用 Signal/Broadcast 的时候，可以但并不要求持有锁。
+
 ### misc
 * `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
 * 未导出的结构体的字段将不会被（json、xml、gob等）编码。
