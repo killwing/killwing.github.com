@@ -127,7 +127,7 @@ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/exam
 kubelet alias 自动补全(Linux)：
 `source <(kubectl completion bash | sed 's/kubectl/kc/g')`
 
-plugins:
+plugins ([krew](https://github.com/kubernetes-sigs/krew)):
 kubectl-ctx [kubectx](https://github.com/ahmetb/kubectx)
 kubectl-ns [kubens](https://github.com/ahmetb/kubectx)
 kubectl-tail [stern](https://github.com/wercker/stern)
@@ -154,9 +154,30 @@ Networking Model:
 
 ### 网络方案
 #### Overlay (UDP/VXLAN)
+[flannel](https://github.com/coreos/flannel)
+
+UDP
 [![img](https://cdn-images-1.medium.com/max/1600/1*JqSLd3cPv14BWDtE7YEcRA.png)](https://blog.laputa.io/kubernetes-flannel-networking-6a1cb1f8ec7c)
 
-[flannel](https://github.com/coreos/flannel)
+* flannel0: TUN 设备（三层，在应用程序 flanneld 和设备间传递 IP 包）
+* docker0 网桥必须使用 flannel 为 node 分配的子网。
+* flanneld 将原始 IP 包封成 UDP 包，并依据 etcd 里保存的 node 地址信息进行转发。
+* 性能差：用户态内核态数据拷贝；用户态 UDP 解包封包。
+
+VXLAN
+[![img](https://msazure.club/content/images/2018/05/Flannel.jpg)](https://msazure.club/flannel-networking-demystify/)
+
+* flannel.1: VTEP(VXLAN Tunnel End Point)设备（ 二层，类似 flannel0 + flanneld 转发）
+* flanneld 下发维护:
+  * node 上路由表：找到其他 node 上的 VTEP 节点，出口为本 VTEP 节点
+  * node 上 ARP 表：根据 VTEP 的 IP 地址，找到其他 node 上的 VTEP 节点的 MAC 地址
+  * flannel.1 上 FDB 表(`bridge fdb show`)：根据 VTEP 的 MAC 地址，找到 VTEP 节点所在 node 的 IP 地址
+* 封包格式：
+
+```
+| Outer Ethernet Header | Outer IP Header | Outer UDP Header | VXLAN Header | Inner Ethernet Header | Inner IP Header     |
+| (dest node MAC)       | (dest node IP)  | (Port:4789)      | (VNI:1)      | (dest VTEP MAC)       | (dest container IP) |
+```
 
 #### Routing (Host-GW)
 ![img](https://feisky.gitbooks.io/sdn/container/calico/calico.png)
@@ -484,7 +505,28 @@ Priorities
 
 抢占：当一个 Pod 调度失败时（放入`unschedulableQ`），调度器找一个 node，当 node 上一个或多个比其优先级底的 Pod 删除之后，它可以调度上去。先设置 `spec.nominatedNodeName` 为目标 node（放回`activeQ`，进入下一调度周期），然后删除 node 上的低优先级的 Pod，此时如果有更高优先级的 Pod 也来抢占这个 node，原 Pod 的`spec.nominatedNodeName`就被清除。考虑到 pod affinity, 调度新 Pod 时也需要考虑 node 上也有（或者没有）抢占 Pod 的情况（nominatedNodeName 指定了此 node）。
 
-#### [Scheduling Framework](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling/20180409-scheduling-framework.md)
+#### Scheduling Framework
+[![img](https://raw.githubusercontent.com/kubernetes/enhancements/master/keps/sig-scheduling/20180409-scheduling-framework-extensions.png)](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling/20180409-scheduling-framework.md)
+
+扩展点（由一系列插件组成）
+
+调度阶段：
+
+* QueueSort: 对调度队列中的 pod 进行排序
+* Pre-Filter: 预过滤，检查一些集群或 pod 必须满足的条件
+* Filter: 类似 Predicate
+* Post-Filter: 后过滤，可以用来更新内部状态或日志
+* Scoring: 类似 Priority
+* Normalize-Scoring: 使 Scoring 的值正规化
+* Reserve: 有状态的插件利用来预留 node 给这个 pod 的资源（assume，预绑定）
+
+绑定阶段：
+
+* Permit: 同意/拒绝/等待
+* Pre-Bind: 准备绑定，如在 node 上 provision 工作
+* Bind: 只能有一个插件进行实际的绑定
+* Post-Bind: 用来清理相关资源
+* Un-Reverse: 当 pod 被 Reserve，然后被拒绝后才会调用
 
 
 ### [Controller](https://git.k8s.io/community/contributors/devel/sig-api-machinery/controllers.md)
@@ -606,9 +648,9 @@ condition
 
 更新策略：`.spec.updateStrategy.type`
 
-* `rollingUpdate`（默认）: 滚动更新，按照删除的顺序更新，每次更新一个 pod。
+* `RollingUpdate`（默认）: 滚动更新，按照删除的顺序更新，每次更新一个 pod。
   * `partition`: 分区，只有序号大于等于其值的才会更新。
-* `onDelete`: 不更新，必须手动删除老 pod，让 controller 创建新 pod 来更新。
+* `OnDelete`: 不更新，必须手动删除老 pod，让 controller 创建新 pod 来更新。
 
 ### DaemonSet
 通过 `nodeAffinity` 和 `toleration` 保证每个 node 上运行一个 pod 实例。
@@ -789,6 +831,26 @@ type LeaderElectionRecord struct {
 
 不能保证只有一个 leader (fencing) , 如果出现2个(split brain)，由 controller 自己靠调谐 (reconciliation) 来解决冲突。
 可以容忍绝对时钟偏移值（因为计算都用的本地单调时钟），但会受到时钟偏移率的影响。
+
+## Sigs
+### Federation
+[![img](https://raw.githubusercontent.com/kubernetes-sigs/kubefed/master/docs/images/concepts.png)](https://github.com/kubernetes-sigs/kubefed)
+
+通过各集群的 API Server（集群配置`KubefedCluster`），在多个集群间同步资源。
+kubefed 控制组件安装在其中一个集群（host cluster），其他集群 join `kubefedctl join` 进来。
+需创建每个要同步资源的类型配置`kubefedctl enable`(在kubefed ns下创建`FederatedTypeConfig`)。
+
+资源同步: `kubefedctl federate <target kubernetes API type> <target resource> [flags]` (创建对应同步对象`Federated<Kind>`，namespace需先同步)
+集群同步的资源始终和同步对象保持一致（更新，删除都会被重置同步回来）。
+当同步对象被删除时，集群同步的资源也被删除。
+同步对象只在host cluster，所以只能从host cluster向其他集群同步。
+
+资源级别同步配置`Federated<Kind>`：
+
+* Templates: 资源内容表示
+* Placement: 需同步的集群
+* Overrides: 根据不同集群 Templates 里字段覆盖
+
 
 </xmp>
 <script src="../js/strapdown-zeta.js"></script>

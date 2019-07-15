@@ -55,20 +55,6 @@ cons:
 `free -m`
 `cat /proc/meminfo`
 
-```
-             total       used       free     shared     buffers      cached
-Mem:          1002        769        232          0          62         421
--/+ buffers/cache:        286        715
-Swap:         1153          0       1153
-```
-
-(-buffers/cache) used内存数：286M (指的第一部分Mem行中的used - buffers - cached) 反映的是被程序实实在在用掉的内存（不包括系统缓存）
-(+buffers/cache) free内存数: 715M (指的第一部分Mem行中的free + buffers + cached) 反映的是可以挪用的内存总数（包括系统缓存）
-swap: 交换分区
-
-Page Cache (cached) & Buffer Cache (buffers) 已合并不作区分：https://lwn.net/Articles/712467/
-查看文件的缓存情况：https://github.com/tobert/pcstat
-
 ### 清除
 `echo 1/2/3 > /proc/sys/vm/drop_caches`
 1: page cache

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Linux Performance Tuning</title>
+<xmp theme="united" style="display:none;" toc="true">
+![img](http://www.brendangregg.com/Perf/linux_perf_tools_full.png)
+
+## tools install
+apt install:
+
+* `stress` / `stress-ng`
+* `sysstat`
+* `dstat`
+* `sysbench`
+* `linux-tools-common`: perf
+* `apache2-utils`: ab
+* [perf-tools](https://github.com/brendangregg/perf-tools): execsnoop
+* `sar`
+* `tcpdump`
+* `hping3`
+* [htop](http://htop.sourceforge.net/)
+* [atop](http://www.atoptool.nl/)
+* [bcc](https://github.com/iovisor/bcc): cachestat, cachetop, memleak
+* [pcstat](https://github.com/tobert/pcstat)
+
+## uptime
+```
+$ uptime
+19:38:53 up 4 days,  2:58,  1 user,  load average: 0.00, 0.00, 0.00
+```
+load average:  1, 5, 15分钟
+
+[平均负载](http://www.brendangregg.com/blog/2017-08-08/linux-load-averages.html)
+> the number of threads that are working and waiting to work (CPU, disk, uninterruptible locks). Put differently, it measures the number of threads that aren't completely idle.
+
+
+## mpstat
+CPU 性能指标 `cat /proc/stat | grep ^cpu`
+```
+$ mpstat -P ALL
+Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
+
+07:39:40 PM  CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+07:39:40 PM  all    0.17    0.01    0.11    0.00    0.00    0.00    0.00    0.00    0.00   99.71
+07:39:40 PM    0    0.17    0.01    0.10    0.00    0.00    0.00    0.00    0.00    0.00   99.71
+07:39:40 PM    1    0.16    0.01    0.11    0.01    0.00    0.00    0.00    0.00    0.00   99.71
+```
+
+* usr: 用户态
+* nice: 低优先级用户态 (nice 1-19)
+* sys: 内核态
+* iowait: 等待IO
+* irq: 处理中断
+* soft: 处理软中断
+* steal: 被其他虚拟机占用
+* guest: 虚拟化（运行虚拟机）
+* gnice: 低优先级运行虚拟机
+* idle: 空闲
+
+## pidstat
+进程 CPU 利用
+```
+$ pidstat -u 3 1
+Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
+
+07:54:37 PM   UID       PID    %usr %system  %guest    %CPU   CPU  Command
+07:54:40 PM     0      1045    0.33    0.33    0.00    0.66     1  dockerd
+07:54:40 PM     0      1174    0.00    0.33    0.00    0.33     1  docker-containe
+07:54:40 PM     0     22563    0.33    0.00    0.00    0.33     1  kworker/u4:2
+07:54:40 PM     0     22593    0.00    0.33    0.00    0.33     0  pidstat
+```
+
+* %usr: 用户态
+* %system: 内核态
+* %guest: 虚拟化（运行虚拟机）
+* %wait: 等待 CPU
+* %CPU: 总计
+
+进程上下文切换
+```
+pidstat -w 3 1
+Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
+
+08:17:45 PM   UID       PID   cswch/s nvcswch/s  Command
+08:17:48 PM     0         7      1.67      0.00  rcu_sched
+08:17:48 PM     0      1045      6.67      0.00  dockerd
+08:17:48 PM     0      1061      1.00      0.00  iscsid
+08:17:48 PM     0      1062      3.67      0.00  iscsid
+08:17:48 PM   111      1158      1.00      0.00  ntpd
+08:17:48 PM     0     20572      1.67      0.00  kworker/1:2
+08:17:48 PM     0     21772      0.67      0.00  kworker/0:1
+08:17:48 PM     0     22643      7.00      0.00  kworker/u4:2
+08:17:48 PM     0     22685      0.33      0.00  pidstat
+```
+* cswch: 自愿切换
+* nvcswch: 非自愿切换
+
+```
+$ pidstat -d 3 1
+Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
+
+09:40:34 PM   UID       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+09:40:37 PM     0      7741      0.00     69.10     69.10       0  apt-get
+09:40:37 PM   105      7747      0.00    150.17      0.00       0  http
+09:40:37 PM   105      7748      0.00     95.68      0.00       0  http
+09:40:37 PM   105      7751      0.00     47.84     47.84       0  gpgv
+09:40:37 PM   105      8020      0.00   1585.38      0.00       0  store
+```
+
+* kB_rd/s: 每秒读
+* kB_wr/s: 每秒写
+* kB_ccwr/s: cancelled 被取消的写
+* iodelay: I/O 延迟
+
+## strace
+跟踪系统调用
+
+* `-f` 除了跟踪当前进程外，还跟踪其子进程。
+* `-o file` 将输出信息写到文件file中，而不是stderr。
+* `-p pid` 绑定到一个由pid对应的正在运行的进程。
+* `-r` 加上相对时间戳（消耗的时间）。
+* `-t` 加上绝对时间戳。
+
+## ltrace
+跟踪调用库函数
+
+* `-C` 解析C++名字粉碎的符号
+
+## pstack
+
+## pmap
+显示进程的内存映射。`cat /proc/{pid}/maps,smaps`
+
+## size
+显示一个对象文件各段(.text, .data, .bss)大小
+
+## nm
+显示文件里的符号
+
+## objdump
+显示文件里的对象信息
+
+## ulimit
+* `-s` 显示系统默认分配的.stack大小。
+* `-a` 显示所有系统限制。
+* `-c` 控制coredump大小，unlimited为无限制。
+  * `/proc/sys/kernel/core_uses_pid`: 设为“1”，以pid为扩展名
+  * `/proc/sys/kernel/core_pattern`: 设置目录及文件名格式: `/mycores/core-%e-%p-%t` 命令名-pid-时间戳
+
+## vmstat
+上下文切换、中断
+```
+$ vmstat 3
+procs -----------memory----------  ---swap--  -----io---- -system-- ------cpu-----
+ r  b   swpd   free   buff  cache    si   so    bi    bo   in   cs us sy  id wa st
+ 0  0      0 3188180  86228 661360    0    0     1     4   34   11  0  0 100  0  0
+```
+第一行是系统启动以来的平均值（procs, memory除外）。
+
+* procs
+  * r 运行或等待 CPU 进程数
+  * b 不可中断进程数
+* memory 单位KB
+  * swpd
+  * free
+  * buff
+  * cache
+* swap
+  * si
+  * so
+* io 块设备IO，单位块/秒（等于KB/s）
+  * bi 读
+  * bo 写
+* system
+  * in 每秒中断次数
+  * cs 每秒上下文切换次数
+* cpu
+  * us user
+  * sy system
+  * id idle
+  * wa iowait
+  * st stolen
+
+## top
+`cat /proc/{pid}/status`
+```
+$ top
+top - 20:14:01 up 10 days,  9:37,  1 user,  load average: 0.00, 0.00, 0.00
+Tasks: 107 total,   1 running, 106 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.2 us,  0.3 sy,  0.0 ni, 99.5 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  4046388 total,  3093660 free,   112336 used,   840392 buff/cache
+KiB Swap:   998396 total,   998396 free,        0 used.  3653864 avail Mem
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+    1 root      20   0   38052   6060   3968 S   0.0  0.1   0:06.38 systemd
+    2 root      20   0       0      0      0 S   0.0  0.0   0:00.11 kthreadd
+```
+
+* `1` 显示每个 CPU
+* 按 `f` 增减项, `F` 按某项排序，`H` 显示线程信息(此时PID显示的实际上是LWPID，或用ps aux -L)
+* `M` 按memory排序，`P` 按cpu排序，`N` 按PID排序
+
+
+* VIRT (Virtual Image): 进程使用的虚拟内存
+* RES (Resident size): 进程实际使用的物理内存
+* SHR (Shared Mem size): 进程使用的共享内存，即可以和其他进程共享的内存空间（动态库）。也包含CODE+DATA。
+  * CODE (Code size): 进程的程序代码占用物理内存大小，也叫 text resident set (TRS)。
+  * DATA (Data+Stack size): 进程的非程序代码部份占用物理内存大小，也叫 data resident set (DRS)。
+* %MEM: RES 占总内存的比例
+
+## ps
+```
+$ ps aux
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.0  0.1  38052  6060 ?        Ss   Jul04   0:06 /sbin/init
+root         2  0.0  0.0      0     0 ?        S    Jul04   0:00 [kthreadd]
+root         3  0.0  0.0      0     0 ?        S    Jul04   0:00 [ksoftirqd/0]
+```
+
+进程状态：
+
+* R(Running): 正在运行或等待运行
+* D(Disk Sleep): 正在和硬件交互，不可中断。（不可中断睡眠）
+* Z(Zombie): 僵尸进程
+* S(Interruptible Sleep): 可中断睡眠
+* I(Idle): 空闲
+* T(Stopped): SIGSTOP 导致暂停
+* t(Traced): 用调试器中断进程后
+* X(Dead): 已消亡
+
+s: 会话领导进程
++: 前台进程组
+
+## free
+`cat /proc/meminfo`
+```
+$ free -h
+              total        used        free      shared  buff/cache   available
+Mem:           3.9G        116M        2.9G         20M        867M        3.5G
+Swap:          974M
+```
+
+* total: 总内存
+* used: 已使用内存，包含共享内存
+* free: 未使用内存
+* shared: 共享内存
+* buff/cache: 缓存，内核两种不区分(https://lwn.net/Articles/712467), 对于文件 cache 指向 buff
+  * (block) buff: 块设备缓存
+  * (page) cache: 页（文件系统）缓存
+* available: 可用内存（未使用内存+可回收缓存）
+
+## perf
+```
+$ perf top -g
+Samples: 510  of event 'cpu-clock', Event count (approx.): 100515577
+  Children      Self  Shared Object            Symbol
++   23.99%     0.38%  [kernel]                 [k] seq_read
++   15.61%     0.76%  [kernel]                 [k] seq_printf
++   15.61%     0.38%  [kernel]                 [k] s_show
++   11.43%     2.67%  [kernel]                 [k] vsnprintf
++   10.66%    10.66%  perf                     [.] 0x000000000008d834
++    7.87%     7.87%  perf                     [.] 0x0000000000082287``
+```
+
+* Children: 符号调用其他符号占用比例之和
+* Self: 符号本身所占比例
+* Shared Object: 符号所在的共享对象
+* Symbol: 符号名，`[k]` 内核空间，`[.]` 用户空间
+
+
+```
+$ perf record -ag -- sleep 2
+$ perf report
+```
+
+## sar
+```
+$ sar -n DEV 1
+Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
+
+10:24:27 PM     IFACE   rxpck/s   txpck/s    rxkB/s    txkB/s   rxcmp/s   txcmp/s  rxmcst/s   %ifutil
+10:24:28 PM    enp0s3      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+10:24:28 PM        lo      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+```
+
+* rxpck/s: 每秒接收帧数
+* txpck/s: 每秒发送帧数
+* rxkB/s: 每秒接收字节数
+* txkB/s: 每秒发送字节数
+
+```
+$ sar -d 1
+Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
+
+10:48:49 PM       DEV       tps  rd_sec/s  wr_sec/s  avgrq-sz  avgqu-sz     await     svctm     %util
+10:48:50 PM   dev11-0      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+10:48:50 PM    dev8-0      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
+```
+
+## proc
+硬中断
+```
+$ cat /proc/interrupts
+           CPU0       CPU1
+  0:         45          0   IO-APIC   2-edge      timer
+  1:         10          0   IO-APIC   1-edge      i8042
+  8:          0          0   IO-APIC   8-edge      rtc0
+  9:          0          0   IO-APIC   9-fasteoi   acpi
+ 12:        156          0   IO-APIC  12-edge      i8042
+ 14:          0          0   IO-APIC  14-edge      ata_piix
+ 15:        141     350947   IO-APIC  15-edge      ata_piix
+ 18:          0          0   IO-APIC  18-fasteoi   vboxvideo
+ 19:       1366     241260   IO-APIC  19-fasteoi   enp0s3
+ 20:         66     165278   IO-APIC  20-fasteoi   vboxguest
+ 21:       8418      29360   IO-APIC  21-fasteoi   0000:00:0d.0, snd_intel8x0
+ 22:         30         20   IO-APIC  22-fasteoi   ohci_hcd:usb1
+NMI:          0          0   Non-maskable interrupts
+LOC:    7953257    9485574   Local timer interrupts
+SPU:          0          0   Spurious interrupts
+PMI:          0          0   Performance monitoring interrupts
+IWI:          1          2   IRQ work interrupts
+RTR:          0          0   APIC ICR read retries
+RES:    2991429    2971127   Rescheduling interrupts
+CAL:      12982       5170   Function call interrupts
+TLB:       4610       6489   TLB shootdowns
+TRM:          0          0   Thermal event interrupts
+THR:          0          0   Threshold APIC interrupts
+DFR:          0          0   Deferred Error APIC interrupts
+MCE:          0          0   Machine check exceptions
+MCP:       1200       1200   Machine check polls
+ERR:          0
+MIS:          0
+PIN:          0          0   Posted-interrupt notification event
+PIW:          0          0   Posted-interrupt wakeup event
+```
+
+软中断
+```
+$ cat /proc/softirqs
+                    CPU0       CPU1
+          HI:          4          2
+       TIMER:    7008308    4871695
+      NET_TX:      26152     155054
+      NET_RX:       1374     568992
+       BLOCK:      21807     476499
+BLOCK_IOPOLL:          0          0
+     TASKLET:         30        797
+       SCHED:    7023760    4900679
+     HRTIMER:          0          0
+         RCU:    1193798    4950543
+```
+
+## Reference
+http://www.brendangregg.com/linuxperf.html
+
+</xmp>
+<script src="../js/strapdown-zeta.js"></script>
+</html>

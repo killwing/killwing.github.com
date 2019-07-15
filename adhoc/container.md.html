@@ -20,8 +20,32 @@ UTS         |CLONE_NEWUTS      |主机名和NIS域名
 数字是inode号，如果两个进程某个类型的namespace的inode一样，说明同属一个namespace。
 当一个namespace中的所有进程都退出时，该namespace将会被删除。
 
-[Cgroup](https://lwn.net/Articles/618873/): 使每个容器有独立的 cgroup root 和 cgroup filesytem 视图，隐藏了 host 的 cgroup 信息，更安全；不同 host 间迁移cgroup变得容易。
-Mount: 只有新挂载才被隔离，原有挂载点（如tmpfs, proc）继承。
+### Cgroup
+使每个容器有独立的 cgroup root 和 cgroup filesytem 视图，隐藏了 host 的 cgroup 信息，更安全；不同 host 间迁移cgroup变得容易。
+
+[CGroup Namespaces](https://lwn.net/Articles/618873)
+
+### Mount
+只有新挂载才被隔离，原有挂载点（如tmpfs, proc）继承。
+
+mount propagation: 挂载传播，挂载点属性
+
+* shared (rshared 递归): 双向传播
+* slave (rslave 递归): 单向从 source 传播到 target
+* private: 不传播
+* unbindable: 不可绑定挂载
+
+更新 `mount --make-shared {mount-point}` 也可以在挂载时指定
+查看 `findmnt -o TARGET,PROPAGATION {mount-point}`
+
+当一个新 mount ns 创建时，复制所有存在的挂载点(vfsmount)。用 `unshare -m --propagation unchanged sh` 可以保持原挂载点属性不变，默认全变为 private 即全部相互隔离。
+
+一般挂载：创建 vfsmount, 其 `mnt_root` (dentry) 为创建的设备目录信息。
+绑定挂载：创建 vfsmount，其 `mnt_root` (dentry) 指向原目录。
+
+[Shared subtrees](https://lwn.net/Articles/159077/)
+[Mount namespaces and shared subtrees](https://lwn.net/Articles/689856/)
+[Mount namespaces, mount propagation, and unbindable mounts](https://lwn.net/Articles/690679/)
 
 ### syscall
 clone：在新namespace中创建一个新的进程
