@@ -25,7 +25,8 @@ vrrp_instance HA {
   priority 101
   advert_int 1
   authentication {
-    auth_type MD5
+    auth_type PASS
+    auth_pass 1234
   }
   virtual_ipaddress {
     10.18.21.111
@@ -134,7 +135,7 @@ LB 算法
 * 加权最小连接数（Weighted Least Connections）
 * 地址哈希（Address Hash）
 
-安装：内核默认支持 `lsmode|grep ip_vs`
+安装：内核默认支持 `lsmod|grep ip_vs`, `modprobe ip_vs`
 配置工具：ipvsadm
 ```
 # 添加VS，VIP 192.168.1.100，rr轮询算法

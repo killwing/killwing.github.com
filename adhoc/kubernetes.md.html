@@ -95,7 +95,7 @@ reset iptable:
 
 #### 更新配置
 组件：直接更新 `/etc/kubernetes/manifests` 配置
-kubelet: 使用[configMap](https://kubernetes.io/docs/tasks/administer-cluster/reconfigure-kubelet/), 必须一开始加上 `--dynamic-config-dir` 和开启 `DynamicKubeletConfig` feature gate （默认true）。
+[kubelet](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/): 使用[configMap](https://kubernetes.io/docs/tasks/administer-cluster/reconfigure-kubelet/), 必须一开始加上 `--dynamic-config-dir` 和开启 `DynamicKubeletConfig` feature gate （默认true）。
 
 #### 相关配置
 `/etc/kubernetes/*.conf` 各组件访问 APIServer 鉴权文件。
@@ -104,7 +104,21 @@ kubelet: 使用[configMap](https://kubernetes.io/docs/tasks/administer-cluster/r
 `/var/lib/kubelet/kubeadm-flags.env` kubeadm 为 kubelet 设置的 `KUBELET_EXTRA_ARGS`。
 `/var/lib/kubelet/config.yaml` kubelet 本地 configMap 配置文件。
 `/etc/default/kubelet` kubelet `KUBELET_EXTRA_ARGS=` 配置。
-`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` kubelet systemd 配置，启动命令行。
+`/etc/systemd/system/kubelet.service.d/10-kubeadm.conf` kubelet systemd 配置，启动命令行:
+
+```bash
+# Note: This dropin only works with kubeadm and kubelet v1.11+
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+# This is a file that "kubeadm init" and "kubeadm join" generates at runtime, populating the KUBELET_KUBEADM_ARGS variable dynamically
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+# This is a file that the user can use for overrides of the kubelet args as a last resort. Preferably, the user should use
+# the .NodeRegistration.KubeletExtraArgs object in the configuration files instead. KUBELET_EXTRA_ARGS should be sourced from this file.
+EnvironmentFile=-/etc/default/kubelet
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS $KUBELET_CONFIG_ARGS $KUBELET_KUBEADM_ARGS $KUBELET_EXTRA_ARGS
+```
 
 ### 其它插件
 [nvidia-device-plugin](https://github.com/NVIDIA/k8s-device-plugin)

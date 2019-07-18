@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <meta charset="utf-8" />
-<title>User Space Memory</title>
-<xmp theme="readable" style="display:none;">
+<title>Linux Basic</title>
+<xmp theme="united" style="display:none;">
 ## Memory Segment Layout
 
 ```
@@ -84,7 +84,61 @@
 内存区域（只读）映射到二进制可执行文件中。
 只有.text及.data和二进制可执行文件的大小有关。
 
+## Loop Device
+Loop Device设备指映射正常的文件而形成的虚拟块设备。
+
+生成初始化为0的1G文件：(自动稀疏？)
+`dd if=/dev/zero of=vdisk bs=1M count=1000`
+
+使用[稀疏文件](http://en.wikipedia.org/wiki/Sparse_file)：
+`dd if=/dev/zero of=vdisk bs=1M seek=1000 count=0`
+
+`du -h vdisk` 查看实际占用空间。
+
+格式化：
+`mkfs.ext4 vdisk`
+
+挂载：
+`mount vdisk vdir`
+mount会自动关联可用的loop device（umount自动取消关联），`losetup -a`查看。
+指定关联：`mount vdisk vdir -o loop=/dev/loop0`
+手动关联：`losetup /dev/loop0 vdisk`
+取消关联：`losetup -d /dev/loop0`
+默认最多使用8个loop device，改上限`/etc/modprobe.conf`里的`options loop max_loop=15`，使生效`modprobe -v loop`。
+
+## Mounting
+### 自动挂载
+[/etc/fstab](http://man7.org/linux/man-pages/man5/fstab.5.html)
+格式 `设备名 挂载目录 文件系统 挂载参数 备份标志 自检顺序`
+`//server001/share$ /root/remote cifs defaults,user=kelvin,password=123456 0 0`
+
+挂载参数: defaults, ro, rw, noexec, nodev, nosuid, nosgid, nouser
+备份标志: 0为不备份，1为要备份，一般根分区要备份
+自检顺序: 0为不自检，1或者2为要自检，如果是根分区要设为1，其他分区只能是2
+
+### 挂载传播
+只有新挂载才被隔离，原有挂载点（如tmpfs, proc）继承。
+
+mount propagation: 挂载传播，挂载点属性
+
+* shared (rshared 递归): 双向传播
+* slave (rslave 递归): 单向从 source 传播到 target
+* private: 不传播
+* unbindable: 不可绑定挂载
+
+更新 `mount --make-shared {mount-point}` 也可以在挂载时指定
+查看 `findmnt -o TARGET,PROPAGATION {mount-point}`
+
+当一个新 mount ns 创建时，复制所有存在的挂载点(vfsmount)。用 `unshare -m --propagation unchanged sh` 可以保持原挂载点属性不变，默认全变为 private 即全部相互隔离。
+
+一般挂载：创建 vfsmount, 其 `mnt_root` (dentry) 为创建的设备目录信息。
+绑定挂载：创建 vfsmount，其 `mnt_root` (dentry) 指向原目录。
+
+[Shared subtrees](https://lwn.net/Articles/159077/)
+[Mount namespaces and shared subtrees](https://lwn.net/Articles/689856/)
+[Mount namespaces, mount propagation, and unbindable mounts](https://lwn.net/Articles/690679/)
+
 </xmp>
-<script src="js/strapdown.js"></script>
+<script src="../js/strapdown.js"></script>
 </html>
 

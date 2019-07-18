@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Ceph</title>
+<xmp theme="united" style="display:none;">
+## Install
+安装 ceph-deploy
+```
+ceph_stable_release=nautilus # v14
+wget -q -O- 'http://mirrors.163.com/ceph/keys/release.asc' | apt-key add -
+echo deb https://mirrors.163.com/ceph/debian-${ceph_stable_release}/ $(lsb_release -sc) main | tee /etc/apt/sources.list.d/ceph.list
+apt-get update && apt-get install ceph-deploy
+```
+
+保证 node 之间 ssh 互通，创建 cluster
+```
+ceph-deploy new node1 node2 node3
+ceph-deploy install node1 node2 node3
+```
+install 之前，在生成的 ceph.conf [global] 中加入 `osd pool default size = 2` 修改默认副本数。
+
+```
+ceph-deploy mon create-initial # 创建初始 mon
+ceph-deploy admin node1 node2 node3 # 拷贝鉴权配置文件
+```
+
+增加 OSD
+```
+ceph-deploy disk zap node1 /dev/sdb # 准备磁盘，删除分区等
+ceph-deploy osd create node1 --data /dev/sdb
+```
+
+增加 manager
+```
+ceph-deploy mgr create node1:mgr1
+```
+
+创建 pool
+```
+ceph osd pool create <poolname> <int[0-]> {<int[0-]>} {replicated|erasure} {<erasure_code_profile>} {<rule>} {<int>}
+ceph osd pool set <poolname> size 3 # 改为3副本
+```
+[pg 计算](https://ceph.com/pgcalc/)
+
+## Usage
+### RBD
+创建 `rbd create <pool-name>/<image-name> --size 102400`
+映射 `rbd map <pool-name>/<image-name>` 创建rbd设备 `/dev/rbd0`
+
+## Reference
+http://docs.ceph.com
+https://xiaqunfeng.gitbooks.io/ceph-practice-handbook
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
