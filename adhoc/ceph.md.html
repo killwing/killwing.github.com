@@ -39,6 +39,7 @@ ceph-deploy mgr create node1:mgr1
 ```
 ceph osd pool create <poolname> <int[0-]> {<int[0-]>} {replicated|erasure} {<erasure_code_profile>} {<rule>} {<int>}
 ceph osd pool set <poolname> size 3 # 改为3副本
+ceph osd pool application enable <poolname> rbd # for rbd
 ```
 [pg 计算](https://ceph.com/pgcalc/)
 
@@ -46,6 +47,25 @@ ceph osd pool set <poolname> size 3 # 改为3副本
 ### RBD
 创建 `rbd create <pool-name>/<image-name> --size 102400`
 映射 `rbd map <pool-name>/<image-name>` 创建rbd设备 `/dev/rbd0`
+
+快照（只读）
+```
+rbd snap create <pool_name>/<image_name>@<snapshot_name> # 创建
+rbd snap rollback <pool_name>/<image_name>@<snapshot_name> # 回滚
+```
+
+克隆快照到新的 image（COW）
+```
+rbd snap protect <pool_name>/<image_name>@<snapshot_name> # 需先保护
+rbd clone <pool_name>/<image_name>@<snapshot_name> <dest_pool_name>/<dest_image_name>
+rbd snap unprotect <pool_name>/<image_name>@<snapshot_name>
+```
+
+克隆依赖原快照，查看快照的所有克隆
+```
+rbd children <pool_name>/<image_name>@<snapshot_name>
+rbd flatten <dest_pool_name>/<dest_image_name> # 解除依赖，打平不再COW
+```
 
 ## Reference
 http://docs.ceph.com

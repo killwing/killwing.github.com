@@ -138,6 +138,21 @@ mount propagation: 挂载传播，挂载点属性
 [Mount namespaces and shared subtrees](https://lwn.net/Articles/689856/)
 [Mount namespaces, mount propagation, and unbindable mounts](https://lwn.net/Articles/690679/)
 
+## 进程
+### 进程组
+进程组和作业控制有关，一个作业的所有进程属于同一个进程组。
+一个进程只能为它自己或子进程设置 PGID。一般一个进程和其子进程属于同一个进程组。
+每个进程组有个组长进程，其 PGID 等于 PID。只要有一个进程存在，进程组就存在，与组长是否存在无关。
+
+### 会话
+会话是一个或多个进程组的集合。
+会话首进程是创建该会话的进程，同时也是新进程组的组长进程。
+如果会话有一个控制终端，则有一个前台进程组（最多一个），其他为后台进程组。中断键产生的信号（或会话首进程退出的挂断信号）发送给前台进程组的所有进程。
+一般一个 shell 登录产生一个新的会话，shell 进程为会话首进程。
+
+## 信号
+pid 为1的进程，没有被加上默认信号处理。
+
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>

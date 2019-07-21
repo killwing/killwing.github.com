@@ -405,6 +405,11 @@ service Node {
 kubelet/resgistrar 通过 hostpath `/var/lib/kubelet/plugins/[SanitizedCSIDriverName]/csi.sock` 和 CSI Driver 通信。
 `/var/lib/kubelet/pods/` 必须以 `mountPropagation: "Bidirectional"` 挂载进 CSI Driver，这样 CSI Driver 里的挂载在 host 上及用户容器里才能看到。
 
+快照：
+创建指定 PVC 的快照 `VolumeSnapshot`，(由 `VolumeSnapshotClass` 的 csi 插件处理 `CreateSnapshot`），内容为 `VolumeSnapshotContents`，类比 PVC 和 PV 的关系。
+使用：创建一个 `spec.dataSource` 指定为对应快照的 PVC，csi 插件将快照内容复制到对应 PV 上 `CreateVolume`。
+`VolumeSnapshot` 的 `status.ReadyToUse` 为 true 时，说明快照已完成，源 PVC 可以删除。
+
 
 ## Runtime
 ### [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-node/container-runtime-interface.md)

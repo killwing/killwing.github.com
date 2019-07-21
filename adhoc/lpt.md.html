@@ -203,9 +203,10 @@ KiB Swap:   998396 total,   998396 free,        0 used.  3653864 avail Mem
 
 * VIRT (Virtual Image): 进程使用的虚拟内存
 * RES (Resident size): 进程实际使用的物理内存
-* SHR (Shared Mem size): 进程使用的共享内存，即可以和其他进程共享的内存空间（动态库）。也包含CODE+DATA。
-  * CODE (Code size): 进程的程序代码占用物理内存大小，也叫 text resident set (TRS)。
-  * DATA (Data+Stack size): 进程的非程序代码部份占用物理内存大小，也叫 data resident set (DRS)。
+* SHR (Shared Mem size): 进程使用的共享内存，即可以和其他进程共享的内存空间（动态库）
+* SWAP (Swapped Size): 交换内存
+* CODE (Code size): 进程的程序代码占用物理内存大小，也叫 text resident set (TRS)
+* DATA (Data+Stack size): 进程的非程序代码部份占用物理内存大小，也叫 data resident set (DRS)
 * %MEM: RES 占总内存的比例
 
 ## ps
@@ -217,7 +218,7 @@ root         2  0.0  0.0      0     0 ?        S    Jul04   0:00 [kthreadd]
 root         3  0.0  0.0      0     0 ?        S    Jul04   0:00 [ksoftirqd/0]
 ```
 
-进程状态：
+STAT 进程状态：
 
 * R(Running): 正在运行或等待运行
 * D(Disk Sleep): 正在和硬件交互，不可中断。（不可中断睡眠）
@@ -234,6 +235,8 @@ l: 多线程
 <: 高优先级
 N: 低优先级
 L: 有页锁在内存
+
+RSS (Resident Set Size): 常驻内存集，包括共享内存。
 
 ## free
 `cat /proc/meminfo`
@@ -300,6 +303,19 @@ Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
 10:48:50 PM   dev11-0      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
 10:48:50 PM    dev8-0      0.00      0.00      0.00      0.00      0.00      0.00      0.00      0.00
 ```
+
+```
+sar -r 1
+Linux 4.4.0-116-generic (ubuntu) 	07/21/2019 	_x86_64_	(2 CPU)
+
+09:34:48 PM kbmemfree kbmemused  %memused kbbuffers  kbcached  kbcommit   %commit  kbactive   kbinact   kbdirty
+09:34:49 PM   2983488   1062900     26.27    127756    711256    515420     10.22    706272    211684         0
+09:34:50 PM   2983488   1062900     26.27    127756    711256    515420     10.22    706328    211684         0
+```
+
+* commit: 当前系统负载需要的内存
+* active: 活跃内存
+* inact: 不活跃内存，可能会被回收
 
 ## proc
 硬中断
