@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html>
 <meta charset="utf-8" />
-<title>Disk IO</title>
+<title>IO</title>
 <xmp theme="united" style="display:none;">
+## Stack
+![img](https://www.thomas-krenn.com/de/wikiDE/images/e/e0/Linux-storage-stack-diagram_v4.10.png)
+
 ## Block Device
 扇区sector(Disc): 块设备传输数据的最小单元。512 byte.
 块block(FS): 连续相邻的sector，文件系统最小可寻址单元。512-4096 byte.
@@ -17,8 +20,9 @@ SSD: 写放大问题
 所以SSD顺序写比随机写效率高，新写比更新效率高。
 https://serverfault.com/questions/843628/why-does-sequential-writes-have-better-performance-than-random-writes-in-ssds
 
-## Read & Write
+## DMA
 DMA(Direct Memory Access): DMA 控制器通过系统总线来传输数据，不占用CPU，CPU只下达指令。
+
 同步读，异步写：
 `read()`: HDD --DMA copy--> kernel fs buffer (page cache) --CPU copy--> user buffer
 `write()`: user buffer --CPU copy--> kernel fs buffer (`fsync()`: --DMA copy--> HDD)
@@ -33,6 +37,7 @@ HDD --DMA copy--> kernel fs buffer --sync pos&offset--> kernel socket buffer
 ```
 
 
+## mmap
 `mmap`: kernel fs buffer <--address mapping--> user buffer
 只建立用户地址空间和page cache的映射，不需要copy文件到用户缓存。
 

@@ -95,6 +95,7 @@ Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
 * cswch: 自愿切换
 * nvcswch: 非自愿切换
 
+I/O
 ```
 $ pidstat -d 3 1
 Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
@@ -110,7 +111,7 @@ Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
 * kB_rd/s: 每秒读
 * kB_wr/s: 每秒写
 * kB_ccwr/s: cancelled 被取消的写
-* iodelay: I/O 延迟
+* iodelay: I/O 延迟，单位时钟周期
 
 ## strace
 跟踪系统调用
@@ -180,6 +181,29 @@ procs -----------memory----------  ---swap--  -----io---- -system-- ------cpu---
   * id idle
   * wa iowait
   * st stolen
+
+## iostat
+```
+$ iostat -d -x 1
+Linux 4.4.0-116-generic (ubuntu) 	07/22/2019 	_x86_64_	(2 CPU)
+
+Device:         rrqm/s   wrqm/s     r/s     w/s    rkB/s    wkB/s avgrq-sz avgqu-sz   await r_await w_await  svctm  %util
+scd0              0.00     0.00    0.00    0.00     0.00     0.00     8.00     0.00    0.50    0.50    0.00   0.50   0.00
+sda               0.00     0.06    0.03    0.05     0.60     7.26   195.02     0.00    5.40    0.90    7.93   0.47   0.00
+```
+
+* rrqm/s: 每秒合并的读请求数
+* wrqm/s: 每秒合并的写请求数
+* r/s: 每秒读请求数（合并后）
+* w/s: 每秒写请求数（合并后）
+* rkB/s: 每秒读取数据量
+* wkB/s: 每秒写入数据量
+* r_await: 读请求处理完成等待时间（包括队列中的等待时间, ms）
+* w_await: 写请求处理完成等待时间（包括队列中的等待时间, ms）
+* avgqu-sz: 平均请求队列长度(kB)
+* avgrq-sz: 平均读请求大小(kB)
+* svctm: 处理 IO 请求所需的平均时间（不包括等待时间，ms）
+* %util: 使用率，处理 IO 的时间百分比，100% 不代表饱和
 
 ## top
 `cat /proc/{pid}/status`
@@ -316,6 +340,50 @@ Linux 4.4.0-116-generic (ubuntu) 	07/21/2019 	_x86_64_	(2 CPU)
 * commit: 当前系统负载需要的内存
 * active: 活跃内存
 * inact: 不活跃内存，可能会被回收
+
+## df
+```
+$ df -ih
+Filesystem           Inodes IUsed IFree IUse% Mounted on
+udev                   489K   431  489K    1% /dev
+tmpfs                  494K   594  494K    1% /run
+/dev/sda1              6.2M  389K  5.9M    7% /
+```
+
+## slabtop
+`cat /proc/slabinfo`
+```
+$ slabtop
+ Active / Total Objects (% used)    : 361549 / 364804 (99.1%)
+ Active / Total Slabs (% used)      : 14066 / 14066 (100.0%)
+ Active / Total Caches (% used)     : 75 / 121 (62.0%)
+ Active / Total Size (% used)       : 108008.02K / 109114.62K (99.0%)
+ Minimum / Average / Maximum Object : 0.01K / 0.30K / 8.00K
+
+  OBJS ACTIVE  USE OBJ SIZE  SLABS OBJ/SLAB CACHE SIZE NAME
+ 83769  83710  99%    0.19K   3989       21     15956K dentry
+ 83070  83070 100%    0.10K   2130       39      8520K buffer_head
+ 48810  48685  99%    1.05K   3254       15     52064K ext4_inode_cache
+ 27778  27728  99%    0.12K    817       34      3268K kernfs_node_cache
+ 22950  21871  95%    0.04K    225      102       900K ext4_extent_status
+ 16618  16618 100%    0.55K   1187       14      9496K inode_cache
+```
+
+## iotop
+```
+$ iotop
+Total DISK READ :       0.00 B/s | Total DISK WRITE :       0.00 B/s
+Actual DISK READ:       0.00 B/s | Actual DISK WRITE:       0.00 B/s
+  TID  PRIO  USER     DISK READ  DISK WRITE  SWAPIN     IO>    COMMAND
+17473 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.03 % [kworker/u4:0]
+    1 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % init
+    2 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [kthreadd]
+    3 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [ksoftirqd/0]
+    5 be/0 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [kworker/0:0H]
+    7 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [rcu_sched]
+    8 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [rcu_bh]
+    9 rt/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [migration/0]
+```
 
 ## proc
 硬中断
