@@ -125,6 +125,14 @@ https://github.com/axboe/fio
 http://fio.readthedocs.io/en/latest/fio_doc.html
 https://www.binarylane.com.au/support/solutions/articles/1000055889-how-to-benchmark-disk-i-o
 
+
+IO 重放：
+```
+$ blktrace /dev/sdb # sdb.blktrace.0  sdb.blktrace.1
+$ blkparse sdb -d sdb.bin
+$ fio --name=replay --filename=/dev/sdb --direct=1 --read_iolog=sdb.bin
+```
+
 ## I/O Error Simulation
 创建虚拟磁盘(1048576个扇区，可用`blockdev --getsz /dev/loop0`查看)，不用挂载：
 ```

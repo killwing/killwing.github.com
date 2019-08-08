@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Prometheus</title>
+<xmp theme="united" style="display:none;">
+https://prometheus.io/docs/
+
+## Monitoring
+### [The Four Golden Signals](https://landing.google.com/sre/sre-book/chapters/monitoring-distributed-systems/)
+Latency
+Errors
+Traffic
+Saturation
+
+### [USE](http://www.brendangregg.com/usemethod.html)
+resource-scoped
+
+Utilization: the average time that the resource was busy servicing work (busy time %)
+Saturation: the degree to which the resource has extra work which it can't service, often queued (backlog)
+Errors: the count of error events
+
+### [RED](https://thenewstack.io/monitoring-microservices-red-method/)
+request-scoped
+
+Rate: request per second
+Errors: errors per second
+Duration: Latency
+
+## Metric
+表示：`<metric name>{<label name>=<label value>, ...}`
+采样：值 float64, 时间戳：millisecond
+类型：
+
+* counter: 只能递增或重置
+* gauge: 可以递增或递减
+* histogram: 一段时间内采样，指定 bucket 区间直方图统计，三个 metric：bucket 累积事件 `<basename>_bucket{le="<upper inclusive bound>"}`, 值总和 `<basename>_sum`, 事件总和 `<basename>_count` (`<basename>_bucket{le="+Inf"}`)
+* summary: 一段时间内采样，指定分位数统计(0.5-quantile 中位数)，`<basename>{quantile="<φ>"}` (0 ≤ φ ≤ 1), `<basename>_sum`, `<basename>_count`
+
+## PromQL
+结果类型：
+
+* instant 同一时间点的一组时序
+  * `http_requests_total{job="prometheus",group="canary"}`, 标签选择 `=` 等于, `!=` 不等于, `=~` regex 匹配, `!~` regex 不匹配
+* range 一段时间范围的时序
+  * `http_requests_total{job="prometheus"}[5m]`, 单位 s/m/h/d/w/y
+* scalar 单一数值
+  * `count(http_requests_total{job="prometheus"})`
+
+操作符:
+
+* 算术 `+ - * / % ^`
+* 比较 `== != > < >= <=`
+* 逻辑 `and or unless`
+* 聚合 `sum min max avg stddev stdvar count count_values bottomk topk quantile`， 按组 `without|by (<label list>)`
+
+函数：
+
+* `rate(v range-vector)` 每秒平均速率，只支持 counter 类型，`rate(http_requests_total{job="api-server"}[5m])`
+* `irate(v range-vector)` 每秒瞬时速率，基于最后两个数据点
+* `histogram_quantile(φ float, b instant-vector)` 计算 histogram 中 bucket 的 φ-quantile (0 ≤ φ ≤ 1)
+
+## Example
+`http_request_duration_seconds` 为 histogram
+
+* 总平均请求时长 `sum(http_request_duration_seconds_sum) / sum(http_request_duration_seconds_count)`
+* 95% 请求时长 `histogram_quantile(0.95, sum(rate(greeting_seconds_bucket[5m])) by (le))`
+* 平均请求速率 `sum(rate(http_request_duration_seconds_count{}[2m]))`
+* 平均请求错误率 `sum(rate(http_request_duration_seconds_count{code!="200"}[2m]))`
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

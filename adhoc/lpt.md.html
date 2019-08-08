@@ -20,7 +20,7 @@ apt install:
 * `hping3`
 * [htop](http://htop.sourceforge.net/)
 * [atop](http://www.atoptool.nl/)
-* [bcc](https://github.com/iovisor/bcc): cachestat, cachetop, memleak
+* [bcc](https://github.com/iovisor/bcc): cachestat, cachetop, memleak, filetop, opensnoop
 * [pcstat](https://github.com/tobert/pcstat)
 
 ## uptime
@@ -121,6 +121,8 @@ Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
 * `-p pid` 绑定到一个由pid对应的正在运行的进程。
 * `-r` 加上相对时间戳（消耗的时间）。
 * `-t` 加上绝对时间戳。
+* `-T` 显示系统调用时长。
+* `-e` 指定系统调用名字。
 
 ## ltrace
 跟踪调用库函数
@@ -140,6 +142,28 @@ Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
 
 ## objdump
 显示文件里的对象信息
+
+## lsof
+显示打开的文件
+```
+$ lsof -p 2676
+COMMAND  PID USER   FD      TYPE DEVICE SIZE/OFF    NODE NAME
+tail    2676 root  cwd       DIR   0,45     4096 2492619 /
+tail    2676 root  rtd       DIR   0,45     4096 2492619 /
+tail    2676 root  txt       REG    8,1    64432 1968741 /usr/bin/tail
+tail    2676 root  mem       REG    8,1          1968301 /lib/x86_64-linux-gnu/libc-2.23.so (path inode=2228725)
+tail    2676 root  mem       REG    8,1          1968281 /lib/x86_64-linux-gnu/ld-2.23.so (path inode=2228701)
+tail    2676 root    0u      CHR  136,0      0t0       3 /dev/pts/0
+tail    2676 root    1u      CHR  136,0      0t0       3 /dev/pts/0
+tail    2676 root    2u      CHR  136,0      0t0       3 /dev/pts/0
+tail    2676 root    3r      CHR    1,3      0t0       6 /dev/null
+tail    2676 root    4r  a_inode   0,11        0    6987 inotify
+```
+
+FD
+u: 读写
+r: 只读
+w: 写
 
 ## ulimit
 * `-s` 显示系统默认分配的.stack大小。
@@ -260,7 +284,7 @@ l: 多线程
 N: 低优先级
 L: 有页锁在内存
 
-RSS (Resident Set Size): 常驻内存集，包括共享内存。
+RSS (Resident Set Size): 常驻内存集，包括共享内存, in KiB。
 
 ## free
 `cat /proc/meminfo`
@@ -343,11 +367,19 @@ Linux 4.4.0-116-generic (ubuntu) 	07/21/2019 	_x86_64_	(2 CPU)
 
 ## df
 ```
-$ df -ih
-Filesystem           Inodes IUsed IFree IUse% Mounted on
-udev                   489K   431  489K    1% /dev
-tmpfs                  494K   594  494K    1% /run
-/dev/sda1              6.2M  389K  5.9M    7% /
+$ df -ihT
+Filesystem           Type     Inodes IUsed IFree IUse% Mounted on
+udev                 devtmpfs   489K   431  489K    1% /dev
+tmpfs                tmpfs      494K   595  494K    1% /run
+/dev/sda1            ext4       6.2M  389K  5.9M    7% /
+```
+
+## du
+```
+$ du -hc --max-depth=1
+104M	./test
+11M	./.kube
+1.9G	./.local
 ```
 
 ## slabtop

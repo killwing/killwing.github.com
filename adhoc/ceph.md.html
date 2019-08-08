@@ -46,6 +46,16 @@ ceph osd pool application enable <poolname> rbd # for rbd
 ```
 [pg 计算](https://ceph.com/pgcalc/)
 
+创建 mds (for cephfs)
+```
+ceph-deploy mds create node1 node2 node3
+ceph osd pool create cephfs-data <pg_num>
+ceph osd pool create cephfs-metadata <pg_num>
+ceph fs new <fs-name> cephfs-metadata cephfs-data
+ceph fs set <fs_name> max_mds 2 # 设为2个 active mds
+ceph fs status
+```
+
 ## LVM
 * PE: 物理区，PV 中分配的最小单元（默认4M）
 * PV: 物理卷，对应物理硬盘或分区
@@ -167,10 +177,46 @@ pool 中使用：
 `ceph osd pool get <poolname> crush_rule`
 `ceph osd pool set <poolname> crush_rule <rule>`
 
+## Data Distribution
+[![img](https://www.usenix.org/legacy/event/osdi06/tech/full_papers/weil/weil_html/fig/dist.png)](https://www.usenix.org/legacy/event/osdi06/tech/full_papers/weil/weil_html/index.html)
+
+file -> object:
+ino: file id
+ono: object index in file （默认 4M 切分）
+oid: object id (ino,ono)
+
+object -> pg:
+mask: pg 总数 - 1
+pgid: hash(oid) & mask
+
+pg -> osd:
+osd ids: crush(pgid)
+
+ex:
+```
+rados -p pool1 put object1 ./testfile
+rados df
+rados -p pool1 ls | grep object1
+ceph osd map pool1 object1
+# osdmap e310 pool 'pool1' (6) object 'object1' -> pg 6.f85a416a (6.6a) -> up ([1,4], p1) acting ([1,4], p1)
+# e310: epoch number, 类似版本号
+# pool 'pool1' (6): 所在 pool
+# object 'object1': 对象名
+# pg 6.f85a416a (6.6a): pg 信息
+# up ([1,4], p1) acting ([1,4], p1): pg 在 osd [1,4] 上，1 是 primary osd
+
+ceph pg dump | grep 6.6a
+# PG_STAT OBJECTS MISSING_ON_PRIMARY DEGRADED MISPLACED UNFOUND BYTES    LOG DISK_LOG STATE        STATE_STAMP                VERSION REPORTED UP      UP_PRIMARY ACTING  ACTING_PRIMARY LAST_SCRUB SCRUB_STAMP                LAST_DEEP_SCRUB DEEP_SCRUB_STAMP           SNAPTRIMQ_LEN
+# 6.6a          3                  0        0         0       0 16908288  49       49 active+clean 2019-07-26 16:39:08.570053  310'49  310:120   [1,4]          1   [1,4]              1        0'0 2019-07-26 11:17:34.543304             0'0 2019-07-26 11:17:34.543304             0
+ceph pg 6.6a query
+ceph osd find 1
+```
+
 ## Usage
 ### RBD
 创建 `rbd create <pool-name>/<image-name> --size 102400`
 映射 `rbd map <pool-name>/<image-name>` 创建rbd设备 `/dev/rbd0`
+查看 `rbd ls <pool-name>`, `rbd info <pool-name>/<image-name>`
 
 快照（只读）
 ```
@@ -189,6 +235,11 @@ rbd snap unprotect <pool_name>/<image_name>@<snapshot_name>
 ```
 rbd children <pool_name>/<image_name>@<snapshot_name>
 rbd flatten <dest_pool_name>/<dest_image_name> # 解除依赖，打平不再COW
+```
+
+### CephFS
+```
+mount -t ceph <mon_ip>:6789:/ /mnt/data -o name=admin,secret=AQCdTTBdLcUKAhAA0O0ckqyolPnB7r6hjHcBRg==
 ```
 
 ## Reference
