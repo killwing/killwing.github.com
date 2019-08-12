@@ -22,6 +22,14 @@ apt install:
 * [atop](http://www.atoptool.nl/)
 * [bcc](https://github.com/iovisor/bcc): cachestat, cachetop, memleak, filetop, opensnoop
 * [pcstat](https://github.com/tobert/pcstat)
+* `net-tools`: ifconfig, route, arp, netstat
+* [iproute2](https://en.wikipedia.org/wiki/Iproute2): ip, ss
+* `iptables`
+* `ethtool`
+* `iputils-ping`
+* `dnsutils`: dig, host, nslookup, whois
+* `pciutils`
+* `lsof`
 
 ## uptime
 ```
@@ -342,6 +350,9 @@ Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
 * txpck/s: 每秒发送帧数
 * rxkB/s: 每秒接收字节数
 * txkB/s: 每秒发送字节数
+* rxcmp/s: 接收压缩帧数
+* txcmp/s: 发送压缩帧数
+* %ifutil: 接口使用率 max(rxkB, txkB)/Bandwidth
 
 ```
 $ sar -d 1
@@ -415,6 +426,230 @@ Actual DISK READ:       0.00 B/s | Actual DISK WRITE:       0.00 B/s
     7 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [rcu_sched]
     8 be/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [rcu_bh]
     9 rt/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [migration/0]
+```
+
+## ip
+```
+$ ip -s addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+    RX: bytes  packets  errors  dropped overrun mcast
+    0          0        0       0       0       0
+    TX: bytes  packets  errors  dropped carrier collsns
+    0          0        0       0       0       0
+2: enp0s3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 08:00:27:b2:d8:0b brd ff:ff:ff:ff:ff:ff
+    inet 10.0.2.15/24 brd 10.0.2.255 scope global enp0s3
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a00:27ff:feb2:d80b/64 scope link
+       valid_lft forever preferred_lft forever
+    RX: bytes  packets  errors  dropped overrun mcast
+    1170418    2925     0       0       0       0
+    TX: bytes  packets  errors  dropped carrier collsns
+    245510     2186     0       0       0       0
+```
+
+RX: 收
+TX: 发
+
+* errors: 错误的包
+* dropped: 丢弃的包
+* overrun: ring buffer 满丢包
+* mcast: 多播包
+* carrier: 物理载体错误
+* collsns: 碰撞的包
+
+## netstat/ss
+```
+$ ss -ltnp
+State      Recv-Q Send-Q                                                                         Local Address:Port                                                                                        Peer Address:Port
+LISTEN     0      128                                                                                        *:22                                                                                                     *:*                   users:(("sshd",pid=1046,fd=3))
+LISTEN     0      128                                                                                       :::22                                                                                                    :::*                   users:(("sshd",pid=1046,fd=4))
+```
+
+State: socket 状态
+
+* ESTABLISHED
+  * Recv-Q: 接收队列长度（字节数）
+  * Send-Q: 发送队列长度（字节数）
+* LISTEN
+  * Recv-Q: ack backlog（全连接队列） 当前值
+  * Send-Q: 最大 ack backlog 值
+
+```
+$ ss -s
+Total: 131 (kernel 180)
+TCP:   3 (estab 1, closed 0, orphaned 0, synrecv 0, timewait 0/0), ports 0
+
+Transport Total     IP        IPv6
+*         180       -         -
+RAW       0         0         0
+UDP       7         4         3
+TCP       3         2         1
+INET      10        6         4
+FRAG      0         0         0
+```
+
+## [ip](https://helpmanual.io/man8/ip/)
+[subcommands](https://events.static.linuxfound.org/sites/events/files/slides/2016%20-%20Linux%20Networking%20explained_0.pdf):
+
+* addr(ess): ip 地址
+* route: 路由
+* link: 网络设备
+* netns: 网络空间
+* tuntap: 用户空间网关，L2(TAP), L3(TUN)
+* neigh: ARP
+
+### ip-route
+指定路由查找 `ip route get 192.168.10.10`
+
+### ip-link
+type:
+
+* bridge: Virtual Switch
+* bond: Link Aggregation
+* veth: Virtual Ethernet Cable Peer
+* vxlan
+* vlan: 二层vlan
+* macvlan
+* ipvlan
+* ipip
+
+查看类型：[ip link show type](https://unix.stackexchange.com/questions/272850/how-to-determine-the-logical-type-of-a-linux-network-device)
+
+### ip-netns
+`ip netns` 默认看不到docker netns，需要[symlink](https://stackoverflow.com/questions/31265993/docker-networking-namespace-not-visible-in-ip-netns-list)。
+查看veth peer：`ethtool -S`，需到对应ns才能看到 `nsenter -t <contanier_pid> -n ip link`。
+
+## [iptables](https://wiki.archlinux.org/index.php/iptables)
+[iptables-tutorial](https://www.frozentux.net/iptables-tutorial/chunkyhtml/index.html)
+
+命令：`iptables [-t table] command chain [rule-num] rule-spec -j target`
+
+chains: 规则链
+
+* PREROUTING (路由前)
+* INPUT (数据包入口)
+* FORWARD (转发管道)
+* OUTPUT(数据包出口)
+* POSTROUTING（路由后）
+
+```bash
+                               XXXXXXXXXXXXXXXXXX
+                             XXX     Network    XXX
+                               XXXXXXXXXXXXXXXXXX
+                                       +
+                                       |
+                                       v
+ +-------------+              +------------------+
+ |table: filter| <---+        | table: nat       |
+ |chain: INPUT |     |        | chain: PREROUTING|
+ +-----+-------+     |        +--------+---------+
+       |             |                 |
+       v             |                 v
+ [local process]     |           ****************          +--------------+
+       |             +---------+ Routing decision +------> |table: filter |
+       v                         ****************          |chain: FORWARD|
+****************                                           +------+-------+
+Routing decision                                                  |
+****************                                                  |
+       |                                                          |
+       v                        ****************                  |
++-------------+       +------>  Routing decision  <---------------+
+|table: nat   |       |         ****************
+|chain: OUTPUT|       |               +
++-----+-------+       |               |
+      |               |               v
+      v               |      +-------------------+
++--------------+      |      | table: nat        |
+|table: filter | +----+      | chain: POSTROUTING|
+|chain: OUTPUT |             +--------+----------+
++--------------+                      |
+                                      v
+                               XXXXXXXXXXXXXXXXXX
+                             XXX    Network     XXX
+                               XXXXXXXXXXXXXXXXXX
+```
+
+[Packet flow](https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg)
+
+tables:
+
+* filter: 规定允许还是不允许（默认），应用于INPUT/FORWARD/OUTPUT
+* nat: 定义地址转换，应用于PREROUTING/OUTPUT/POSTROUTING
+* mangle: 修改报文数据，五个链都可以
+
+commands:
+
+* A: append, 增加规则
+* C: check, 检查规则存不存在
+* D: delete, 删除规则
+* R: replace, 替换规则
+* I: insert, 插入规则
+* L: list, 列出规则或链
+* S: 打印规则或链的命令列表
+* F: flush, 清空规则或链
+* P: policy, 设置链的默认策略（不符合条件时）
+* Z: 重置链中默认规则的命中计数器
+* N: new, 新建自定义链
+* X: 删除自定义链
+* E: 重命名自定义链
+
+targets:
+
+* DROP: 丢弃（终止）
+* REJECT: 拒绝（终止）
+* ACCEPT: 接受（next chain）
+* DNAT （next chain）
+* SNAT （next chain）
+* MASQUERADE：源地址伪装 （next chain）
+* REDIRECT：端口重定向 （next rule）
+* MARK: 打标记 （next rule）
+* RETURN: 返回原规则链 （next rule）
+* TRACE
+* chain-name: 转向自定义链 （next chain）
+
+rule-specs:
+在一个chain中自上而下匹配，匹配到执行targets并返回。
+
+* s: source, 源地址，IP[/MASK] 可以加上`!`取反
+* d: dest, 目标地址
+* p: protocol, 协议，TCP/UDP/ICMP
+    * sport: 源端口
+    * dport: 目标端口
+    * tcp-flag: tcp标识位
+    * icmp-type: icmp消息类型
+* i: 流入的网络接口，用于INPUT/PREROUTING
+* o: 流出的网络接口，用于OUTPUT/POSTROUTING
+* m: match扩展，[用于FORWARD](https://www.digitalocean.com/community/tutorials/how-to-forward-ports-through-a-linux-gateway-with-iptables)
+    * state: --state NEW/ESTABLISHED/RELATED/INVALID
+    * conntrack: --ctstate NEW/ESTABLISHED/RELATED/INVALID
+
+SNAT(源地址的转换)/MASQUERADE(伪装)：POSTROUTING
+把内网某个网段的地址在经过时转为外网地址（源端口不变，若有数据发回时从外网地址映射回内网地址UN-SNAT）：
+`iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j SNAT --to-source 142.10.0.1`
+如果外网地址不固定，使用MASQUERADE可以自动从网卡获取外网地址：
+`iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE`
+场景：局域网共享一个公网IP上网
+
+DNAT(目标地址转换)：PREROUTING/OUTPUT
+访问外网IP时转向内网主机（有数据返回时，从内网地址映射回外网地址UN-DNAT）：
+`iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
+场景：端口映射，以让外部访问内网
+
+同一个流上的包只会被iptables NAT判断一次，以后的包自动NAT。
+
+TRACE
+在`/var/log/syslog`中查看日志。格式：`TRACE: tablename:chainname:type:rulenum`
+`iptables -t raw -A PREROUTING -p icmp -j TRACE`
+需要设置：
+```
+modprobe nf_log_ipv4
+sysctl net.netfilter.nf_log.2=nf_log_ipv4
 ```
 
 ## proc

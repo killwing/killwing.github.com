@@ -39,168 +39,80 @@ IP地址 & 网络掩码 ＝ 网络ID
 A类0表示所有地址，127表示回环地址，都是保留地址，不进行任何网络传输。
 D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有地址（224.0.0.0-224.0.0.255）用于协议组广播，组播地址（224.0.1.0-238.255.255.255）以及私有地址（239.0.0.0-239.255.255.255）。
 
-## Commands
-[iproute2](https://en.wikipedia.org/wiki/Iproute2)(ifconfig, route, arp, netstat), tcpdump, iptables, ping, ethtool
-dns(dig, host, nslookup, whois)
+## TCP
+### 三次握手和四次挥手
+第三次握手：是为了防止失效的连接请求到达服务器，让服务器错误打开连接。
+四次挥手：TCP连接是全双工的，即一端接收到FIN报时，对端虽然不再能发送数据，但是可以接收数据，所以需要两边都关闭连接才算完全关闭了这条TCP连接。
 
-### [ip](https://helpmanual.io/man8/ip/)
-[subcommands](https://events.static.linuxfound.org/sites/events/files/slides/2016%20-%20Linux%20Networking%20explained_0.pdf):
+### listen
+内核为任何一个给定的监听套接字维护两个队列：
 
-* addr(ess): ip 地址
-* route: 路由
-* link: 网络设备
-* netns: 网络空间
-* tuntap: 用户空间网关，L2(TAP), L3(TUN)
-* neigh: ARP
+未完成连接队列 (SYNs queue)：收到SYN分节，并发送SYNACK，还未收到 ACK，处于SYN_RCVD状态。由 `/proc/sys/net/ipv4/tcp_max_syn_backlog` 决定。
+已完成连接队列（accept queue）：已收到 ACK 完成三次握手，处于ESTABLISHED状态，但还没 accept，收到的数据会被缓存，长度由backlog参数指定（取和 `/proc/sys/net/core/somaxconn` 的最小值）。
+在三次握手正常完成的前提下，未完成连接队列中任何一项在其中的存留时间就是一个RTT。
 
-### ip-route
-指定路由查找 `ip route get 192.168.10.10`
+当有客户端新SYN到达时，如果这些队列是满的，TCP就忽略丢弃该分节，而不发送RST。
 
-### ip-link
-type:
+相关内核参数
+syns queue 由 `net.ipv4.tcp_max_syn_backlog` 决定。
+accept queue 由 backlog 参数和 `net.core.somaxconn` 的最小值决定。
 
-* bridge: Virtual Switch
-* bond: Link Aggregation
-* veth: Virtual Ethernet Cable Peer
-* vxlan
-* vlan: 二层vlan
-* macvlan
-* ipvlan
-* ipip
+### TIME_WAIT 状态
+MSL: 任何 IP 数据报能够在因特网中存活的最长时间。
+TIME_WAIT 状态的持续时间是 MSL 的2倍，然后变为 CLOSED。
+执行主动关闭的那一端是处于 TIME_WAIT 状态的那一端，在收到对端发出的 FIN 报之后。
 
-查看类型：[ip link show type](https://unix.stackexchange.com/questions/272850/how-to-determine-the-logical-type-of-a-linux-network-device)
+TIME_WAIT 状态存在的两个理由:
 
-### ip-netns
-`ip netns` 默认看不到docker netns，需要[symlink](https://stackoverflow.com/questions/31265993/docker-networking-namespace-not-visible-in-ip-netns-list)。
-查看veth peer：`ethtool -S`，需到对应ns才能看到 `nsenter -t <contanier_pid> -n ip link`。
+* 可靠地实现 TCP 全双工连接的终止。需要正确处理连接终止序列4个分节中任何一个丢失的情况。
+* 允许老的重复分节在网络中消逝。2MSL的时间防止了来自某个连接的老的重复分组在该连接已经终止后再现。
 
-### [iptables](https://wiki.archlinux.org/index.php/iptables)
-[iptables-tutorial](https://www.frozentux.net/iptables-tutorial/chunkyhtml/index.html)
+相关内核参数
+`net.ipv4.tcp_tw_reuse=1` 表示可以将 TIME-WAIT sockets 重新用于新的TCP连接。
+`net.ipv4.tcp_tw_recycle=1` 表示开启 TIME-WAIT sockets 的快速回收。
+`net.ipv4.tcp_max_tw_buckets=10000` 表示系统同时保持 TIME_WAIT sockets 的最大数量。
 
-命令：`iptables [-t table] command chain [rule-num] rule-spec -j target`
+### SO_REUSEADDR / SO_REUSEPORT
+SO_REUSEADDR: 允许启动一个监听服务器并绑定其端口，即使以前建立的相同本地端口的连接仍然存在（但先前监听的socket已关闭）。通常用在服务端，当其重启时虽然可能存在很多链接处在 TIME_WAIT 状态，但仍可重新绑定并监听。
+SO_REUSEPORT: 允许完全重复IP和端口的绑定（SO_REUSEADDR IP 地址必须不一样），要绑定的每个套接字都必须指定此选项, 且 euid 要一样。效果为对连接请求简单的负载均衡到所有监听的进程上。应用：[nginx socket sharding](https://www.nginx.com/blog/socket-sharding-nginx-release-1-9-1/)
 
-chains: 规则链
+### buffer
+相关内核参数
+SO_RCVBUF/SO_SNDBUF用来设置或获取一个套接字的最大缓冲区大小，内核会翻倍所设进的值，获取时返回实际翻倍的值。
 
-* PREROUTING (路由前)
-* INPUT (数据包入口)
-* FORWARD (转发管道)
-* OUTPUT(数据包出口)
-* POSTROUTING（路由后）
+值类型|接收|发送
+-|-
+默认值（实际值）|net.core.rmem_default, net.ipv4.tcp_rmem default(TCP)|net.core.wmem_default, net.ipv4.tcp_wmem default(TCP)
+最大值（设置值）|net.core.rmem_max|net.core.wmem_max
+最小值（实际值）|256 2240(?)|2048
 
-```
-                               XXXXXXXXXXXXXXXXXX
-                             XXX     Network    XXX
-                               XXXXXXXXXXXXXXXXXX
-                                       +
-                                       |
-                                       v
- +-------------+              +------------------+
- |table: filter| <---+        | table: nat       |
- |chain: INPUT |     |        | chain: PREROUTING|
- +-----+-------+     |        +--------+---------+
-       |             |                 |
-       v             |                 v
- [local process]     |           ****************          +--------------+
-       |             +---------+ Routing decision +------> |table: filter |
-       v                         ****************          |chain: FORWARD|
-****************                                           +------+-------+
-Routing decision                                                  |
-****************                                                  |
-       |                                                          |
-       v                        ****************                  |
-+-------------+       +------>  Routing decision  <---------------+
-|table: nat   |       |         ****************
-|chain: OUTPUT|       |               +
-+-----+-------+       |               |
-      |               |               v
-      v               |      +-------------------+
-+--------------+      |      | table: nat        |
-|table: filter | +----+      | chain: POSTROUTING|
-|chain: OUTPUT |             +--------+----------+
-+--------------+                      |
-                                      v
-                               XXXXXXXXXXXXXXXXXX
-                             XXX    Network     XXX
-                               XXXXXXXXXXXXXXXXXX
-```
+对于TCP，`net.ipv4.tcp_mem`（页大小为单位）/ `net.ipv4.tcp_rmem` / `net.ipv4.tcp_wmem` 和 SO_RCVBUF/SO_SNDBUF 的可设置范围无关，被由内核用来根据这些值来自动调整收发缓冲区大小。
+对于接收缓冲区可以用参数 `net.ipv4.tcp_moderate_rcvbuf` 设置（默认开启），对于发送缓冲区不可设置总是开启。但如果应用自己设置了SO_RCVBUF/SO_SNDBUF的值，自动调整功能就失效。
 
-[Packet flow](https://upload.wikimedia.org/wikipedia/commons/3/37/Netfilter-packet-flow.svg)
+### [epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)
+epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的所有描述符，不用再像select或poll那样每次一个个检查比对所有描述符，epoll_wait返回时已经确定了哪些描述符上发生了就绪事件。
 
-tables:
+事件触发的两种行为：
 
-* filter: 规定允许还是不允许（默认），应用于INPUT/FORWARD/OUTPUT
-* nat: 定义地址转换，应用于PREROUTING/OUTPUT/POSTROUTING
-* mangle: 修改报文数据，五个链都可以
+* 水平触发LT(Level Triggered): 默认行为，如果描述符一直在就绪状态就一直触发，就像poll的更快版本。
+* 边缘触发ET(Edge Triggered): 只有描述符状态改变（从未就绪变为就绪）时才触发一次而不会重复触发，效率较LT高。如果read/write返回EAGAIN则变为未就绪状态。因为就绪事件只触发一次，为了避免收不到更多的事件通知而使I/O操作阻塞，读写应该使用非阻塞描述符。
 
-commands:
+事件类型：EPOLLIN/EPOLLOUT/EPOLLRDHUP/EPOLLPRI/EPOLLERR/EPOLLHUP/EPOLLET/EPOLLONESHOT
+相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
 
-* A: append, 增加规则
-* C: check, 检查规则存不存在
-* D: delete, 删除规则
-* R: replace, 替换规则
-* I: insert, 插入规则
-* L: list, 列出规则或链
-* S: 打印规则或链的命令列表
-* F: flush, 清空规则或链
-* P: policy, 设置链的默认策略（不符合条件时）
-* Z: 重置链中默认规则的命中计数器
-* N: new, 新建自定义链
-* X: 删除自定义链
-* E: 重命名自定义链
+### 拥塞控制
+一个发送方中未被确认的数据量不会超过cwnd（拥塞窗口）与rwnd（滑动窗口）中的最小值。
 
-targets:
+慢启动：刚建立的连接，根据对端的应答情况慢慢提速，不要一下子发送大量的数据。cwnd初始为1，表示可以传一个MSS大小的数据，指数增长。
+拥塞避免算法：当cwnd>=ssthresh，进入拥塞避免阶段，此时cwnd的增长不再像之前那样是指数增长，而是线性增长。
+快速重传/快速恢复：发送丢包（超时重传或收到三个冗余ACK）时，cwnd = cwnd / 2；ssthresh设置为缩小后的cwnd大小。
 
-* DROP: 丢弃（终止）
-* REJECT: 拒绝（终止）
-* ACCEPT: 接受（next chain）
-* DNAT （next chain）
-* SNAT （next chain）
-* MASQUERADE：源地址伪装 （next chain）
-* REDIRECT：端口重定向 （next rule）
-* MARK: 打标记 （next rule）
-* RETURN: 返回原规则链 （next rule）
-* TRACE
-* chain-name: 转向自定义链 （next chain）
+## UDP
+[大多数Unix实现上，对于Unix域数据报套接字，是可靠的且不会乱序。](http://man7.org/linux/man-pages/man7/unix.7.html)
+意味着发送数据报时，如果对端接收缓冲区已满，对于阻塞套接字则会阻塞；对于非阻塞套接字则会返回EWOULDBLOCK错误。
 
-rule-specs:
-在一个chain中自上而下匹配，匹配到执行targets并返回。
-
-* s: source, 源地址，IP[/MASK] 可以加上`!`取反
-* d: dest, 目标地址
-* p: protocol, 协议，TCP/UDP/ICMP
-    * sport: 源端口
-    * dport: 目标端口
-    * tcp-flag: tcp标识位
-    * icmp-type: icmp消息类型
-* i: 流入的网络接口，用于INPUT/PREROUTING
-* o: 流出的网络接口，用于OUTPUT/POSTROUTING
-* m: match扩展，[用于FORWARD](https://www.digitalocean.com/community/tutorials/how-to-forward-ports-through-a-linux-gateway-with-iptables)
-    * state: --state NEW/ESTABLISHED/RELATED/INVALID
-    * conntrack: --ctstate NEW/ESTABLISHED/RELATED/INVALID
-
-SNAT(源地址的转换)/MASQUERADE(伪装)：POSTROUTING
-把内网某个网段的地址在经过时转为外网地址（源端口不变，若有数据发回时从外网地址映射回内网地址UN-SNAT）：
-`iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j SNAT --to-source 142.10.0.1`
-如果外网地址不固定，使用MASQUERADE可以自动从网卡获取外网地址：
-`iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE`
-场景：局域网共享一个公网IP上网
-
-DNAT(目标地址转换)：PREROUTING/OUTPUT
-访问外网IP时转向内网主机（有数据返回时，从内网地址映射回外网地址UN-DNAT）：
-`iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
-场景：端口映射，以让外部访问内网
-
-同一个流上的包只会被iptables NAT判断一次，以后的包自动NAT。
-
-TRACE
-在`/var/log/syslog`中查看日志。格式：`TRACE: tablename:chainname:type:rulenum`
-`iptables -t raw -A PREROUTING -p icmp -j TRACE`
-需要设置：
-```
-modprobe nf_log_ipv4
-sysctl net.netfilter.nf_log.2=nf_log_ipv4
-```
 
 </xmp>
 <script src="../js/strapdown.js"></script>
 </html>
+

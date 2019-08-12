@@ -165,11 +165,6 @@ TIME_WAIT 状态存在的两个理由：
 * 可靠地实现TCP全双工连接的终止。需要正确处理连接终止序列4个分节中任何一个丢失的情况。
 * 允许老的重复分节在网络中消逝。2MSL的时间防止了来自某个连接的老的重复分组在该连接已经终止后再现。
 
-> Linux 相关内核参数:
-> `net.ipv4.tcp_tw_reuse=1` 表示可以将 TIME-WAIT sockets 重新用于新的TCP连接。
-> `net.ipv4.tcp_tw_recycle=1` 表示开启 TIME-WAIT sockets 的快速回收。
-> `net.ipv4.tcp_max_tw_buckets=10000` 表示系统同时保持 TIME_WAIT sockets 的最大数量。
-
 ### 2.8 SCTP关联的建立和终止
 #### 2.8.1 四路握手
 client: connect
@@ -348,10 +343,6 @@ listen函数仅由TCP服务器调用：把一个未连接的套接字转换成�
 在三次握手正常完成的前提下，未完成连接队列中任何一项在其中的存留时间就是一个RTT。
 
 当一个客户端SYN到达时，如果这些队列是满的，TCP就忽略该分节，而不发送RST。
-
-> Linux 内核相关参数：
-> syns queue 由 `net.ipv4.tcp_max_syn_backlog` 决定。
-> accept queue 由 backlog 参数和 `net.core.somaxconn` 的最小值决定。
 
 ### 4.6 accept函数
 accept函数由TCP服务器调用，从已完成连接队列头返回下一个已完成连接。
@@ -580,18 +571,6 @@ UDP没有发送缓冲区（但有一个大小，影响可发送的最大数据�
 TCP套接字缓冲区大小至少应该是相应连接MSS值的四倍。
 设置套接字缓冲区大小时的性能考虑，在于全双工管道的的容量（称为**带宽延迟积BDP**：带宽*RTT，RTT可以由ping程序测得）。
 POSIX函数fpathconf(_PC_SOCK_MAXBUF)可以获取可设的最大缓冲区大小上限。
-
-> Linux相关内核参数
-> SO_RCVBUF/SO_SNDBUF用来设置或获取一个套接字的最大缓冲区大小，内核会翻倍所设进的值，获取时返回实际翻倍的值。
->
-> 值类型|接收|发送
-> -|-
-> 默认值（实际值）|net.core.rmem_default, net.ipv4.tcp_rmem default(TCP)|net.core.wmem_default, net.ipv4.tcp_wmem default(TCP)
-> 最大值（设置值）|net.core.rmem_max|net.core.wmem_max
-> 最小值（实际值）|256 2240(?)|2048
->
-> 对于TCP，`net.ipv4.tcp_mem`（页大小为单位）/ `net.ipv4.tcp_rmem` / `net.ipv4.tcp_wmem` 和 SO_RCVBUF/SO_SNDBUF 的可设置范围无关，被由内核用来根据这些值来自动调整收发缓冲区大小。
-> 对于接收缓冲区可以用参数 `net.ipv4.tcp_moderate_rcvbuf` 设置（默认开启），对于发送缓冲区不可设置总是开启。但如果应用自己设置了SO_RCVBUF/SO_SNDBUF的值，自动调整功能就失效。
 
 **SO_RCVLOWAT/SO_SNDLOWAT 接收和发送缓冲区低水位标记**
 由select函数使用：
@@ -1005,17 +984,6 @@ recvmsg, sendmsg||√||√|√|√|√
 Solaris中的/dev/poll
 FreeBSD中的kqueue
 
-> Linux 中的 [epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)：
-> epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的所有描述符，不用再像select或poll那样每次一个个检查比对所有描述符，epoll_wait返回时已经确定了哪些描述符上发生了就绪事件。
->
-> 事件触发的两种行为：
->
-> * 水平触发LT(Level Triggered): 默认行为，如果描述符一直在就绪状态就一直触发，就像poll的更快版本。
-> * 边缘触发ET(Edge Triggered): 只有描述符状态改变（从未就绪变为就绪）时才触发一次而不会重复触发，效率较LT高。如果read/write返回EAGAIN则变为未就绪状态。因为就绪事件只触发一次，为了避免收不到更多的事件通知而使I/O操作阻塞，读写应该使用非阻塞描述符。
->
-> 事件类型：EPOLLIN/EPOLLOUT/EPOLLRDHUP/EPOLLPRI/EPOLLERR/EPOLLHUP/EPOLLET/EPOLLONESHOT
-> 相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
-
 ### 14.10 T/TCP: 事务目的TCP
 对TCP的修改版本，能够避免近来彼此通信过的主机之间的三次握手。
 
@@ -1047,9 +1015,6 @@ connect调用：
 * 对于流套接字，如发现监听套接字已满，则立即返回一个ECONNREFUSED错误。（对于普通TCP，监听端忽略新到达的SYN，发起端重试）
 
 不同于UDP，在域数据报套接字上发送数据报或connect调用不会给本套接字绑定一个路径名。如果不手动绑定，则接收端无法发送数据给发送端。
-
-> [大多数Unix实现上，对于Unix域数据报套接字，是可靠的且不会乱序。](http://man7.org/linux/man-pages/man7/unix.7.html)
-> 意味着发送数据报时，如果对端接收缓冲区已满，对于阻塞套接字则会阻塞；对于非阻塞套接字则会返回EWOULDBLOCK错误。
 
 ### 15.5 Unix域字节流客户/服务器程序
 ### 15.6 Unix域数据报客户/服务器程序
