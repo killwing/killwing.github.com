@@ -29,7 +29,7 @@ vrrp_instance HA {
     auth_pass 1234
   }
   virtual_ipaddress {
-    10.18.21.111
+    10.18.21.111/24
   }
   track_script {
     chk_haproxy
@@ -114,6 +114,7 @@ backend apiserver-be
 DR (Direct Routing) (-g)
 对于收到的请求包，只改写请求包的MAC地址为后端RS的MAC地址；对于发出的响应包，直接发给客户端。
 RS必须利用回环网卡绑定监听 lvs 的 VIP 以此接收和发送数据包。
+没有 NAT，不能端口映射。
 
 NAT (-m)
 对于收到的请求包，进行DNAT；对于发出的响应包，进行SNAT。

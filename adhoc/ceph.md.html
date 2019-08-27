@@ -242,6 +242,21 @@ rbd flatten <dest_pool_name>/<dest_image_name> # 解除依赖，打平不再COW
 mount -t ceph <mon_ip>:6789:/ /mnt/data -o name=admin,secret=AQCdTTBdLcUKAhAA0O0ckqyolPnB7r6hjHcBRg==
 ```
 
+### Config
+config 来源：
+
+* default: 内置默认值
+* mon: monitor 的中心配置DB
+* file: node 上的文件 `/etc/ceph/ceph.conf`
+* env: 环境变量
+* cmdline: 命令行
+* override: 运行时修改
+
+显示某个实例（全部来源）`ceph config show <who>`
+显示某个实例（默认值）`ceph config show-with-defaults <who>`
+显示来自中心配置DB `ceph config dump/get <who>`
+设置到中心配置DB `ceph config set <who> <option> <value>`
+
 ## Reference
 http://docs.ceph.com
 https://xiaqunfeng.gitbooks.io/ceph-practice-handbook

@@ -20,16 +20,23 @@ apt install:
 * `hping3`
 * [htop](http://htop.sourceforge.net/)
 * [atop](http://www.atoptool.nl/)
+* `iftop`
+* `nethogs`
 * [bcc](https://github.com/iovisor/bcc): cachestat, cachetop, memleak, filetop, opensnoop
 * [pcstat](https://github.com/tobert/pcstat)
-* `net-tools`: ifconfig, route, arp, netstat
+* `net-tools`: ifconfig, route, arp, netstat, traceroute, mtr
 * [iproute2](https://en.wikipedia.org/wiki/Iproute2): ip, ss
 * `iptables`
+* `conntrack`
 * `ethtool`
 * `iputils-ping`
 * `dnsutils`: dig, host, nslookup, whois
 * `pciutils`
 * `lsof`
+* `iperf`
+* `netperf`
+* `fio`
+* [wrk](https://github.com/wg/wrk)
 
 ## uptime
 ```
@@ -69,13 +76,13 @@ Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
 进程 CPU 利用
 ```
 $ pidstat -u 3 1
-Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
+Linux 4.4.0-116-generic (ubuntu) 	08/25/2019 	_x86_64_	(2 CPU)
 
-07:54:37 PM   UID       PID    %usr %system  %guest    %CPU   CPU  Command
-07:54:40 PM     0      1045    0.33    0.33    0.00    0.66     1  dockerd
-07:54:40 PM     0      1174    0.00    0.33    0.00    0.33     1  docker-containe
-07:54:40 PM     0     22563    0.33    0.00    0.00    0.33     1  kworker/u4:2
-07:54:40 PM     0     22593    0.00    0.33    0.00    0.33     0  pidstat
+10:29:53 AM   UID       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+10:29:56 AM     0      1193    0.33    0.00    0.00    0.00    0.33     1  docker-containe
+
+Average:      UID       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+Average:        0      1193    0.33    0.00    0.00    0.00    0.33     -  docker-containe
 ```
 
 * %usr: 用户态
@@ -637,7 +644,7 @@ SNAT(源地址的转换)/MASQUERADE(伪装)：POSTROUTING
 场景：局域网共享一个公网IP上网
 
 DNAT(目标地址转换)：PREROUTING/OUTPUT
-访问外网IP时转向内网主机（有数据返回时，从内网地址映射回外网地址UN-DNAT）：
+访问外网IP时转向内网主机（同一连接上有数据返回时，从内网地址映射回外网地址UN-DNAT, 在类似 POSTROUTING 阶段进行，但不经过 POSTROUTING 处理，SNAT 同理）：
 `iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
 场景：端口映射，以让外部访问内网
 
@@ -650,6 +657,109 @@ TRACE
 ```
 modprobe nf_log_ipv4
 sysctl net.netfilter.nf_log.2=nf_log_ipv4
+```
+
+使用 iptables 需要开启转发：
+```
+sysctl net.ipv4.ip_forward = 1
+```
+
+## conntrack
+```
+$ conntrack -L -o extended
+ipv4     2 udp      17 32 src=10.0.2.15 dst=193.228.143.12 sport=123 dport=123 src=193.228.143.12 dst=10.0.2.15 sport=123 dport=123 [ASSURED] mark=0 use=1
+ipv4     2 udp      17 29 src=10.0.2.15 dst=185.255.55.20 sport=123 dport=123 src=185.255.55.20 dst=10.0.2.15 sport=123 dport=123 mark=0 use=1
+ipv4     2 tcp      6 100 TIME_WAIT src=10.0.2.15 dst=59.111.0.251 sport=36334 dport=80 src=59.111.0.251 dst=10.0.2.15 sport=80 dport=36334 [ASSURED] mark=0 use=1
+ipv4     2 tcp      6 432000 ESTABLISHED src=10.0.2.2 dst=10.0.2.15 sport=60669 dport=22 src=10.0.2.15 dst=10.0.2.2 sport=22 dport=60669 [ASSURED] mark=0 use=1
+ipv4     2 udp      17 56 src=10.0.2.15 dst=158.43.128.33 sport=123 dport=123 src=158.43.128.33 dst=10.0.2.15 sport=123 dport=123 [ASSURED] mark=0 use=1
+ipv4     2 udp      17 9 src=10.0.2.15 dst=192.168.1.1 sport=60206 dport=53 src=192.168.1.1 dst=10.0.2.15 sport=53 dport=60206 mark=0 use=1
+ipv4     2 udp      17 159 src=10.0.2.15 dst=192.168.1.1 sport=52215 dport=53 src=192.168.1.1 dst=10.0.2.15 sport=53 dport=52215 [ASSURED] mark=0 use=1
+ipv4     2 udp      17 11 src=10.0.2.15 dst=116.203.151.74 sport=123 dport=123 src=116.203.151.74 dst=10.0.2.15 sport=123 dport=123 mark=0 use=1
+```
+
+## [ipset](https://www.linuxjournal.com/content/advanced-firewall-configurations-ipset)
+
+## nslookup/dig
+```
+nslookup -type=PTR 114.114.114.114 8.8.8.8
+Server:		8.8.8.8
+Address:	8.8.8.8#53
+
+Non-authoritative answer:
+114.114.114.114.in-addr.arpa	name = public1.114dns.com.
+
+Authoritative answers can be found from:
+```
+PTR: 反向解析
+
+```
+$ dig +search nginx
+
+; <<>> DiG 9.10.3-P4-Debian <<>> +search nginx
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 7778
+;; flags: qr aa rd ra; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;nginx.default.svc.cluster.local. IN	A
+
+;; ANSWER SECTION:
+nginx.default.svc.cluster.local. 5 IN	A	192.168.32.111
+nginx.default.svc.cluster.local. 5 IN	A	192.168.25.199
+nginx.default.svc.cluster.local. 5 IN	A	192.168.37.165
+
+;; Query time: 0 msec
+;; SERVER: 172.16.0.10#53(172.16.0.10)
+;; WHEN: Mon Aug 19 00:48:14 CST 2019
+;; MSG SIZE  rcvd: 190
+```
+
+## [tcpdump](https://www.tcpdump.org/manpages/tcpdump.1.html)
+[pcap-filter](https://www.tcpdump.org/manpages/pcap-filter.7.html)
+
+输出：
+`时间戳 协议 源地址. 源端口 > 目的地址. 目的端口 网络包详细信息`
+
+### TCP
+`src > dst: Flags [tcpflags], seq data-seqno, ack ackno, win window, urg urgent, options [opts], length len`
+tcpflags:
+S (SYN), F (FIN), P (PUSH), R (RST), U (URG), W (ECN CWR), E (ECN-Echo) or `.` (ACK), or `none` if no flags are set.
+
+```
+$ tcpdump -nn port 8000
+tcpdump: verbose output suppressed, use -v or -vv for full protocol decode
+listening on enp0s3, link-type EN10MB (Ethernet), capture size 262144 bytes
+22:25:33.293232 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [S], seq 313536001, win 65535, options [mss 1460], length 0
+22:25:33.293345 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [S.], seq 2466872099, ack 313536002, win 29200, options [mss 1460], length 0
+22:25:33.293487 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [.], ack 1, win 65535, length 0
+22:25:33.293511 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [P.], seq 1:79, ack 1, win 65535, length 78
+22:25:33.293519 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [.], ack 79, win 29200, length 0
+10.0.2.2 - - [24/Aug/2019 22:25:33] "GET / HTTP/1.1" 200 -
+22:25:33.294800 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [P.], seq 1:156, ack 79, win 29200, length 155
+22:25:33.295217 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [.], seq 156:1616, ack 79, win 29200, length 1460
+22:25:33.295305 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [.], ack 156, win 65535, length 0
+22:25:33.295423 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [P.], seq 1616:2071, ack 79, win 29200, length 455
+22:25:33.295741 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [.], ack 1616, win 65535, length 0
+22:25:33.295950 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [.], ack 2071, win 65535, length 0
+22:25:33.296541 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [F.], seq 2071, ack 79, win 29200, length 0
+22:25:33.298564 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [F.], seq 79, ack 2071, win 65535, length 0
+22:25:33.298673 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [.], ack 80, win 29200, length 0
+22:25:33.298760 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [F.], seq 79, ack 2072, win 65535, length 0
+```
+开始传输数据后，序号显示为数据流的偏移（-S可以显示原始序号），`seq 1:156` 表示发送第[1, 156)字节的数据，`ack 156` 表示确认了 156-1 字节的数据。
+
+## hping3
+```
+$ hping3 -c 3 -S -p 80 baidu.com
+HPING baidu.com (enp0s3 39.156.69.79): S set, 40 headers + 0 data bytes
+len=46 ip=39.156.69.79 ttl=64 id=50684 sport=80 flags=SA seq=0 win=65535 rtt=34.2 ms
+len=46 ip=39.156.69.79 ttl=64 id=50686 sport=80 flags=SA seq=1 win=65535 rtt=42.2 ms
+len=46 ip=39.156.69.79 ttl=64 id=50688 sport=80 flags=SA seq=2 win=65535 rtt=30.1 ms
+
+--- baidu.com hping statistic ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 30.1/35.5/42.2 ms
 ```
 
 ## proc

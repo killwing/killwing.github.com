@@ -84,6 +84,23 @@
 内存区域（只读）映射到二进制可执行文件中。
 只有.text及.data和二进制可执行文件的大小有关。
 
+## Memory Mapping
+anonymous (anno_rss)
+
+  * 堆栈
+  * mmap with MAP_ANONYMOUS
+
+file-backed (file_rss)
+
+  * 可执行文件，动态库
+  * mmap file
+  * ipc shmem / tmpfs
+
+## OOM
+`vm.oom_kill_allocating_task`: 为0，kill掉最高分的进程，为1，kill掉当前申请内存的进程。
+`/proc/<pid>/oom_adj`: 范围 [-17, 15]
+`/proc/<pid>/oom_score`: `进程计算分数(16位) * 2^oom_adj`，-17 时为0不会被kill
+
 ## Loop Device
 Loop Device设备指映射正常的文件而形成的虚拟块设备。
 

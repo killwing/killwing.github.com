@@ -94,6 +94,9 @@ reset iptable:
 #### 更新配置
 组件：直接更新 `/etc/kubernetes/manifests` 配置
 [kubelet](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/): 使用[configMap](https://kubernetes.io/docs/tasks/administer-cluster/reconfigure-kubelet/), 必须一开始加上 `--dynamic-config-dir` 和开启 `DynamicKubeletConfig` feature gate （默认true）。
+addons(coredns, kube-proxy): 更新对应的 ConfigMap
+
+spec: https://godoc.org/k8s.io/kubelet/config/v1beta1#KubeletConfiguration
 
 #### 相关配置
 `/etc/kubernetes/*.conf` 各组件访问 APIServer 鉴权文件。
@@ -196,9 +199,24 @@ VXLAN
 
 [calico](https://www.projectcalico.org/)
 
+原理：
+在 node 上添加目的 Pod 子网的路由，下一跳为 Pod 所在 node IP：`192.168.1.0/24 via 172.17.0.2 dev eth0`。
+目的 node 上再通过路由转到目的 Pod 的 veth 上：`192.168.1.3 dev cali1234abc scope link`。
+可以无需网桥设备，但网桥可以减少路由数量。
+
+node 之间必须二层连通，否则需要使用 IPIP 模式：
+当 node 之间三层通而二层不通时，须通过 tunl0 IP 隧道设备
+`192.168.1.0/24 via 172.17.0.2 dev tunl0` 其中下一跳地址变为新 IP 包的目的地址，即通过三层转发了内部 IP 包。
+或者：
+添加 Pod 子网路由到 node 子网的网关(将 node 的网关也加入 BGP peer)，不过一般无权限修改。
+
 组件：
 
 [bird](http://bird.network.cz/): 使用 [BGP](https://www.projectcalico.org/why-bgp/) 协议，在节点之间共享路由信息。
+
+  * node-to-node mesh: 每个 node 都是 BGP peer。
+  * route reflector: 指定固定数量 node 为 BGP peer。其他 node 再和 reflector node 学习路由信息。
+
 [felix](https://github.com/projectcalico/felix): 监听 etcd 中的网络配置，根据配置更新节点的路由和 iptables。
 [confd](https://github.com/kelseyhightower/confd): 监听 etcd 的数据，实时更新 bird 的配置文件，并重新启动 bird 进程以加载最新配置。
 [controller](https://github.com/projectcalico/kube-controllers): 使用独立的 etcd 需要，使其中的数据和 k8s 同步。
@@ -256,8 +274,8 @@ VXLAN
 
 [标准基础插件](https://github.com/containernetworking/plugins)：
 
-* main: 创建网络设备
-* IPAM: IP地址分配
+* main: 创建网络设备, bridge, ipvlan, loopback, macvlan, ptp, vlan 等
+* IPAM: IP地址分配, dhcp, host-local 等
 * meta: 其他(内置flannel)
 
 plugin位置：`/opt/cni/bin`
@@ -691,18 +709,65 @@ restartPolicy 在 Job 对象里只允许被设置为 Never/OnFailure, 在 Deploy
 CronJob 是定时任务，控制 Job。
 `spec.concurrencyPolicy`: Allow Job可以同时存在；Forbid 跳过，Job不会被创建；Replace 新 Job 替换旧 Job。
 
-### Service
+### Service & Endpoints
+每个 Service 有个对应同名 Endpoints，包含被选中的 Pod 地址列表和状态，其中只有 ready 的 Pod 才会被 Service 选中转发。
+Pod 通过 Service 访问到自己需要 kubelet 开启 --hairpin-mode 为 promiscuous-bridge（默认）或 hairpin-veth。
+
+#### ClusterIP
+DNS 服务名解析到 VIP A 记录。
+
+iptables: (VIP: 10.96.0.1, PodIP: 192.168.99.101)
+```bash
+-A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A KUBE-SERVICES -d 10.96.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y
+-A KUBE-SVC-NPX46M4PTMTKRN6Y -j KUBE-SEP-6QO3ZMTIB4FPXHNT # 如果有多个 endpoints，用 –mode random 负载均衡
+-A KUBE-SEP-6QO3ZMTIB4FPXHNT -s 192.168.99.101/32 -j KUBE-MARK-MASQ
+-A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
+-A KUBE-SEP-6QO3ZMTIB4FPXHNT -p tcp -m tcp -j DNAT --to-destination 192.168.99.101:6443 # 返回包自动 un-dnat
+```
+
+[IPVS 负载均衡](https://github.com/kubernetes/kubernetes/blob/master/pkg/proxy/ipvs/README.md)：`TODO`
+
 Headless Service: `spec.ClusterIP: None`
 
-* 没有 VIP，DNS 服务名直接解析为选中的多个 pod IP 的 A 记录。
-* 每个选中的 pod 有唯一网络标识：`<pod-name>.<svc-name>.<namespace>.svc.cluster.local`
+* 没有 VIP，DNS 服务名直接解析为选中的 pod IP 的多个 A 记录。（没有 iptables 规则）
+* 每个选中的 pod 有唯一网络标识：`<pod-name>.<svc-name>.<namespace>.svc.cluster.local`，可以用 Pod 的 hostname, subdomain 自定义。
 
-[Source ip 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
+#### NodePort
+iptables: 不匹配 ClusterIP 的都转到 KUBE-NODEPORTS 再转到对应 svc
+```
+...
+-A KUBE-SERVICES -m comment --comment "kubernetes service nodeports; NOTE: this must be the last rule in this chain" -m addrtype --dst-type LOCAL -j KUBE-NODEPORTS
+-A KUBE-NODEPORTS -p tcp -m comment --comment "default/mongo:" -m tcp --dport 31958 -j KUBE-MARK-MASQ
+-A KUBE-NODEPORTS -p tcp -m comment --comment "default/mongo:" -m tcp --dport 31958 -j KUBE-SVC-G2OJTDIWIJ7HQ7MY
+
+-A POSTROUTING -m comment --comment "kubernetes postrouting rules" -j KUBE-POSTROUTING
+-A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -m mark --mark 0x4000/0x4000 -j MASQUERADE # 如果被 LB 到别的 node 上要 SNAT，否则响应不过来直接发回 client
+```
+
+#### [Source IP 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
 kube-proxy 使用 iptable 的情况，通过下面方式访问
 
 * ClusterIP: 不做 SNAT
-* NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地node上的endpoint来避免（要求node上有对应endpoint），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
-* LoadBalancer: 情况和 NodePort 类似，如果`service.spec.externalTrafficPolicy`设为`Local`，LB只会转发流量到有对应endpoint的node上（通过health check `service.spec.healthCheckNodePort`）。
+* NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地 node 上的 endpoint 来避免（要求 node 上有对应 endpoint，否则 drop），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
+* LoadBalancer: 情况和 NodePort 类似，如果`service.spec.externalTrafficPolicy`设为`Local`，LB只会转发流量到有对应 endpoint 的 node 上（通过 health check `service.spec.healthCheckNodePort`）。
+
+#### ExtenalName
+将服务名直接 CNAME 到 ExtenalName。
+
+#### ExtenalIP
+通过 externalIP (一般为公网 IP) 加 service port 访问，extenalIP 至少能路由到一个集群内 node 结点。
+
+iptables: (ExternalIP: 10.0.2.15)
+```
+-A KUBE-SERVICES -d 10.0.2.15/32 -p tcp -m comment --comment "default/mongo: external IP" -m tcp --dport 27017 -j KUBE-MARK-MASQ
+-A KUBE-SERVICES -d 10.0.2.15/32 -p tcp -m comment --comment "default/mongo: external IP" -m tcp --dport 27017 -m physdev ! --physdev-is-in -m addrtype ! --src-type LOCAL -j KUBE-SVC-G2OJTDIWIJ7HQ7MY
+-A KUBE-SERVICES -d 10.0.2.15/32 -p tcp -m comment --comment "default/mongo: external IP" -m tcp --dport 27017 -m addrtype --dst-type LOCAL -j KUBE-SVC-G2OJTDIWIJ7HQ7MY
+```
+
+### Ingress
+HTTP/HTTPS Service 的反向代理
+ingress rule: host (:ingress controller port) -> Services(:service port)
 
 ### PersistentVolume & PersistentVolumeClaim & StorageClass
 PVC 和 PV 一一绑定：PV 的 spec （容量等）满足 PVC 的要求；storage class 一致（StorageClass 可以设置缺省值`storageclass.kubernetes.io/is-default-class`）。

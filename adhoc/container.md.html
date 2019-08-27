@@ -40,18 +40,18 @@ lsns (util-linux 2.28+)
 
 subsystems(controllers):
 
-cpu: 限制CPU使用率。
-cpuacct: 统计CPU使用率。
-cpuset: 绑定指定CPU集。
-memory: 统计和限制内存使用率。
-devices: 限制创建(mknod)和访问设备的权限。
-freezer: suspend和restore组中所有进程。
-net_cls: 创建的所有网络包加上一个classid标记，用于tc（流量控制）和iptables。
-blkio: 限制访问块设备的IO速度。
+[cpu](https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt): 限制CPU使用率。
+[cpuacct](https://www.kernel.org/doc/Documentation/cgroup-v1/cpuacct.txt): 统计CPU使用率。
+[cpuset](https://www.kernel.org/doc/Documentation/cgroup-v1/cpusets.txt): 绑定指定CPU集。
+[memory](https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt): 统计和限制内存使用率。
+[devices](https://www.kernel.org/doc/Documentation/cgroup-v1/devices.txt): 限制创建(mknod)和访问设备的权限。
+[freezer](https://www.kernel.org/doc/Documentation/cgroup-v1/freezer-subsystem.txt): suspend和restore组中所有进程。
+[net_cls](https://www.kernel.org/doc/Documentation/cgroup-v1/net_cls.txt): 创建的所有网络包加上一个classid标记，用于tc（流量控制）和iptables。
+[blkio](https://www.kernel.org/doc/Documentation/cgroup-v1/blkio-controller.txt): 限制访问块设备的IO速度。
 perf_event: 对cgroup进行性能监控
-net_prio: 针对每个网络接口设置访问优先级权重。
-hugetlb: 限制huge pages的使用量。
-pids: 限制总进程数。
+[net_prio](https://www.kernel.org/doc/Documentation/cgroup-v1/net_prio.txt): 针对每个网络接口设置访问优先级权重。
+[hugetlb](https://www.kernel.org/doc/Documentation/cgroup-v1/hugetlb.txt): 限制huge pages的使用量。
+[pids](https://www.kernel.org/doc/Documentation/cgroup-v1/pids.txt): 限制总进程数。
 
 查看系统 `/proc/cgroups`
 查看进程 `/proc/[pid]/cgroup` 格式：{hierarchy id}:{subsystem}:{相对cgroup root路径}
@@ -59,12 +59,13 @@ pids: 限制总进程数。
 
  * 子进程 cgroup 和父进程同属一个 cgroup。
  * 进程退出自动从 tasks 里面删除。
+ * 进程加入新的 cgroup，自动从原 cgroup 中删除。
 
 主要控制文件
 cpu.cfs_period_us: 默认 100ms，表示一段 cpu 时间。
 cpu.cfs_quota_us: 默认 -1，在 cfs_period_us 内的最多能占用的时间，如果大于 cpu.cfs_period_us 表示占用多于一核。超过时通过 throttling 限制(cpu.stat 查看)。
 cpu.shares: 设置 cpu 总量（默认 1024），可以让子 cgroup 按比例分配 cpu 资源。
-memory.limit_in_bytes: 限制内存使用大小。超过时会回收缓存(page cache)或OOM kill 进程(memory.failcnt 查看)。
+memory.limit_in_bytes: 限制内存使用大小。超过时会回收缓存(page cache)或OOM kill 进程(memory.failcnt 查看)。写入 -1 不限制。
 pid.max: 总进程（线程）数。
 blkio.throttle.read_bps_device: 限制块设备读取速度。
 cgroup.clone_children: 只对cpuset有影响，内容为1时，新创建的cgroup将会继承父cgroup的配置。
@@ -83,6 +84,30 @@ cgcreate
 cgdelete
 cgclassify
 cgexec
+
+### systemd
+systemd 通过 cgroup 来管理进程，根据 cgroup 继承关系可以跟踪服务主进程产生的所有子进程，确保停止服务时清理所有子进程。
+
+service: systemd 服务，daemon 进程
+scope: 外部进程，如终端会话及其产生的进程, fork 进程
+slice: 用来组织 service 和 scope
+
+systemd-cgtop: 显示资源消耗
+systemd-cgls: 列出 cgroup 树结构
+`-.slice`: 根
+`system.slice`: 系统 service
+`user.slice`: 用户会话
+
+临时新建 cgroup: 进程结束，cgroup 释放（和父进程 cgroup 脱离）
+`systemd-run --unit=testsvc --slice=test <cmd>` 在 test.slice （默认在system.slice下）下创建 testsvc.service (`--scope` 可以创建 testsvc.scope) cgroup
+`systemctl set-property testsvc.service CPUShares=200 MemoryLimit=100M` 设置 cgroup 限制
+
+systemd 服务可在 unit 文件里面限制：
+```
+[Service]
+CPUShares=200
+MemoryLimit=100M
+```
 
 ## rootfs
 一个操作系统所包含的文件和目录，但不包含内核。
