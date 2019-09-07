@@ -267,6 +267,8 @@ def divide(x, y):
         print("division by zero (%s): %s" % (e.errno, e.strerror))	#如果有异常参数，存放在e.args里面
     except (RuntimeError, TypeError, NameError):
         print("Other error!")
+    except Exception as e:
+        print("error", e)
     except:	#抓住所有异常
         print("Unexpected error:", sys.exc_info()[0])
         raise	#再次把异常抛出
@@ -319,13 +321,13 @@ Instantiation: metaclass(继承自type, types) -> class(继承自object, types) 
 ```
 class Base:
     var1 = 10
-    
+
     def __init__(self):
         self.var1 = 100
-    
+
     def bar(self):
         print("base bar", self.var1)
-        
+
     def foo(self):
         print("base foo", self.var1)
         self.bar()
@@ -333,11 +335,11 @@ class Base:
 
 class Sub(Base):
     var2 = 20
-    
+
     def __init__(self):
-        super(Sub, self).__init__() # call Base to init member
+        super().__init__() # call Base to init member, 等同 super(Sub, self).__init__()
         self.var2 = 200
-        
+
     def bar(self):
         print("sub bar", self.var2)
 
@@ -473,6 +475,32 @@ class C:
 ```
 
 ### 7.4 iterator & generator
+迭代器是一个包含有 `__iter__()` 和 `__next__()` 的对象。
+`iter(obj)` 调用 `obj.__iter__()` 创建一个迭代器。
+`next(iter_obj)` 调用 `iter_obj.__next__()` 返回下一个值。
+可以用 `for .. in ..` 方式迭代。
+停止迭代：`raise StopIteration`
+
+```
+class Counter:
+    def __init__(self, max = 0):
+        self.n = 0
+        self.max = max
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.n <= self.max:
+            self.n += 1
+            return self.n
+        else:
+            raise StopIteration
+
+for i in Counter(5):
+    print(i)
+```
+
 生成器是创建迭代器的简单而强大的工具，写起来就像是正则函数，需要返回数据的时候使用yield语句。生成器可以用简洁的表达式调用，就像不带中括号的链表推导式，为函数调用生成器而设计。
 ```
 def reverse(data):
@@ -616,6 +644,7 @@ def fib(n):
 
 ## Python 2 vs 3
 [The key differences between Python 2.7.x and Python 3.x with examples](http://sebastianraschka.com/Articles/2014_python_2_3_key_diff.html) [(zh)](https://segmentfault.com/a/1190000000618286)
+[Python3 cookbook](https://python3-cookbook.readthedocs.io)
 
 </xmp>
 <script src="js/strapdown.js"></script>

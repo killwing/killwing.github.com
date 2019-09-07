@@ -301,8 +301,9 @@ print('acc: %d %%' % (100 * correct / len(testset)))
 
 ### [GPU](https://pytorch.org/docs/stable/notes/cuda.html)
 获取device
-`cuda = torch.device('cuda')` 默认device，等于 `torch.cuda.current_device()`
+`cuda = torch.device('cuda')` 默认device，等于 `torch.cuda.current_device()`，`with torch.cuda.device(1)/torch.cuda.set_device(1)` 设置当前 device 为1（默认为0）
 `device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")`
+`torch.tensor([1., 2.]).cuda()` 相当于 `torch.tensor([1., 2.]).to(device=cuda)`
 
 将模型和数据复制到device：
 `net.to(device)`

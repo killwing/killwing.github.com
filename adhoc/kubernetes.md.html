@@ -745,6 +745,8 @@ iptables: 不匹配 ClusterIP 的都转到 KUBE-NODEPORTS 再转到对应 svc
 -A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -m mark --mark 0x4000/0x4000 -j MASQUERADE # 如果被 LB 到别的 node 上要 SNAT，否则响应不过来直接发回 client
 ```
 
+kube-proxy 会在 node 上预留占用所有地址对应的端口（不走流量）。
+
 #### [Source IP 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
 kube-proxy 使用 iptable 的情况，通过下面方式访问
 
@@ -756,7 +758,7 @@ kube-proxy 使用 iptable 的情况，通过下面方式访问
 将服务名直接 CNAME 到 ExtenalName。
 
 #### ExtenalIP
-通过 externalIP (一般为公网 IP) 加 service port 访问，extenalIP 至少能路由到一个集群内 node 结点。
+通过 externalIP (一般为公网 IP) 加 service port 访问，extenalIP 至少能路由（必须是 dst ip，不能经过 NAT）到一个集群内 node 结点。
 
 iptables: (ExternalIP: 10.0.2.15)
 ```
@@ -764,6 +766,8 @@ iptables: (ExternalIP: 10.0.2.15)
 -A KUBE-SERVICES -d 10.0.2.15/32 -p tcp -m comment --comment "default/mongo: external IP" -m tcp --dport 27017 -m physdev ! --physdev-is-in -m addrtype ! --src-type LOCAL -j KUBE-SVC-G2OJTDIWIJ7HQ7MY
 -A KUBE-SERVICES -d 10.0.2.15/32 -p tcp -m comment --comment "default/mongo: external IP" -m tcp --dport 27017 -m addrtype --dst-type LOCAL -j KUBE-SVC-G2OJTDIWIJ7HQ7MY
 ```
+
+kube-proxy 会在 node 上预留占用 externalIP 地址对应的端口（不走流量）。
 
 ### Ingress
 HTTP/HTTPS Service 的反向代理
@@ -796,6 +800,10 @@ volumeBindingMode: WaitForFirstConsumer
 ```
 不支持动态 provisioning: 需要手动创建 PV（指定节点信息），可以利用 [local-static-provisioner](https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner)自动创建 PV（当对应绑定的 PVC 删除后，对应 PV 会清除并重建）。
 延迟绑定: PVC 和 PV 不立即绑定，等到第一个使用 PVC 的 Pod 调度的时候，由调度器综合考虑 PV 节点情况再绑定。（删除 Pod 后，PVC 和 PV 还是绑定状态，若不删除，下次 Pod 还是会调度到这个节点上）
+
+### NetworkPolicy
+podSelector: 被选中的处于 Deny All，在 ingress, egress 设置白名单允许规则。
+直接属于 ingress, ingress.from, egress, egress.to 的规则属于或的关系（数组形式），每个规则内的选择则为与的关系（对象形式）。
 
 ## Misc.
 ### [QoS](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/pod-resource-management.md)

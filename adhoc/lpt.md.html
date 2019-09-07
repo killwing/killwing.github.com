@@ -33,11 +33,14 @@ apt install:
 * `dnsutils`: dig, host, nslookup, whois
 * `pciutils`
 * `lsof`
-* `iperf`
+* `iperf3`
 * `netperf`
 * `fio`
+* `ioping`
+* `blktrace`: blktrace, blkparse
 * [wrk](https://github.com/wg/wrk)
 
+# General
 ## uptime
 ```
 $ uptime
@@ -48,29 +51,6 @@ load average:  1, 5, 15分钟
 [平均负载](http://www.brendangregg.com/blog/2017-08-08/linux-load-averages.html)
 > the number of threads that are working and waiting to work (CPU, disk, uninterruptible locks). Put differently, it measures the number of threads that aren't completely idle.
 
-
-## mpstat
-CPU 性能指标 `cat /proc/stat | grep ^cpu`
-```
-$ mpstat -P ALL
-Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
-
-07:39:40 PM  CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
-07:39:40 PM  all    0.17    0.01    0.11    0.00    0.00    0.00    0.00    0.00    0.00   99.71
-07:39:40 PM    0    0.17    0.01    0.10    0.00    0.00    0.00    0.00    0.00    0.00   99.71
-07:39:40 PM    1    0.16    0.01    0.11    0.01    0.00    0.00    0.00    0.00    0.00   99.71
-```
-
-* usr: 用户态
-* nice: 低优先级用户态 (nice 1-19)
-* sys: 内核态
-* iowait: 等待IO
-* irq: 处理中断
-* soft: 处理软中断
-* steal: 被其他虚拟机占用
-* guest: 虚拟化（运行虚拟机）
-* gnice: 低优先级运行虚拟机
-* idle: 空闲
 
 ## pidstat
 进程 CPU 利用
@@ -128,64 +108,42 @@ Linux 4.4.0-116-generic (ubuntu) 	07/14/2019 	_x86_64_	(2 CPU)
 * kB_ccwr/s: cancelled 被取消的写
 * iodelay: I/O 延迟，单位时钟周期
 
-## strace
-跟踪系统调用
-
-* `-f` 除了跟踪当前进程外，还跟踪其子进程。
-* `-o file` 将输出信息写到文件file中，而不是stderr。
-* `-p pid` 绑定到一个由pid对应的正在运行的进程。
-* `-r` 加上相对时间戳（消耗的时间）。
-* `-t` 加上绝对时间戳。
-* `-T` 显示系统调用时长。
-* `-e` 指定系统调用名字。
-
-## ltrace
-跟踪调用库函数
-
-* `-C` 解析C++名字粉碎的符号
-
-## pstack
-
-## pmap
-显示进程的内存映射。`cat /proc/{pid}/maps,smaps`
-
-## size
-显示一个对象文件各段(.text, .data, .bss)大小
-
-## nm
-显示文件里的符号
-
-## objdump
-显示文件里的对象信息
-
-## lsof
-显示打开的文件
+内存
 ```
-$ lsof -p 2676
-COMMAND  PID USER   FD      TYPE DEVICE SIZE/OFF    NODE NAME
-tail    2676 root  cwd       DIR   0,45     4096 2492619 /
-tail    2676 root  rtd       DIR   0,45     4096 2492619 /
-tail    2676 root  txt       REG    8,1    64432 1968741 /usr/bin/tail
-tail    2676 root  mem       REG    8,1          1968301 /lib/x86_64-linux-gnu/libc-2.23.so (path inode=2228725)
-tail    2676 root  mem       REG    8,1          1968281 /lib/x86_64-linux-gnu/ld-2.23.so (path inode=2228701)
-tail    2676 root    0u      CHR  136,0      0t0       3 /dev/pts/0
-tail    2676 root    1u      CHR  136,0      0t0       3 /dev/pts/0
-tail    2676 root    2u      CHR  136,0      0t0       3 /dev/pts/0
-tail    2676 root    3r      CHR    1,3      0t0       6 /dev/null
-tail    2676 root    4r  a_inode   0,11        0    6987 inotify
+pidstat -r 3 1
+Linux 4.4.0-116-generic (ubuntu) 	08/30/2019 	_x86_64_	(2 CPU)
+
+10:22:46 AM   UID       PID  minflt/s  majflt/s     VSZ     RSS   %MEM  Command
+10:22:49 AM     0      8231    280.73      0.00   12420    4796   0.12  pidstat
 ```
 
-FD
-u: 读写
-r: 只读
-w: 写
+## top
+`cat /proc/{pid}/status`
+```
+$ top
+top - 20:14:01 up 10 days,  9:37,  1 user,  load average: 0.00, 0.00, 0.00
+Tasks: 107 total,   1 running, 106 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.2 us,  0.3 sy,  0.0 ni, 99.5 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+KiB Mem :  4046388 total,  3093660 free,   112336 used,   840392 buff/cache
+KiB Swap:   998396 total,   998396 free,        0 used.  3653864 avail Mem
 
-## ulimit
-* `-s` 显示系统默认分配的.stack大小。
-* `-a` 显示所有系统限制。
-* `-c` 控制coredump大小，unlimited为无限制。
-  * `/proc/sys/kernel/core_uses_pid`: 设为“1”，以pid为扩展名
-  * `/proc/sys/kernel/core_pattern`: 设置目录及文件名格式: `/mycores/core-%e-%p-%t` 命令名-pid-时间戳
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+    1 root      20   0   38052   6060   3968 S   0.0  0.1   0:06.38 systemd
+    2 root      20   0       0      0      0 S   0.0  0.0   0:00.11 kthreadd
+```
+
+* `1` 显示每个 CPU
+* 按 `f` 增减项, `F` 按某项排序，`H` 显示线程信息(此时PID显示的实际上是LWPID，或用ps aux -L)
+* `M` 按memory排序，`P` 按cpu排序，`N` 按PID排序
+
+
+* VIRT (Virtual Image): 进程使用的虚拟内存
+* RES (Resident size): 进程实际使用的物理内存
+* SHR (Shared Mem size): 进程使用的共享内存，即可以和其他进程共享的内存空间（动态库）
+* SWAP (Swapped Size): 交换内存
+* CODE (Code size): 进程的程序代码占用物理内存大小，也叫 text resident set (TRS)
+* DATA (Data+Stack size): 进程的非程序代码部份占用物理内存大小，也叫 data resident set (DRS)
+* %MEM: RES 占总内存的比例
 
 ## vmstat
 上下文切换、中断
@@ -221,57 +179,6 @@ procs -----------memory----------  ---swap--  -----io---- -system-- ------cpu---
   * wa iowait
   * st stolen
 
-## iostat
-```
-$ iostat -d -x 1
-Linux 4.4.0-116-generic (ubuntu) 	07/22/2019 	_x86_64_	(2 CPU)
-
-Device:         rrqm/s   wrqm/s     r/s     w/s    rkB/s    wkB/s avgrq-sz avgqu-sz   await r_await w_await  svctm  %util
-scd0              0.00     0.00    0.00    0.00     0.00     0.00     8.00     0.00    0.50    0.50    0.00   0.50   0.00
-sda               0.00     0.06    0.03    0.05     0.60     7.26   195.02     0.00    5.40    0.90    7.93   0.47   0.00
-```
-
-* rrqm/s: 每秒合并的读请求数
-* wrqm/s: 每秒合并的写请求数
-* r/s: 每秒读请求数（合并后）
-* w/s: 每秒写请求数（合并后）
-* rkB/s: 每秒读取数据量
-* wkB/s: 每秒写入数据量
-* r_await: 读请求处理完成等待时间（包括队列中的等待时间, ms）
-* w_await: 写请求处理完成等待时间（包括队列中的等待时间, ms）
-* avgqu-sz: 平均请求队列长度(kB)
-* avgrq-sz: 平均读请求大小(kB)
-* svctm: 处理 IO 请求所需的平均时间（不包括等待时间，ms）
-* %util: 使用率，处理 IO 的时间百分比，100% 不代表饱和
-
-## top
-`cat /proc/{pid}/status`
-```
-$ top
-top - 20:14:01 up 10 days,  9:37,  1 user,  load average: 0.00, 0.00, 0.00
-Tasks: 107 total,   1 running, 106 sleeping,   0 stopped,   0 zombie
-%Cpu(s):  0.2 us,  0.3 sy,  0.0 ni, 99.5 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
-KiB Mem :  4046388 total,  3093660 free,   112336 used,   840392 buff/cache
-KiB Swap:   998396 total,   998396 free,        0 used.  3653864 avail Mem
-
-  PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
-    1 root      20   0   38052   6060   3968 S   0.0  0.1   0:06.38 systemd
-    2 root      20   0       0      0      0 S   0.0  0.0   0:00.11 kthreadd
-```
-
-* `1` 显示每个 CPU
-* 按 `f` 增减项, `F` 按某项排序，`H` 显示线程信息(此时PID显示的实际上是LWPID，或用ps aux -L)
-* `M` 按memory排序，`P` 按cpu排序，`N` 按PID排序
-
-
-* VIRT (Virtual Image): 进程使用的虚拟内存
-* RES (Resident size): 进程实际使用的物理内存
-* SHR (Shared Mem size): 进程使用的共享内存，即可以和其他进程共享的内存空间（动态库）
-* SWAP (Swapped Size): 交换内存
-* CODE (Code size): 进程的程序代码占用物理内存大小，也叫 text resident set (TRS)
-* DATA (Data+Stack size): 进程的非程序代码部份占用物理内存大小，也叫 data resident set (DRS)
-* %MEM: RES 占总内存的比例
-
 ## ps
 ```
 $ ps aux
@@ -300,48 +207,6 @@ N: 低优先级
 L: 有页锁在内存
 
 RSS (Resident Set Size): 常驻内存集，包括共享内存, in KiB。
-
-## free
-`cat /proc/meminfo`
-```
-$ free -h
-              total        used        free      shared  buff/cache   available
-Mem:           3.9G        116M        2.9G         20M        867M        3.5G
-Swap:          974M
-```
-
-* total: 总内存
-* used: 已使用内存，包含共享内存
-* free: 未使用内存
-* shared: 共享内存
-* buff/cache: 缓存，内核两种不区分(https://lwn.net/Articles/712467), 对于文件 cache 指向 buff
-  * (block) buff: 块设备缓存
-  * (page) cache: 页（文件系统）缓存
-* available: 可用内存（未使用内存+可回收缓存）
-
-## perf
-```
-$ perf top -g
-Samples: 510  of event 'cpu-clock', Event count (approx.): 100515577
-  Children      Self  Shared Object            Symbol
-+   23.99%     0.38%  [kernel]                 [k] seq_read
-+   15.61%     0.76%  [kernel]                 [k] seq_printf
-+   15.61%     0.38%  [kernel]                 [k] s_show
-+   11.43%     2.67%  [kernel]                 [k] vsnprintf
-+   10.66%    10.66%  perf                     [.] 0x000000000008d834
-+    7.87%     7.87%  perf                     [.] 0x0000000000082287``
-```
-
-* Children: 符号调用其他符号占用比例之和
-* Self: 符号本身所占比例
-* Shared Object: 符号所在的共享对象
-* Symbol: 符号名，`[k]` 内核空间，`[.]` 用户空间
-
-
-```
-$ perf record -ag -- sleep 2
-$ perf report
-```
 
 ## sar
 ```
@@ -383,22 +248,54 @@ Linux 4.4.0-116-generic (ubuntu) 	07/21/2019 	_x86_64_	(2 CPU)
 * active: 活跃内存
 * inact: 不活跃内存，可能会被回收
 
-## df
+
+# CPU
+## mpstat
+CPU 性能指标 `cat /proc/stat | grep ^cpu`
 ```
-$ df -ihT
-Filesystem           Type     Inodes IUsed IFree IUse% Mounted on
-udev                 devtmpfs   489K   431  489K    1% /dev
-tmpfs                tmpfs      494K   595  494K    1% /run
-/dev/sda1            ext4       6.2M  389K  5.9M    7% /
+$ mpstat -P ALL
+Linux 4.4.0-116-generic (ubuntu) 	06/19/2019 	_x86_64_	(2 CPU)
+
+07:39:40 PM  CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+07:39:40 PM  all    0.17    0.01    0.11    0.00    0.00    0.00    0.00    0.00    0.00   99.71
+07:39:40 PM    0    0.17    0.01    0.10    0.00    0.00    0.00    0.00    0.00    0.00   99.71
+07:39:40 PM    1    0.16    0.01    0.11    0.01    0.00    0.00    0.00    0.00    0.00   99.71
 ```
 
-## du
+* usr: 用户态
+* nice: 低优先级用户态 (nice 1-19)
+* sys: 内核态
+* iowait: 等待IO
+* irq: 处理中断
+* soft: 处理软中断
+* steal: 被其他虚拟机占用
+* guest: 虚拟化（运行虚拟机）
+* gnice: 低优先级运行虚拟机
+* idle: 空闲
+
+# IO
+## iostat
 ```
-$ du -hc --max-depth=1
-104M	./test
-11M	./.kube
-1.9G	./.local
+$ iostat -d -x 1
+Linux 4.4.0-116-generic (ubuntu) 	07/22/2019 	_x86_64_	(2 CPU)
+
+Device:         rrqm/s   wrqm/s     r/s     w/s    rkB/s    wkB/s avgrq-sz avgqu-sz   await r_await w_await  svctm  %util
+scd0              0.00     0.00    0.00    0.00     0.00     0.00     8.00     0.00    0.50    0.50    0.00   0.50   0.00
+sda               0.00     0.06    0.03    0.05     0.60     7.26   195.02     0.00    5.40    0.90    7.93   0.47   0.00
 ```
+
+* rrqm/s: 每秒合并的读请求数
+* wrqm/s: 每秒合并的写请求数
+* r/s: 每秒读请求数（合并后）
+* w/s: 每秒写请求数（合并后）
+* rkB/s: 每秒读取数据量
+* wkB/s: 每秒写入数据量
+* r_await: 读请求处理完成等待时间（包括队列中的等待时间, ms）
+* w_await: 写请求处理完成等待时间（包括队列中的等待时间, ms）
+* avgqu-sz: 平均请求队列长度(kB)
+* avgrq-sz: 平均读请求大小(kB)
+* svctm: 处理 IO 请求所需的平均时间（不包括等待时间，ms）
+* %util: 使用率，处理 IO 的时间百分比，100% 不代表饱和
 
 ## slabtop
 `cat /proc/slabinfo`
@@ -435,40 +332,46 @@ Actual DISK READ:       0.00 B/s | Actual DISK WRITE:       0.00 B/s
     9 rt/4 root        0.00 B/s    0.00 B/s  0.00 %  0.00 % [migration/0]
 ```
 
-## ip
+
+## df
 ```
-$ ip -s addr
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    inet 127.0.0.1/8 scope host lo
-       valid_lft forever preferred_lft forever
-    inet6 ::1/128 scope host
-       valid_lft forever preferred_lft forever
-    RX: bytes  packets  errors  dropped overrun mcast
-    0          0        0       0       0       0
-    TX: bytes  packets  errors  dropped carrier collsns
-    0          0        0       0       0       0
-2: enp0s3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
-    link/ether 08:00:27:b2:d8:0b brd ff:ff:ff:ff:ff:ff
-    inet 10.0.2.15/24 brd 10.0.2.255 scope global enp0s3
-       valid_lft forever preferred_lft forever
-    inet6 fe80::a00:27ff:feb2:d80b/64 scope link
-       valid_lft forever preferred_lft forever
-    RX: bytes  packets  errors  dropped overrun mcast
-    1170418    2925     0       0       0       0
-    TX: bytes  packets  errors  dropped carrier collsns
-    245510     2186     0       0       0       0
+$ df -ihT
+Filesystem           Type     Inodes IUsed IFree IUse% Mounted on
+udev                 devtmpfs   489K   431  489K    1% /dev
+tmpfs                tmpfs      494K   595  494K    1% /run
+/dev/sda1            ext4       6.2M  389K  5.9M    7% /
 ```
 
-RX: 收
-TX: 发
+## du
+```
+$ du -hc --max-depth=1
+104M	./test
+11M	./.kube
+1.9G	./.local
+```
 
-* errors: 错误的包
-* dropped: 丢弃的包
-* overrun: ring buffer 满丢包
-* mcast: 多播包
-* carrier: 物理载体错误
-* collsns: 碰撞的包
+
+# Memory
+## free
+`cat /proc/meminfo`
+```
+$ free -h
+              total        used        free      shared  buff/cache   available
+Mem:           3.9G        116M        2.9G         20M        867M        3.5G
+Swap:          974M
+```
+
+* total: 总内存
+* used: 已使用内存，包含共享内存
+* free: 未使用内存
+* shared: 共享内存
+* buff/cache: 缓存，内核两种不区分(https://lwn.net/Articles/712467), 对于文件 cache 指向 buff
+  * (block) buff: 块设备缓存
+  * (page) cache: 页（文件系统）缓存
+* available: 可用内存（未使用内存+可回收缓存）
+
+# Networking
+## iftop
 
 ## netstat/ss
 ```
@@ -510,6 +413,42 @@ FRAG      0         0         0
 * netns: 网络空间
 * tuntap: 用户空间网关，L2(TAP), L3(TUN)
 * neigh: ARP
+
+### ip-addr
+```
+$ ip -s addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+    RX: bytes  packets  errors  dropped overrun mcast
+    0          0        0       0       0       0
+    TX: bytes  packets  errors  dropped carrier collsns
+    0          0        0       0       0       0
+2: enp0s3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 08:00:27:b2:d8:0b brd ff:ff:ff:ff:ff:ff
+    inet 10.0.2.15/24 brd 10.0.2.255 scope global enp0s3
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a00:27ff:feb2:d80b/64 scope link
+       valid_lft forever preferred_lft forever
+    RX: bytes  packets  errors  dropped overrun mcast
+    1170418    2925     0       0       0       0
+    TX: bytes  packets  errors  dropped carrier collsns
+    245510     2186     0       0       0       0
+```
+
+RX: 收
+TX: 发
+
+* errors: 错误的包
+* dropped: 丢弃的包
+* overrun: ring buffer 满丢包
+* mcast: 多播包
+* carrier: 物理载体错误
+* collsns: 碰撞的包
+
 
 ### ip-route
 指定路由查找 `ip route get 192.168.10.10`
@@ -565,15 +504,15 @@ chains: 规则链
 Routing decision                                                  |
 ****************                                                  |
        |                                                          |
-       v                        ****************                  |
-+-------------+       +------>  Routing decision  <---------------+
-|table: nat   |       |         ****************
-|chain: OUTPUT|       |               +
-+-----+-------+       |               |
-      |               |               v
-      v               |      +-------------------+
-+--------------+      |      | table: nat        |
-|table: filter | +----+      | chain: POSTROUTING|
+       v                                                          |
++-------------+                                                   |
+|table: nat   |                                                   |
+|chain: OUTPUT|                                                   |
++-----+-------+                                                   |
+      |                                                           |
+      v                      +-------------------+                |
++--------------+             | table: nat        |                |
+|table: filter +------------>| chain: POSTROUTING|<---------------+
 |chain: OUTPUT |             +--------+----------+
 +--------------+                      |
                                       v
@@ -621,7 +560,7 @@ targets:
 * chain-name: 转向自定义链 （next chain）
 
 rule-specs:
-在一个chain中自上而下匹配，匹配到执行targets并返回。
+在一个 chain 中自上而下匹配，匹配到执行 targets，如果没找到匹配就返回原 chain 继续匹配。
 
 * s: source, 源地址，IP[/MASK] 可以加上`!`取反
 * d: dest, 目标地址
@@ -762,8 +701,256 @@ len=46 ip=39.156.69.79 ttl=64 id=50688 sport=80 flags=SA seq=2 win=65535 rtt=30.
 round-trip min/avg/max = 30.1/35.5/42.2 ms
 ```
 
-## proc
-硬中断
+
+
+# Tracing
+## strace
+跟踪系统调用
+
+* `-f` 除了跟踪当前进程外，还跟踪其子进程。
+* `-o file` 将输出信息写到文件file中，而不是stderr。
+* `-p pid` 绑定到一个由pid对应的正在运行的进程。
+* `-r` 加上相对时间戳（消耗的时间）。
+* `-t` 加上绝对时间戳。
+* `-T` 显示系统调用时长。
+* `-e` 指定系统调用名字。
+
+## ltrace
+跟踪调用库函数
+
+* `-C` 解析C++名字粉碎的符号
+
+## pstack
+
+## pmap
+显示进程的内存映射。`cat /proc/{pid}/maps,smaps`
+
+## size
+显示一个对象文件各段(.text, .data, .bss)大小
+
+## nm
+显示文件里的符号
+
+## objdump
+显示文件里的对象信息
+
+## lsof
+显示打开的文件
+```
+$ lsof -p 2676
+COMMAND  PID USER   FD      TYPE DEVICE SIZE/OFF    NODE NAME
+tail    2676 root  cwd       DIR   0,45     4096 2492619 /
+tail    2676 root  rtd       DIR   0,45     4096 2492619 /
+tail    2676 root  txt       REG    8,1    64432 1968741 /usr/bin/tail
+tail    2676 root  mem       REG    8,1          1968301 /lib/x86_64-linux-gnu/libc-2.23.so (path inode=2228725)
+tail    2676 root  mem       REG    8,1          1968281 /lib/x86_64-linux-gnu/ld-2.23.so (path inode=2228701)
+tail    2676 root    0u      CHR  136,0      0t0       3 /dev/pts/0
+tail    2676 root    1u      CHR  136,0      0t0       3 /dev/pts/0
+tail    2676 root    2u      CHR  136,0      0t0       3 /dev/pts/0
+tail    2676 root    3r      CHR    1,3      0t0       6 /dev/null
+tail    2676 root    4r  a_inode   0,11        0    6987 inotify
+```
+
+FD
+u: 读写
+r: 只读
+w: 写
+
+## ulimit
+* `-s` 显示系统默认分配的.stack大小。
+* `-a` 显示所有系统限制。
+* `-c` 控制coredump大小，unlimited为无限制。
+  * `/proc/sys/kernel/core_uses_pid`: 设为“1”，以pid为扩展名
+  * `/proc/sys/kernel/core_pattern`: 设置目录及文件名格式: `/mycores/core-%e-%p-%t` 命令名-pid-时间戳
+
+# Benchmark
+## perf
+```
+$ perf top -g
+Samples: 510  of event 'cpu-clock', Event count (approx.): 100515577
+  Children      Self  Shared Object            Symbol
++   23.99%     0.38%  [kernel]                 [k] seq_read
++   15.61%     0.76%  [kernel]                 [k] seq_printf
++   15.61%     0.38%  [kernel]                 [k] s_show
++   11.43%     2.67%  [kernel]                 [k] vsnprintf
++   10.66%    10.66%  perf                     [.] 0x000000000008d834
++    7.87%     7.87%  perf                     [.] 0x0000000000082287``
+```
+
+* Children: 符号调用其他符号占用比例之和
+* Self: 符号本身所占比例
+* Shared Object: 符号所在的共享对象
+* Symbol: 符号名，`[k]` 内核空间，`[.]` 用户空间
+
+
+```
+$ perf record -ag -- sleep 2
+$ perf report
+```
+
+## [fio](http://fio.readthedocs.io/en/latest/fio_doc.html)
+单个大文件：
+```
+$ fio -name=randread -direct=1 -iodepth=64 -rw=randread -ioengine=libaio -bs=4k -size=1G -numjobs=1 -runtime=1000 -group_reporting -filename=test1G
+randread: (g=0): rw=randread, bs=4K-4K/4K-4K/4K-4K, ioengine=libaio, iodepth=64
+fio-2.2.10
+Starting 1 process
+Jobs: 1 (f=1): [r(1)] [100.0% done] [35416KB/0KB/0KB /s] [8854/0/0 iops] [eta 00m:00s]
+randread: (groupid=0, jobs=1): err= 0: pid=3825: Thu Aug 29 10:59:16 2019
+  read : io=1024.0MB, bw=34004KB/s, iops=8500, runt= 30837msec
+    slat (usec): min=41, max=2566, avg=114.84, stdev=32.80
+    clat (usec): min=4, max=10583, avg=7382.59, stdev=534.81
+     lat (usec): min=49, max=10725, avg=7497.62, stdev=541.48
+    clat percentiles (usec):
+     |  1.00th=[ 6432],  5.00th=[ 6624], 10.00th=[ 6752], 20.00th=[ 6880],
+     | 30.00th=[ 7008], 40.00th=[ 7136], 50.00th=[ 7328], 60.00th=[ 7584],
+     | 70.00th=[ 7712], 80.00th=[ 7840], 90.00th=[ 8032], 95.00th=[ 8160],
+     | 99.00th=[ 8640], 99.50th=[ 9024], 99.90th=[ 9792], 99.95th=[10176],
+     | 99.99th=[10432]
+    bw (KB  /s): min=23656, max=37008, per=99.86%, avg=33955.15, stdev=2190.66
+    lat (usec) : 10=0.01%, 100=0.01%, 250=0.01%, 500=0.01%, 750=0.01%
+    lat (usec) : 1000=0.01%
+    lat (msec) : 2=0.01%, 4=0.01%, 10=99.91%, 20=0.07%
+  cpu          : usr=2.47%, sys=10.73%, ctx=262146, majf=0, minf=172
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=100.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued    : total=r=262144/w=0/d=0, short=r=0/w=0/d=0, drop=r=0/w=0/d=0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: io=1024.0MB, aggrb=34003KB/s, minb=34003KB/s, maxb=34003KB/s, mint=30837msec, maxt=30837msec
+```
+
+多个小文件：
+```
+$ fio --rw=randread --ioengine=sync --bs=4k --name=mytest --nrfiles=10000 --filesize=50k --direct=1 --openfiles=100
+mytest: (g=0): rw=randread, bs=4K-4K/4K-4K/4K-4K, ioengine=sync, iodepth=1
+fio-2.2.10
+Starting 1 process
+Jobs: 1 (f=4): [r(1)] [96.2% done] [6329KB/0KB/0KB /s] [1582/0/0 iops] [eta 00m:03s]s]
+mytest: (groupid=0, jobs=1): err= 0: pid=6653: Thu Aug 29 14:43:28 2019
+  read : io=480000KB, bw=6321.1KB/s, iops=1580, runt= 75926msec
+    clat (usec): min=271, max=25059, avg=627.35, stdev=313.98
+     lat (usec): min=271, max=25059, avg=627.60, stdev=313.98
+    clat percentiles (usec):
+     |  1.00th=[  346],  5.00th=[  406], 10.00th=[  450], 20.00th=[  506],
+     | 30.00th=[  548], 40.00th=[  580], 50.00th=[  612], 60.00th=[  636],
+     | 70.00th=[  668], 80.00th=[  708], 90.00th=[  772], 95.00th=[  836],
+     | 99.00th=[ 1160], 99.50th=[ 1448], 99.90th=[ 4192], 99.95th=[ 6368],
+     | 99.99th=[11328]
+    bw (KB  /s): min= 4256, max= 9024, per=100.00%, avg=6324.31, stdev=815.62
+    lat (usec) : 500=18.38%, 750=68.65%, 1000=11.07%
+    lat (msec) : 2=1.65%, 4=0.14%, 10=0.09%, 20=0.01%, 50=0.01%
+  cpu          : usr=0.61%, sys=3.01%, ctx=120691, majf=0, minf=478
+  IO depths    : 1=100.0%, 2=0.0%, 4=0.0%, 8=0.0%, 16=0.0%, 32=0.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     issued    : total=r=120000/w=0/d=0, short=r=0/w=0/d=0, drop=r=0/w=0/d=0
+     latency   : target=0, window=0, percentile=100.00%, depth=1
+
+Run status group 0 (all jobs):
+   READ: io=480000KB, aggrb=6321KB/s, minb=6321KB/s, maxb=6321KB/s, mint=75926msec, maxt=75926msec
+
+Disk stats (read/write):
+  rbd2: ios=119988/119, merge=0/4005, ticks=73429/1261, in_queue=1736, util=99.28%
+```
+
+* name: 测试任务名称
+* rw: read, write, randread, randwrite
+* direct: 直接读写
+* iodepth: aio时，I/O 并发请求上限
+* ioengine: sync, libaio, mmap, net
+* bs: 每次 I/O 大小，direct 时应增大如 16m
+* numjob: 任务进程数（并发数）
+* group_reporting: 多个 numjob 时，合并显示结果
+* filename: 生成文件名，如果是磁盘会破坏文件系统
+* runtime: 限时
+* fdatasync: 每次 I/O 后都执行 fdatasync
+* size: 总大小
+* nrfiles: 生成文件数目，格式 `jobname.jobnumber.filenumber`
+* filesize: 生成文件大小
+* openfiles: 同时 open 的文件数目
+
+* slat: I/O 提交到执行的时长
+* clat: I/O 提交到完成的时长
+* lat: I/O 总时长
+* bw: 吞吐量
+* iops: 每秒 I/O
+
+Ref: [aliyun storage test](https://help.aliyun.com/document_detail/25382.html?spm=5176.ecsbuyv3.0.0.122a3675KVZSlO)
+
+IO 重放：
+```
+$ blktrace /dev/sdb # sdb.blktrace.0  sdb.blktrace.1
+$ blkparse sdb -d sdb.bin
+$ fio --name=replay --filename=/dev/sdb --direct=1 --read_iolog=sdb.bin
+```
+
+## dd
+read
+```
+$ dd if=/tmp/testfile of=/dev/null bs=2M iflag=direct
+```
+
+write
+```
+$ dd if=/dev/zero of=/tmp/testfile bs=2M count=250 oflag=direct
+```
+
+`conv=fdatasync` 最后保证数据同步到磁盘。
+`conv=fsync`: 同步数据及metadata。
+`oflag=dsync`表示每次写操作都同步一次，不加参数则由系统自动同步。
+`oflag=sync`同时对metadata。
+`oflag=direct`使用direct i/o。
+
+## iperf
+服务端：
+```
+$ iperf3 -s -p 8000
+Accepted connection from 192.168.1.29, port 60628
+[  5] local 192.168.5.26 port 8999 connected to 192.168.1.29 port 60630
+[ ID] Interval           Transfer     Bandwidth
+[  5]   0.00-1.00   sec  96.0 MBytes   806 Mbits/sec
+[  5]   1.00-2.00   sec   100 MBytes   840 Mbits/sec
+[  5]   2.00-3.00   sec   100 MBytes   839 Mbits/sec
+[  5]   3.00-4.00   sec   100 MBytes   839 Mbits/sec
+[  5]   4.00-5.00   sec   100 MBytes   840 Mbits/sec
+[  5]   5.00-5.04   sec  3.83 MBytes   781 Mbits/sec
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bandwidth       Retr
+[  5]   0.00-5.04   sec   501 MBytes   834 Mbits/sec  163             sender
+[  5]   0.00-5.04   sec   500 MBytes   832 Mbits/sec                  receiver
+```
+
+客户端：
+```
+$ iperf3 -c 192.168.0.3 -4 -b 1G -t 5 -P 2 -p 8000 -i 1
+Connecting to host 192.168.5.26, port 8999
+[  4] local 192.168.1.29 port 60630 connected to 192.168.5.26 port 8999
+[ ID] Interval           Transfer     Bandwidth       Retr  Cwnd
+[  4]   0.00-1.00   sec   102 MBytes   851 Mbits/sec   63    286 KBytes
+[  4]   1.00-2.00   sec  99.7 MBytes   836 Mbits/sec   43    385 KBytes
+[  4]   2.00-3.00   sec   100 MBytes   839 Mbits/sec   31    319 KBytes
+[  4]   3.00-4.00   sec   101 MBytes   843 Mbits/sec    4    409 KBytes
+[  4]   4.00-5.00   sec  99.8 MBytes   837 Mbits/sec   22    320 KBytes
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bandwidth       Retr
+[  4]   0.00-5.00   sec   501 MBytes   841 Mbits/sec  163             sender
+[  4]   0.00-5.00   sec   500 MBytes   839 Mbits/sec                  receiver
+
+iperf Done.
+```
+
+* 4: ipv4
+* b: 目标带宽(b/s)
+* t: 时长
+* P: 并发数
+* p: 端口
+* i: 报告间隔
+
+# proc
+## 硬中断
 ```
 $ cat /proc/interrupts
            CPU0       CPU1
@@ -799,7 +986,7 @@ PIN:          0          0   Posted-interrupt notification event
 PIW:          0          0   Posted-interrupt wakeup event
 ```
 
-软中断
+## 软中断
 ```
 $ cat /proc/softirqs
                     CPU0       CPU1
@@ -815,7 +1002,7 @@ BLOCK_IOPOLL:          0          0
          RCU:    1193798    4950543
 ```
 
-## Reference
+# Reference
 http://www.brendangregg.com/linuxperf.html
 
 </xmp>

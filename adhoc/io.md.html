@@ -101,38 +101,6 @@ msync(): 使用mmap时同步数据。
 Linux (Kernel) AIO: 内核异步IO。主要syscall: `io_submit`和`io_getevents`, glibc并未暴露。
 [Posix AIO](http://man7.org/linux/man-pages/man7/aio.7.html): 用户空间实现，并未使用内核AIO。
 
-
-## Benchmark
-### read
-`dd if=/tmp/testfile of=/dev/null bs=2M iflag=direct`
-
-hdparm:
-从磁盘读：`hdparm -t /dev/sda1`
-从缓存读：`hdparm -T /dev/sda1`
-
-
-### write
-`dd if=/dev/zero of=/tmp/testfile bs=2M count=250 oflag=direct`
-
-`conv=fdatasync` 最后保证数据同步到磁盘。
-`conv=fsync`: 同步数据及metadata。
-`oflag=dsync`表示每次写操作都同步一次，不加参数则由系统自动同步。
-`oflag=sync`同时对metadata。
-`oflag=direct`使用direct i/o。
-
-### fio
-https://github.com/axboe/fio
-http://fio.readthedocs.io/en/latest/fio_doc.html
-https://www.binarylane.com.au/support/solutions/articles/1000055889-how-to-benchmark-disk-i-o
-
-
-IO 重放：
-```
-$ blktrace /dev/sdb # sdb.blktrace.0  sdb.blktrace.1
-$ blkparse sdb -d sdb.bin
-$ fio --name=replay --filename=/dev/sdb --direct=1 --read_iolog=sdb.bin
-```
-
 ## I/O Error Simulation
 创建虚拟磁盘(1048576个扇区，可用`blockdev --getsz /dev/loop0`查看)，不用挂载：
 ```
