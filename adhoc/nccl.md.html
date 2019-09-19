@@ -190,7 +190,7 @@ int main(int argc, char* argv[])
 执行：`mpirun -np 2 --allow-run-as-root -H 172.16.41.2,172.16.41.3 ./mpi-test`
 
 ### [Perf](https://github.com/nvidia/nccl-tests)
-`NCCL_DEBUG=INFO mpirun -np 2 --allow-run-as-root -H 172.16.41.2,172.16.41.3 ./all_reduce_perf -b 8 -e 128M -f 2 -g 2`
+`mpirun -x NCCL_TREE_THRESHOLD=0 -x NCCL_DEBUG=INFO -np 2 --allow-run-as-root -H 172.16.41.2,172.16.41.3 ./all_reduce_perf -b 8 -e 128M -f 2 -g 2`
 
 ### Test Image
 ```
@@ -210,7 +210,6 @@ RUN apt install -y --no-install-recommends ca-certificates wget vim curl git unz
 
 # ssh
 RUN echo | ssh-keygen -q -N "" && cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys && chmod 400 /root/.ssh/id_rsa && mkdir -p /var/run/sshd
-RUN sed -i 's/^Port 22/Port 8888/' /etc/ssh/sshd_config
 
 # IB
 #  Set MOFED directory, image and working directory

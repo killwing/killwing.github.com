@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Dist Training</title>
+<xmp theme="united" style="display:none;">
+Method: 数据并行，模型并行
+
+## [Parameter Server](http://ps-lite.readthedocs.io/en/latest/overview.html)
+### 计算模型
+Sync-SGD
+
+worker：
+```
+ExecComputeGrad(i, t) {
+   Read(&X, &Y);  // read minibatch with b / num_workers examples
+   Pull(&w);      // pull the recent weight from the servers
+   ComputeGrad(X, Y, w, &grad);  // compute the gradient
+   Push(grad);    // push the gradients to the servers
+}
+```
+
+server:
+```
+ExecUpdateWeight(i, t) {
+   for (j = 0; j < num_workers; ++j) {
+      Receive(&grad);
+      aggregated_grad += grad;
+   }
+   w_i -= eta(t) * aggregated_grad;
+}
+```
+
+Async-SGD
+
+### Throughput 估算
+case 1 假设：
+
+* worker: N
+* server: 1
+* num of params: M
+* type of params: int (32bit)
+* batch size: B
+* second per batch: T
+
+则：
+
+worker: `M * 2 * 32bit / T`
+server: `N * M * 2 * 32bit / T`
+
+e.g.:
+
+ResNet-50: M=25M, N=8, T=0.5
+worker: `25 * 10^6 * 2 * 4 / 0.5 = 400M/s`
+server: `8 * 25 * 10^6 * 2 * 4 / 0.5 = 3200M/s`
+
+
+case 2 假设：
+
+* worker: N
+* server: N
+* num of params: M （分成N等份）
+* type of params: int (32bit)
+* batch size: B
+* second per batch: T
+
+则：
+
+worker: `(M/N * 2 * 32Bit) * N / T`
+server: `(M/N * 2 * 32Bit) * N / T`
+
+但 worker 自己需要分割和合并参数
+
+## All-Reduce
+Combine data from all senders; deliver the result to all participants.
+
+### [Ring All-Reduce](https://images.nvidia.com/events/sc15/pdfs/NCCL-Woolley.pdf)
+https://devblogs.nvidia.com/fast-multi-gpu-collectives-nccl/
+
+
+### v.s. PS
+http://hunch.net/?p=151364
+
+## Optimization
+提高CCR (Compute-to-Communication Ratio)
+
+* 减少通信量
+* 重叠（并行）通信和计算
+
+## Acceleration
+### Networking
+
+* RDMA
+* InfiniBand
+* RoCE: Ethernet IP
+* iWARP: Ethernet TCP
+
+### GPU
+GPU Direct: https://developer.nvidia.com/gpudirect
+
+## Benchmark
+https://github.com/mlperf/training
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

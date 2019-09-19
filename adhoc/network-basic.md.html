@@ -107,6 +107,8 @@ epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的
 拥塞避免算法：当cwnd>=ssthresh，进入拥塞避免阶段，此时cwnd的增长不再像之前那样是指数增长，而是线性增长。
 快速重传/快速恢复：发送丢包（超时重传或收到三个冗余ACK）时，cwnd = cwnd / 2；ssthresh设置为缩小后的cwnd大小。
 
+### TCP_QUICKACK and TCP_NODELAY
+
 ## UDP
 [大多数Unix实现上，对于Unix域数据报套接字，是可靠的且不会乱序。](http://man7.org/linux/man-pages/man7/unix.7.html)
 意味着发送数据报时，如果对端接收缓冲区已满，对于阻塞套接字则会阻塞；对于非阻塞套接字则会返回EWOULDBLOCK错误。
