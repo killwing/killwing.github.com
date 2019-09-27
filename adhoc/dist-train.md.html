@@ -76,9 +76,31 @@ Combine data from all senders; deliver the result to all participants.
 ### [Ring All-Reduce](https://images.nvidia.com/events/sc15/pdfs/NCCL-Woolley.pdf)
 https://devblogs.nvidia.com/fast-multi-gpu-collectives-nccl/
 
+ring broadcast:
+N: bytes to broadcast
+B: bandwidth of each link
+k: number of GPUs
+S: split N to S messages
+
+每块消息传递时间：N/(SB)
+总时间 `t = 第一块到达终点之前所需时间 + 第一块到达终点之后所需时间 = (k-2)N/(SB) + (SN)/(SB) = (k-2+S)N/(SB)`，即当 S 远大于 k 时，总时间接近 N/B。
+
+ring all-reduce: 将 N 分成 k 块，每个节点(GPU)每次发送初始或 reduce 后的大小为 N/k 块（第一个节点发送第一块，同时第二个节点发送第二块...每个节点同时收发（全双工）），k-1 轮后每个 GPU 都有单独每块的最终 reduce 结果，再需要 k-1 轮将各自的结果传到其他节点上。
+N: bytes to all-reduce
+k: number of GPUs
+
+总时间 `t = 2(k-1)N/(kB)` 可认为独立于 k，但随着 k 增加，延迟增高。
+
+### [Double binary trees](https://en.wikipedia.org/wiki/Two-tree_broadcast)
+https://devblogs.nvidia.com/massively-scale-deep-learning-training-nccl-2-4/
 
 ### v.s. PS
 http://hunch.net/?p=151364
+https://github.com/bytedance/byteps/blob/master/docs/rationale.md
+
+## [性能计算](https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md)
+运算带宽（理论）：大小 / 时间
+总线带宽（物理）：系数 *  运算带宽
 
 ## Optimization
 提高CCR (Compute-to-Communication Ratio)
@@ -95,7 +117,9 @@ http://hunch.net/?p=151364
 * iWARP: Ethernet TCP
 
 ### GPU
-GPU Direct: https://developer.nvidia.com/gpudirect
+GPU Direct: GPU 之间互相通信而不需要 CPU 参与内存拷贝。
+https://developer.nvidia.com/gpudirect
+https://developer.download.nvidia.cn/devzone/devcenter/cuda/docs/GPUDirect_Technology_Overview.pdf
 
 ## Benchmark
 https://github.com/mlperf/training
