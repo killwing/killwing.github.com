@@ -39,6 +39,8 @@ apt install:
 * `ioping`
 * `blktrace`: blktrace, blkparse
 * [wrk](https://github.com/wg/wrk)
+* `trace-cmd`
+* [sysdig](https://github.com/draios/sysdig)
 
 # General
 ## uptime
@@ -404,6 +406,83 @@ INET      10        6         4
 FRAG      0         0         0
 ```
 
+```
+$ netstat -s
+Ip:
+    28593 total packets received
+    2 with invalid addresses
+    0 forwarded
+    0 incoming packets discarded
+    28546 incoming packets delivered
+    21729 requests sent out
+Icmp:
+    2 ICMP messages received
+    0 input ICMP message failed.
+    ICMP input histogram:
+        destination unreachable: 2
+    4 ICMP messages sent
+    0 ICMP messages failed
+    ICMP output histogram:
+        destination unreachable: 4
+IcmpMsg:
+        InType3: 2
+        OutType3: 4
+Tcp:
+    66 active connections openings
+    9 passive connection openings
+    0 failed connection attempts
+    2 connection resets received
+    1 connections established
+    26873 segments received
+    20350 segments send out
+    3 segments retransmited
+    0 bad segments received.
+    39 resets sent
+Udp:
+    1668 packets received
+    3 packets to unknown port received.
+    0 packet receive errors
+    1954 packets sent
+UdpLite:
+TcpExt:
+    29 TCP sockets finished time wait in fast timer
+    109 delayed acks sent
+    1 delayed acks further delayed because of locked socket
+    17459 packet headers predicted
+    120 acknowledgments not containing data payload received
+    6484 predicted acknowledgments
+    3 congestion windows recovered without slow start after partial ack
+    3 other TCP timeouts
+    2 connections reset due to early user close
+    TCPRcvCoalesce: 8673
+    TCPAutoCorking: 124
+    TCPSynRetrans: 3
+    TCPOrigDataSent: 6610
+    TCPHystartTrainDetect: 3
+    TCPHystartTrainCwnd: 52
+    TCPKeepAlive: 16
+IpExt:
+    InNoRoutes: 45
+    InOctets: 80937971
+    OutOctets: 2903583
+    InNoECTPkts: 67780
+```
+
+```
+$ netstat -i
+Kernel Interface table
+Iface       MTU Met   RX-OK RX-ERR RX-DRP RX-OVR    TX-OK TX-ERR TX-DRP TX-OVR Flg
+docker0    1500 0         0      0      0 0             0      0      0      0 BMU
+enp0s3     1500 0     68142      0      0 0         22828      0      0      0 BMRU
+lo        65536 0         1      0      0 0             1      0      0      0 LRU
+```
+
+* RX-OK/TX-OK: 收发总包数
+* RX-ERR/TX-ERR: 收发错误数
+* RX-DRP/TX-DRP: 进入 buffer 后的丢包数
+* RX-OVR/TX-OVR: buffer 溢出的丢包数
+
+
 ## [ip](https://helpmanual.io/man8/ip/)
 [subcommands](https://events.static.linuxfound.org/sites/events/files/slides/2016%20-%20Linux%20Networking%20explained_0.pdf):
 
@@ -704,6 +783,59 @@ round-trip min/avg/max = 30.1/35.5/42.2 ms
 
 
 # Tracing
+## perf
+```
+$ perf top -g
+Samples: 510  of event 'cpu-clock', Event count (approx.): 100515577
+  Children      Self  Shared Object            Symbol
++   23.99%     0.38%  [kernel]                 [k] seq_read
++   15.61%     0.76%  [kernel]                 [k] seq_printf
++   15.61%     0.38%  [kernel]                 [k] s_show
++   11.43%     2.67%  [kernel]                 [k] vsnprintf
++   10.66%    10.66%  perf                     [.] 0x000000000008d834
++    7.87%     7.87%  perf                     [.] 0x0000000000082287``
+```
+
+* Children: 符号调用其他符号占用比例之和
+* Self: 符号本身所占比例
+* Shared Object: 符号所在的共享对象
+* Symbol: 符号名，`[k]` 内核空间，`[.]` 用户空间
+
+```
+$ perf record -ag -- sleep 2
+$ perf report
+```
+
+[火焰图](https://github.com/brendangregg/FlameGraph)分析：
+```
+$ perf script -i /root/perf.data | ./stackcollapse-perf.pl --all |  ./flamegraph.pl > perf.svg
+```
+
+跟踪内核函数调用：
+```
+$ perf probe --add 'do_sys_open filename:string'
+$ perf record -e probe:do_sys_open -aR sleep 3
+$ perf script
+```
+
+跟踪系统调用，类似 strace:
+```
+$ perf trace ls
+```
+
+跟踪用户函数，类似 ltrace：
+```
+$ perf probe -x /bin/bash 'readline%return +0($retval):string’
+$ perf record -e probe_bash:readline__return -aR sleep 5
+$ perf script
+```
+
+查询函数格式：
+```
+$ perf probe -V do_sys_open
+$ perf probe -x /bin/bash -V readline
+```
+
 ## strace
 跟踪系统调用
 
@@ -719,6 +851,74 @@ round-trip min/avg/max = 30.1/35.5/42.2 ms
 跟踪调用库函数
 
 * `-C` 解析C++名字粉碎的符号
+
+## ftrace
+挂载 debugfs: `mount -t debugfs nodev /sys/kernel/debug`
+通过与 debugfs 的交互，完成跟踪：
+```
+$ cd /sys/kernel/debug/tracing
+$ cat available_tracers
+$ cat available_filter_functions
+$ cat available_events
+$ echo do_sys_open > set_graph_function
+$ echo function_graph > current_tracer
+$ echo funcgraph-proc > trace_options
+$ echo 1 > tracing_on
+$ ls
+$ echo 0 > tracing_on
+```
+
+```
+$ cat trace
+# tracer: function_graph
+#
+CPU  TASK/PID         DURATION                  FUNCTION CALLS
+|     |    |           |   |                     |   |   |   |
+0)    ls-21699    |               |  do_sys_open() {
+0)    ls-21699    |               |    getname() {
+0)    ls-21699    |               |      getname_flags() {
+0)    ls-21699    |               |        kmem_cache_alloc() {
+0)    ls-21699    |   0.042 us    |          _cond_resched();
+0)    ls-21699    |   0.509 us    |        }
+0)    ls-21699    |   0.882 us    |      }
+0)    ls-21699    |   1.180 us    |    }
+0)    ls-21699    |               |    get_unused_fd_flags() {
+0)    ls-21699    |               |      __alloc_fd() {
+0)    ls-21699    |   0.087 us    |        _raw_spin_lock();
+0)    ls-21699    |   0.056 us    |        expand_files();
+0)    ls-21699    |   0.035 us    |        __pv_queued_spin_unlock();
+0)    ls-21699    |   1.644 us    |      }
+0)    ls-21699    |   2.007 us    |    }
+...
+```
+
+或者用 trace-cmd:
+```
+$ trace-cmd record -p function_graph -g do_sys_open -O funcgraph-proc ls
+$ trace-cmd report
+version = 6
+CPU 0 is empty
+cpus=2
+              ls-4157  [001] 707885.586231: funcgraph_entry:                   |  do_sys_open() {
+              ls-4157  [001] 707885.586243: funcgraph_entry:                   |    getname() {
+              ls-4157  [001] 707885.586244: funcgraph_entry:                   |      getname_flags() {
+              ls-4157  [001] 707885.586244: funcgraph_entry:                   |        kmem_cache_alloc() {
+              ls-4157  [001] 707885.586244: funcgraph_entry:                   |          _cond_resched() {
+              ls-4157  [001] 707885.586244: funcgraph_entry:        0.039 us   |            rcu_note_context_switch();
+              ls-4157  [001] 707885.586245: funcgraph_entry:        0.047 us   |            _raw_spin_lock_irq();
+              ls-4157  [001] 707885.586245: funcgraph_entry:                   |            pick_next_task_fair() {
+              ls-4157  [001] 707885.586245: funcgraph_entry:        0.043 us   |              update_curr();
+              ls-4157  [001] 707885.586245: funcgraph_entry:        0.035 us   |              check_cfs_rq_runtime();
+              ls-4157  [001] 707885.586246: funcgraph_entry:                   |              pick_next_entity() {
+              ls-4157  [001] 707885.586246: funcgraph_entry:        0.041 us   |                wakeup_preempt_entity.isra.56();
+              ls-4157  [001] 707885.586246: funcgraph_entry:        0.051 us   |                clear_buddies();
+              ls-4157  [001] 707885.586246: funcgraph_exit:         0.622 us   |              }
+...
+```
+
+## eBPF/BCC
+
+## sysdig
 
 ## pstack
 
@@ -764,30 +964,6 @@ w: 写
   * `/proc/sys/kernel/core_pattern`: 设置目录及文件名格式: `/mycores/core-%e-%p-%t` 命令名-pid-时间戳
 
 # Benchmark
-## perf
-```
-$ perf top -g
-Samples: 510  of event 'cpu-clock', Event count (approx.): 100515577
-  Children      Self  Shared Object            Symbol
-+   23.99%     0.38%  [kernel]                 [k] seq_read
-+   15.61%     0.76%  [kernel]                 [k] seq_printf
-+   15.61%     0.38%  [kernel]                 [k] s_show
-+   11.43%     2.67%  [kernel]                 [k] vsnprintf
-+   10.66%    10.66%  perf                     [.] 0x000000000008d834
-+    7.87%     7.87%  perf                     [.] 0x0000000000082287``
-```
-
-* Children: 符号调用其他符号占用比例之和
-* Self: 符号本身所占比例
-* Shared Object: 符号所在的共享对象
-* Symbol: 符号名，`[k]` 内核空间，`[.]` 用户空间
-
-
-```
-$ perf record -ag -- sleep 2
-$ perf report
-```
-
 ## [fio](http://fio.readthedocs.io/en/latest/fio_doc.html)
 单个大文件：
 ```
