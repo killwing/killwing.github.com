@@ -1150,6 +1150,14 @@ examples也是测试，通过stdout输出和`Output:`注释比较来判断测试
 https://github.com/dvyukov/go-fuzz : 随机数据测试
 https://github.com/stretchr/testify : 辅助测试工具
 
+
+## Logging
+### 非结构化
+[Logging Conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md)
+
+### 结构化
+[logr](https://github.com/go-logr/logr)
+
 ## Debuging ([pkg](https://golang.org/pkg/runtime/debug/))
 查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`
 查看GC情况：`GODEBUG="gctrace=1" ./test.out` 用[gcvis](https://github.com/davecheney/gcvis)可视化。

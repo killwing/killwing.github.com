@@ -65,7 +65,7 @@ TIME_WAIT 状态的持续时间是 MSL 的2倍，然后变为 CLOSED。
 TIME_WAIT 状态存在的两个理由:
 
 * 可靠地实现 TCP 全双工连接的终止。需要正确处理连接终止序列4个分节中任何一个丢失的情况。
-* 允许老的重复分节在网络中消逝。2MSL的时间防止了来自某个连接的老的重复分组在该连接已经终止后再现。
+* 允许老的重复分节在网络中消逝。2MSL的时间防止了来自某个连接的老的重复分组在该连接已经终止后再现。（比如重发的老的 FIN 可能把新连接断掉）
 
 相关内核参数
 `net.ipv4.tcp_tw_reuse=1` 表示可以将 TIME-WAIT sockets 重新用于新的TCP连接。
@@ -73,8 +73,17 @@ TIME_WAIT 状态存在的两个理由:
 `net.ipv4.tcp_max_tw_buckets=10000` 表示系统同时保持 TIME_WAIT sockets 的最大数量。
 
 ### SO_REUSEADDR / SO_REUSEPORT
-SO_REUSEADDR: 允许启动一个监听服务器并绑定其端口，即使以前建立的相同本地端口的连接仍然存在（但先前监听的socket已关闭）。通常用在服务端，当其重启时虽然可能存在很多链接处在 TIME_WAIT 状态，但仍可重新绑定并监听。
-SO_REUSEPORT: 允许完全重复IP和端口的绑定（SO_REUSEADDR IP 地址必须不一样），要绑定的每个套接字都必须指定此选项, 且 euid 要一样。效果为对连接请求简单的负载均衡到所有监听的进程上。应用：[nginx socket sharding](https://www.nginx.com/blog/socket-sharding-nginx-release-1-9-1/)
+SO_REUSEADDR:
+
+* 允许启动一个监听服务器并绑定其端口，即使以前建立的相同本地地址和端口的连接仍然存在（但先前监听的socket已关闭）。通常用在服务端，当其重启时虽然可能存在很多链接处在 TIME_WAIT 状态，但仍可重新绑定并监听。
+* SO_REUSEADDR 主要改变了系统对待通配符IP地址冲突的方式。使得 0.0.0.0 可以和其他相同端口的地址重复绑定。
+
+SO_REUSEPORT:
+
+* 允许完全重复IP和端口的绑定，要绑定的每个套接字都必须指定此选项, 且 euid 要一样。效果为对连接请求简单的负载均衡到所有监听的进程上。应用：[nginx socket sharding](https://www.nginx.com/blog/socket-sharding-nginx-release-1-9-1/)
+
+https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ/
+https://blog.csdn.net/Yaokai_AssultMaster/article/details/68951150
 
 ### buffer
 相关内核参数
@@ -108,6 +117,12 @@ epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的
 快速重传/快速恢复：发送丢包（超时重传或收到三个冗余ACK）时，cwnd = cwnd / 2；ssthresh设置为缩小后的cwnd大小。
 
 ### TCP_QUICKACK and TCP_NODELAY
+TCP_NODELAY 禁止Nagle算法，默认开启
+Nagle 算法：如果某个给定的连接上有待确认数据，由写操作而发送小分组（小于MSS）的行为不会发生，直到现有数据被确认为止。但写操作积累到 MSS 大小时仍会发送。
+目的在于减少广域网上小分组的数目，防止一个连接在任何时刻有多个小分组待确认。
+
+TCP_QUICKACK 禁止 ACK 延滞算法，默认开启 40ms
+ACK 延滞算法：ACK 尽量与可能的数据一起发回，从而省掉一个TCP分节。
 
 ## UDP
 [大多数Unix实现上，对于Unix域数据报套接字，是可靠的且不会乱序。](http://man7.org/linux/man-pages/man7/unix.7.html)

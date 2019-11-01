@@ -4,7 +4,7 @@
 <title>HA & LB</title>
 <xmp theme="united" style="display:none;">
 ## keepalived
-利用 VRRP (虚拟路由冗余协议) 地址漂移，实现主备切换。
+利用 VRRP (虚拟路由冗余协议) 地址漂移（VIP 绑定到不同机器的网卡上），实现主备切换。
 
 安装：`apt install keepalived`
 配置：`/etc/keepalived/keepalived.conf`:
@@ -42,6 +42,8 @@ vrrp_instance HA {
 * `virtual_router_id` 组标识，一般为 VIP 最后一段。
 * `priority` 初始 master 节点上为 101，其余两个上为 100。
 * 可以直接配置 `virtual_server` / `real_server` 来支持 ipvs。
+  * `virtual_server` 设为 VIP，而 `real_server` 和 `vrrp_instance` 无关，一般是不同的机器。
+  * VIP 只在 `vrrp_instance` 之间漂移，通过 `lb_kind` 方式转到 `real_server`。
 
 ```
 virtual_server 10.18.21.111 8080 {
@@ -117,16 +119,16 @@ RS必须利用回环网卡绑定监听 lvs 的 VIP 以此接收和发送数据�
 没有 NAT，不能端口映射。
 
 NAT (-m)
-对于收到的请求包，进行DNAT；对于发出的响应包，进行SNAT。
-RS必须修改默认网关为 lvs 的 VIP，让发出的包进行 SNAT，否则客户端不认识内网地址。
+对于收到的请求包，进行DNAT。
+RS必须修改默认网关为 lvs 的 VIP，让返回包进行 UN-DNAT，否则直接发给客户端，客户端不认 RS。
 
 FULLNAT (-b)
 对请求包和响应包都做SNAT+DNAT。
 
 TUN (IP Tunneling) (-i)
-对于收到的请求包，将其封装在一个新的 IP 包中发给RS；对于发出的响应包，进行SNAT。
-RS收到IP Tunnel包，必须进行解包拿到原始 IP 包进行处理。
-RS必须修改默认网关为 lvs 的 VIP，让发出的包进行 SNAT，否则客户端不认识内网地址。
+对于收到的请求包，将其封装在一个新的 IP 包中发给RS。
+RS收到IP Tunnel包，必须进行解包拿到原始 IP 包进行处理。也不支持端口映射。
+RS必须修改默认网关为 lvs 的 VIP，让返回包进行 UN-DNAT。
 
 LB 算法
 

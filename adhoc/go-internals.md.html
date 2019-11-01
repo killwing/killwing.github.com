@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>GO Internals</title>
+<xmp theme="united" style="display:none;">
+## Scheduler
+逻辑处理器 (P): 设置最大 P 数目 `runtime.GOMAXPROCS(n)`，默认为 `runtime.NumCPU()`
+系统线程 (M)
+Goroutine (G)
+
+全局运行队列 (GRQ): GRQ 用于尚未分配给 P 的 G。
+本地运行队列 (LRQ): 每个 P 都有一个 LRQ，用于管理分配给在 P 的上下文中执行的 G。
+
+Goroutine 状态：Waiting, Runnable, Executing
+
+调度决策（时机）：
+
+* go func
+* GC
+* syscall
+  * 异步（网络）：将 G1 移到 NetPoller 中执行，完成后移回 LRQ。
+  * 同步：G1 导致 M1 阻塞，调度器将 M1 和 P1 分离，G1 留在 M1 上，将 P1 分配到新的 M 上处理。调用完成后移回 LRQ。
+* 同步机制
+
+任务窃取(work-stealing): 当一个 P 的 G 都执行完了，会从其他 P 的 LRQ 中拿一半的 G 来处理，如果也没有会从 GRQ 中拿。
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
