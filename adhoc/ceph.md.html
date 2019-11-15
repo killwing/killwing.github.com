@@ -6,22 +6,48 @@
 ## Install
 安装 ceph-deploy
 ```
-ceph_stable_release=nautilus # v14
-wget -q -O- 'http://mirrors.163.com/ceph/keys/release.asc' | apt-key add -
-echo deb https://mirrors.163.com/ceph/debian-${ceph_stable_release}/ $(lsb_release -sc) main | tee /etc/apt/sources.list.d/ceph.list
 apt-get update && apt-get install ceph-deploy
+export CEPH_DEPLOY_REPO_URL=http://mirrors.163.com/ceph/debian-nautilus # v14
+export CEPH_DEPLOY_GPG_URL=http://mirrors.163.com/ceph/keys/release.asc
 ```
 
-保证 node 之间 ssh 互通，创建 cluster
+保证 node 之间 ssh 互通，创建 cluster，三节点quorum
 ```
 ceph-deploy new node1 node2 node3
-ceph-deploy install node1 node2 node3
 ```
-install 之前，在生成的 ceph.conf [global] 中加入 `osd pool default size = 2` 修改默认副本数。
 
+生成配置，并修改：
 ```
-ceph-deploy mon create-initial # 创建初始 mon
-ceph-deploy admin node1 node2 node3 # 拷贝鉴权配置文件
+[global]
+fsid = 26247a53-0175-4ad4-b416-0a0e13431054
+mon_initial_members = node1, node2, node3
+mon_host = 10.255.1.41,10.255.1.36,10.255.1.128
+auth_cluster_required = cephx
+auth_service_required = cephx
+auth_client_required = cephx
+
+osd pool default size = 2
+
+# https://github.com/ceph/ceph-csi/issues/486
+[mgr]
+client mount uid = 0
+client mount gid = 0
+```
+
+若要更新配置：
+```
+ceph-deploy --overwrite-conf config push node1 node2 node3
+```
+
+安装到指定节点
+```
+ceph-deploy install --release nautilus node1 node2 node3
+```
+
+创建 MON
+```
+ceph-deploy mon create-initial # 在初始节点上创建 mon
+ceph-deploy admin node1 node2 node3 # 拷贝鉴权配置文件，成为admin操作节点
 ```
 
 增加 OSD
@@ -33,9 +59,9 @@ ceph-deploy osd create node1 --data /dev/sdb # 默认 bluestore, Block Data & WA
 * osd 基本元信息在 `/var/lib/ceph/osd/ceph-{idx}`
 * 如果 Block 和 DB 分开放，DB 大小不应小于 Block 的 4%
 
-增加 manager
+增加 manager，active/standby
 ```
-ceph-deploy mgr create node1:mgr1
+ceph-deploy mgr create node1 node2
 ```
 
 创建 pool
@@ -61,9 +87,9 @@ ceph fs status
 * PV: 物理卷，对应物理硬盘或分区
   * pvcreate, pvs, pvdisplay, pvremove
 * VG: 卷组，包含一个或多个 PV，所有 PV 的 PE 大小相同
-  * vgcreate, vgs, vgdisplay, vgextend, vgreduce
+  * vgcreate, vgs, vgdisplay, vgextend, vgreduce, vgremove
 * LV: 逻辑卷，在 VG 里面分割，大小可动态改变（为 PE 整数倍）
-  * lvcreate, lvs, lvdisplay, lvextend, lvreduce
+  * lvcreate, lvs, lvdisplay, lvextend, lvreduce, lvremove
   * device 路径在 /dev/{vg}/{lv}，后可以格式化挂载使用
 
 ## Crush Map
@@ -252,10 +278,16 @@ config 来源：
 * cmdline: 命令行
 * override: 运行时修改
 
-显示某个实例（全部来源）`ceph config show <who>`
+显示某个实例（全部来源）`ceph config show <who>`, who: `mon.node1`, `osd.2`
 显示某个实例（默认值）`ceph config show-with-defaults <who>`
 显示来自中心配置DB `ceph config dump/get <who>`
 设置到中心配置DB `ceph config set <who> <option> <value>`
+运行时修改 `ceph tell mon.\* injectargs '--mon-allow-pool-delete=true'`
+
+### OP
+列出所有服务 `systemctl status ceph\*.service ceph\*.target`
+启动所有osd实例 `systemctl start ceph-osd.target`
+查看某个osd/mon实例状态 `systemctl status ceph-osd@1` `systemctl status ceph-mon@node1`
 
 ## Reference
 http://docs.ceph.com
