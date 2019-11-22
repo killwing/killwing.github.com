@@ -3,7 +3,7 @@
 <meta charset="utf-8" />
 <title>Go</title>
 <xmp theme="readable" style="display:none;">
-[http://golang.org](http://golang.org) | v1.10
+[http://golang.org](http://golang.org)
 
 ## 准备
 ### [下载安装](http://golang.org/doc/install)
@@ -1128,9 +1128,11 @@ func BenchmarkHello(b *testing.B) {
 }
 ```
 用`b.ResetTimer()`重新计时以忽略准备过程。
+`-cpu=1,2,4` 分别指定`GOMAXPROCS`测试。
+`-benchtime=1000x` 指定迭代次数。
 
 输出如`50000000    24.1 ns/op    8 B/op    1 allocs/op` 表示跑了50000000次循环，每次循环用时24.1 ns, 分配了8 Byte堆内存，有1次堆内存分配。
-用[benchstat](https://github.com/rsc/benchstat)比较结果。
+用 [benchstat](https://godoc.org/golang.org/x/perf/cmd/benchstat) 比较结果。
 
 ### [Examples](https://blog.golang.org/examples)
 示例函数命名(suffix可选)：
@@ -1177,9 +1179,9 @@ Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/d
 查看：`go tool cover -html=cover.out`
 
 ## [Profiling](http://blog.golang.org/profiling-go-programs) ([cmd](http://golang.org/cmd/pprof/) [pkg](https://golang.org/pkg/runtime/pprof/))
-测试时：`go test -bench=. -cpuprofile/-memprofile out.prof`
-独立程序：`pprof.StartCPUProfile()/pprof.StopCPUProfile()/pprof.WriteHeapProfile()`
-查看：`go tool pprof binary.test out.prof`/`go tool pprof -http=:8080 out.prof`
+测试时：`go test -bench=. -cpuprofile/-memprofile/-blockprofile out.prof`
+独立程序：`pprof.StartCPUProfile()/pprof.StopCPUProfile()/pprof.WriteHeapProfile()` 或使用 [profile](https://github.com/pkg/profile) `defer profile.Start().Stop()`
+查看：`go tool pprof out.prof`/`go tool pprof -http=:8080 out.prof`
 [使用label](https://rakyll.org/profiler-labels/)：`pprof.Do()`
 
 独立程序嵌入http接口：`import _ "net/http/pprof"`，并运行一个server：
@@ -1200,6 +1202,8 @@ file pprof: `go-torch --binaryname binary.test -b pprof.cpu`
 
 使用原生[pprof](http://github.com/google/pprof): `pprof -http=:8080 out.prof`
 
+`go tool pprof -http=` 已支持直接查看，不需要 go-torch。
+
 ## Tracing
 main里加上：
 ```
@@ -1210,8 +1214,13 @@ func main() {
 }
 ```
 
+使用 [profile](https://github.com/pkg/profile):
+`defer profile.Start(profile.TraceProfile, profile.ProfilePath(".")).Stop()`
+
 `go run main.go > trace.out`/`go test -bench=. -trace=trace.out`
 `go tool trace trace.out`
+
+使用 [gotrace](https://github.com/divan/gotrace) 可视化。
 
 ## Documentation ([cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
 规范化注释格式，任何直接属于顶层声明的注释都会可被`godoc`提取为文档注释（除了package main）。
@@ -1585,7 +1594,7 @@ extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 ## pragmas
 https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 
-`//go:noescape` 表示函数里的内存分配不会逃逸到堆上 `-gcflags -m` 查看逃逸情况
+`//go:noescape` 表示函数里的内存分配不会逃逸到堆上 `-gcflags -m` / `-gcflags -m -m` 查看逃逸情况
 `//go:norace`
 `//go:nosplit`
 `//go:noinline`

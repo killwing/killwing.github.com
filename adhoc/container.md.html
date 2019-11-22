@@ -138,7 +138,7 @@ mergeddir: 合并层，容器挂载点
 
 * page caching: 多个容器访问（同层）同一个文件，可以共享同一个 page cache。
 * copy_up: 相比 AUFS 都是采用了 COW 机制，但 AUFS 需要在多层里面搜索文件，而 OverlayFS 只有两层，且可以利用缓存。
-* inode limits: overlay2 解决了 overlay 的 inode 消耗问题。(overlay2 / overlay 为 docker 的 overlayfs 存储引擎)
+* inode limits: overlay2 解决了 overlay 的 inode 消耗问题。
 
 overlay2 和 overlay 的主要区别就是为了在单层 lowerdir 中支持多层镜像而采用了不同方式:
 
@@ -182,7 +182,7 @@ docker:
     ]
 },
 
-// mount info
+// mount info, mount -t overlay overlay -o lowerdir:/lower1:/lower2:/lower3:...,upperdir=/upper,workdir=/work /merged
 overlay on /var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012620e316c49c4de672/merged type overlay
 (rw,relatime,
 lowerdir=/var/lib/docker/overlay2/l/IBHM6VAXQLYIL5UE62M6SLJSMX:

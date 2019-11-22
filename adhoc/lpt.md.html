@@ -14,6 +14,7 @@ apt install:
 * `sysbench`
 * `linux-tools-common`: perf
 * `apache2-utils`: ab
+* [hey](https://github.com/rakyll/hey)
 * [perf-tools](https://github.com/brendangregg/perf-tools): execsnoop
 * `sar`
 * `tcpdump`
@@ -783,7 +784,7 @@ round-trip min/avg/max = 30.1/35.5/42.2 ms
 
 
 # Tracing
-## perf
+## [perf](http://www.brendangregg.com/perf.html)
 ```
 $ perf top -g
 Samples: 510  of event 'cpu-clock', Event count (approx.): 100515577
@@ -804,6 +805,11 @@ Samples: 510  of event 'cpu-clock', Event count (approx.): 100515577
 ```
 $ perf record -ag -- sleep 2
 $ perf report
+```
+
+统计性能事件：
+```
+$ perf stat -p <PID>
 ```
 
 [火焰图](https://github.com/brendangregg/FlameGraph)分析：
