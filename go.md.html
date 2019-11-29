@@ -778,7 +778,7 @@ func suck(ch chan int) {
 }
 ```
 
-关闭channel: `close()`, 一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据会引起panic（无论阻不阻塞，如果发送先阻塞，再channel被关闭，一样panic），而从一个已经关闭（如果有buffer数据会先读完）的channel接收数据为0/nil和false: `v, ok = <-c`。
+关闭channel: `close()`, 一般由发送端来关闭channel，而不是接收端，因为向一个已经关闭的channel发送数据（或关闭2次）会引起panic（无论阻不阻塞，如果发送先阻塞，再channel被关闭，一样panic），而从一个已经关闭（如果有buffer数据会先读完）的channel接收数据为0/nil和false: `v, ok = <-c`。
 默认channel是双向的，也可以转换为指定的方向：`var recv_only <-chan int;  var send_only chan<- int;` 可以用双向channel赋值给单向的，反之不可，单向不同方向也不可。
 
 `select`
@@ -1427,6 +1427,19 @@ for i := 0; i < n; i++ {
     field := typ.Field(i)
     fmt.Printf("%s at offset %v, size=%d, align=%d\n", field.Name, field.Offset, field.Type.Size(), field.Type.Align())
  }
+```
+
+#### select
+执行类似 select 语句的操作。
+```
+var cases []reflect.SelectCase
+for _, c := range channels {
+  cases = append(cases, reflect.SelectCase{
+    Dir: reflect.SelectRecv,
+    Chan: reflect.ValueOf(c),
+  })
+}
+index, value, ok := reflect.Select(cases) // return from channels[index]
 ```
 
 ### [encoding/json](https://blog.golang.org/json-and-go)

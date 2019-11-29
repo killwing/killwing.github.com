@@ -565,7 +565,7 @@ chains: 规则链
 * POSTROUTING（路由后）
 
 ```bash
-                               XXXXXXXXXXXXXXXXXX
+ XXXXXXXXXXXXXXXXXX
                              XXX     Network    XXX
                                XXXXXXXXXXXXXXXXXX
                                        +
@@ -584,15 +584,15 @@ chains: 规则链
 Routing decision                                                  |
 ****************                                                  |
        |                                                          |
-       v                                                          |
-+-------------+                                                   |
-|table: nat   |                                                   |
-|chain: OUTPUT|                                                   |
-+-----+-------+                                                   |
-      |                                                           |
-      v                      +-------------------+                |
-+--------------+             | table: nat        |                |
-|table: filter +------------>| chain: POSTROUTING|<---------------+
+       v                        ****************                  |
++-------------+       +------>  Routing decision  <---------------+
+|table: nat   |       |         ****************
+|chain: OUTPUT|       |               +
++-----+-------+       |               |
+      |               |               v
+      v               |      +-------------------+
++--------------+      |      | table: nat        |
+|table: filter | +----+      | chain: POSTROUTING|
 |chain: OUTPUT |             +--------+----------+
 +--------------+                      |
                                       v

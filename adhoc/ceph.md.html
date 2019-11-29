@@ -32,7 +32,12 @@ osd pool default size = 2
 [mgr]
 client mount uid = 0
 client mount gid = 0
+
+[mds]
+mds cache memory limit = 4294967296
 ```
+
+[config sample](https://github.com/ceph/ceph/blob/master/src/sample.ceph.conf)
 
 若要更新配置：
 ```
