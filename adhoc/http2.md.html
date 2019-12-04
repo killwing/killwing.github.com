@@ -3,8 +3,163 @@
 <meta charset="utf-8" />
 <title>HTTP/2</title>
 <xmp theme="united" style="display:none;">
+# Concepts
+HTTP/2 只是消息传输方式的改变，HTTP 应用层的语义并无变化。
 
-## Reference
+## Connection
+指 TCP 连接。
+
+通过多路复用，每个源只要求一个连接。
+
+## Stream
+一个已建立连接上的双向字节流，可以传输一个或多个 Message。
+
+一个 Stream 上只会传输一个 transaction (request/response)。
+Stream ID 如果为奇数，表示这是由客户端发起的，偶数为服务端发起(server push)。
+每个 Stream 都有一个权重 [1, 255]，和对另一个 Stream 的显式依赖（无则隐式依赖root）。被依赖的 Stream 有更高的优先级，被优先处理。具有同样依赖的，则按照权重分配资源（CPU，带宽等）处理。这些都是传输的倾向，并不是强制要求。
+
+流状态：
+
+```
+                             +--------+
+                     send PP |        | recv PP
+                    ,--------|  idle  |--------.
+                   /         |        |         \
+                  v          +--------+          v
+           +----------+          |           +----------+
+           |          |          | send H /  |          |
+    ,------| reserved |          | recv H    | reserved |------.
+    |      | (local)  |          |           | (remote) |      |
+    |      +----------+          v           +----------+      |
+    |          |             +--------+             |          |
+    |          |     recv ES |        | send ES     |          |
+    |   send H |     ,-------|  open  |-------.     | recv H   |
+    |          |    /        |        |        \    |          |
+    |          v   v         +--------+         v   v          |
+    |      +----------+          |           +----------+      |
+    |      |   half   |          |           |   half   |      |
+    |      |  closed  |          | send R /  |  closed  |      |
+    |      | (remote) |          | recv R    | (local)  |      |
+    |      +----------+          |           +----------+      |
+    |           |                |                 |           |
+    |           | send ES /      |       recv ES / |           |
+    |           | send R /       v        send R / |           |
+    |           | recv R     +--------+   recv R   |           |
+    | send R /  `----------->|        |<-----------'  send R / |
+    | recv R                 | closed |               recv R   |
+    `----------------------->|        |<----------------------'
+                             +--------+
+
+       send:   endpoint sends this frame
+       recv:   endpoint receives this frame
+
+       H:  HEADERS frame (with implied CONTINUATIONs)
+       PP: PUSH_PROMISE frame (with implied CONTINUATIONs)
+       ES: END_STREAM flag
+       R:  RST_STREAM frame
+```
+
+## Message
+一个完整的 Frame 序列，对应一个逻辑的 HTTP 请求或响应。
+
+## Frame
+最小通信单元，有一个 frame header，标识属于哪个 Stream。
+
+```
+ +-----------------------------------------------+
+ |                 Length (24)                   |
+ +---------------+---------------+---------------+
+ |   Type (8)    |   Flags (8)   |
+ +-+-------------+---------------+-------------------------------+
+ |R|                 Stream Identifier (31)                      |
+ +=+=============================================================+
+ |                   Frame Payload (0...)                      ...
+ +---------------------------------------------------------------+
+```
+
+flag 的含义取决于 Frame 类型。
+
+类型：
+
+* DATA 传输 HTTP body
+  * 流控只针对 DATA。
+* HEADERS 一个流的 header
+  * 用于声明和传输关于新请求的元数据，（客户端）并新起一个 Stream。设置 `End Stream` flag 表示流结尾，这是最后一个 Frame（半关闭）。
+  * HTTP header 相比 HTTP/1.1 无变化，request/status line 变为独立的伪头：`:method`, `:scheme`, `:authority` (HOST+PORT), `:path`, `:status`
+* PRIORITY 一个流的 sender-advised priority
+* RST_STREAM 关闭一个流
+  * Error Code 表示错误
+* SETTINGS 连接的配置参数
+  * HEADER_TABLE_SIZE
+  * SETTINGS_ENABLE_PUSH
+  * MAX_CONCURRENT_STREAMS
+  * INITIAL_WINDOW_SIZE
+  * MAX_FRAME_SIZE
+  * MAX_HEADER_LIST_SIZE
+* PUSH_PROMISE 通知 push 相关资源
+* PING 用于测量 RTT 和心跳
+* GOAWAY 通知对端在本连接上停止创建流
+  * Error Code 表示错误
+* WINDOW_UPDATE 用于实现 flow stream 和连接的流控
+* CONTINUATION 用于继续 header 的 Frame 序列
+
+# Upgrading
+* 通过 TLS 和 ALPN 协商
+* HTTP/1.1 升级 H2C (HTTP/2 Cleartext)
+
+```
+curl -v --http2 http://localhost:1010
+* Rebuilt URL to: http://localhost:1010/
+*   Trying 127.0.0.1...
+* TCP_NODELAY set
+* Connected to localhost (127.0.0.1) port 1010 (#0)
+> GET / HTTP/1.1
+> Host: localhost:1010
+> User-Agent: curl/7.54.0
+> Accept: */*
+> Connection: Upgrade, HTTP2-Settings
+> Upgrade: h2c
+> HTTP2-Settings: AAMAAABkAARAAAAAAAIAAAAA
+>
+< HTTP/1.1 101 Switching Protocols
+< Connection: Upgrade
+< Upgrade: h2c
+* Received 101
+* Using HTTP2, server supports multi-use
+* Connection state changed (HTTP/2 confirmed)
+* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+* Connection state changed (MAX_CONCURRENT_STREAMS updated)!
+< HTTP/2 200
+< content-type: text/plain; charset=utf-8
+< content-length: 20
+< date: Wed, 04 Dec 2019 07:09:43 GMT
+```
+
+* H2C with prior knowledge 直接连接
+
+```
+curl -v --http2-prior-knowledge http://localhost:1010
+* Rebuilt URL to: http://localhost:1010/
+*   Trying 127.0.0.1...
+* TCP_NODELAY set
+* Connected to localhost (127.0.0.1) port 1010 (#0)
+* Using HTTP2, server supports multi-use
+* Connection state changed (HTTP/2 confirmed)
+* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+* Using Stream ID: 1 (easy handle 0x7f9dd600ba00)
+> GET / HTTP/2
+> Host: localhost:1010
+> User-Agent: curl/7.54.0
+> Accept: */*
+>
+* Connection state changed (MAX_CONCURRENT_STREAMS updated)!
+< HTTP/2 200
+< content-type: text/plain; charset=utf-8
+< content-length: 20
+< date: Wed, 04 Dec 2019 08:05:53 GMT
+```
+
+# Reference
 https://http2.github.io
 https://kinsta.com/learn/what-is-http2/
 https://hpbn.co/http2/
