@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>GRPC</title>
+<xmp theme="united" style="display:none;">
+# Over HTTP2
+Requests: `Request-Headers(HEADERS + CONTINUATION frame) *Length-Prefixed-Message(DATA frame) EOS(END_STREAM flag)`
+```
+HEADERS (flags = END_HEADERS)
+:method = POST
+:scheme = http
+:path = /google.pubsub.v2.PublisherService/CreateTopic
+:authority = pubsub.googleapis.com
+grpc-timeout = 1S
+content-type = application/grpc+proto
+grpc-encoding = gzip
+authorization = Bearer y235.wef315yfh138vh31hv93hv8h3v
+
+DATA (flags = END_STREAM)
+<Length-Prefixed Message>
+```
+
+Response: `(Response-Headers(HEADERS frame) *Length-Prefixed-Message(DATA frame) Trailers(HEADERS frame with END_STREAM flag)) / Trailers-Only`
+```
+HEADERS (flags = END_HEADERS)
+:status = 200
+grpc-encoding = gzip
+content-type = application/grpc+proto
+
+DATA
+<Length-Prefixed Message>
+
+HEADERS (flags = END_STREAM, END_HEADERS)
+grpc-status = 0 # OK
+trace-proto-bin = jher831yy13JHy3hc
+```
+
+# Over Web
+由于浏览器限制，JS 客户端库实现了一个和 HTTP2 上 GRPC 稍有不同的协议，需要有一个代理来转换以和后端 GRPC 服务端通信。
+
+envoy proxy 配置:
+```
+admin:
+  access_log_path: /tmp/admin_access.log
+  address:
+    socket_address: { address: 0.0.0.0, port_value: 9901 }
+
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address: { address: 0.0.0.0, port_value: 9090 }
+    filter_chains:
+    - filters:
+      - name: envoy.http_connection_manager
+        config:
+          codec_type: auto
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: local_service
+              domains: ["*"]
+              routes:
+              - match: { prefix: "/" }
+                route:
+                  cluster: api_service
+                  max_grpc_timeout: 0s
+              cors:
+                allow_origin:
+                - "*"
+                allow_methods: GET, PUT, DELETE, POST, OPTIONS
+                allow_headers: authorization,keep-alive,user-agent,cache-control,content-type,content-transfer-encoding,custom-header-1,x-accept-content-transfer-encoding,x-accept-response-streaming,x-user-agent,x-grpc-web,grpc-timeout
+                max_age: "1728000"
+                expose_headers: custom-header-1,grpc-status,grpc-message
+                enabled: true
+          http_filters:
+          - name: envoy.grpc_web
+          - name: envoy.cors
+          - name: envoy.router
+  clusters:
+  - name: api_service
+    connect_timeout: 0.25s
+    type: logical_dns
+    http2_protocol_options: {}
+    lb_policy: round_robin
+    hosts:
+    - socket_address:
+        address: localhost
+        port_value: 9010
+```
+
+# Connection Backoff
+* INITIAL_BACKOFF 第一次失败后的初始等待重试时间
+* MULTIPLIER 重试时间相乘系数
+* JITTER 随机系数
+* MAX_BACKOFF 最大重试时间
+* MIN_CONNECT_TIMEOUT 最小连接完成时间
+
+算法：
+```
+ConnectWithBackoff()
+  current_backoff = INITIAL_BACKOFF
+  current_deadline = now() + INITIAL_BACKOFF
+  while (TryConnect(Max(current_deadline, now() + MIN_CONNECT_TIMEOUT))
+         != SUCCESS)
+    SleepUntil(current_deadline)
+    current_backoff = Min(current_backoff * MULTIPLIER, MAX_BACKOFF)
+    current_deadline = now() + current_backoff +
+      UniformRandom(-JITTER * current_backoff, JITTER * current_backoff)
+```
+
+当收到一个 `SETTINGS` Frame 后，重试时间被重置为 INITIAL_BACKOFF。
+
+# Name Resolution
+客户端通过目标 URI scheme，选择对应的解析插件来完成解析（默认 DNS）。
+解析的结果为 IP 地址列表（每个可附带 KV 属性）和一个 service config。
+
+# Load Balancing
+LB 是针对每个 RPC 请求调用，而不是连接。
+
+workflow:
+
+1. 启动时，客户端发起一个服务端名字解析的请求，返回一个或多个 IP 地址（服务器地址或 LB 地址）及可选的 service config。
+2. 如果其中一个 IP 地址是 LB 地址，则使用 `grpclb` 策略，否则使用 service-config 里的 LB 策略，没有配置则使用默认的 `pick_first` 策略 (`grpc.WithBalancerName("pick_first")`)。
+3. 除了 `grpclb`，对每个服务器 IP 地址（不包括 LB 地址）创建一个 subchannel。
+4. 根据策略，选择 subchannel 发送 RPC。
+
+自定义 LB 策略需要实现 [Balancer](https://godoc.org/google.golang.org/grpc/balancer#Balancer) 接口。
+
+# Wait for Ready
+`grpc.WaitForReady(true)`: 当 channel 处于 `TRANSIENT_FAILURE` 状态时，不立即使调用失败，而缓冲这些 RPC 调用直至状态变为 `READY`。
+
+# Debugging
+环境变量:
+`GRPC_GO_LOG_VERBOSITY_LEVEL=99` `GRPC_GO_LOG_SEVERITY_LEVEL=info`
+for golang: `GODEBUG=http2debug=2`
+
+runtime:
+[Channelz](https://grpc.io/blog/a_short_introduction_to_channelz)
+
+# Reference
+https://grpc.io
+https://github.com/grpc/grpc/blob/master/doc/
+https://github.com/grpc/grpc-go/tree/master/Documentation
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
