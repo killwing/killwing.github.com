@@ -142,11 +142,11 @@ kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/exam
 kubelet alias 自动补全(Linux)：
 `source <(kubectl completion bash | sed 's/kubectl/kc/g')`
 
-plugins ([krew](https://github.com/kubernetes-sigs/krew)):
-kubectl-ctx [kubectx](https://github.com/ahmetb/kubectx)
-kubectl-ns [kubens](https://github.com/ahmetb/kubectx)
-kubectl-tail [stern](https://github.com/wercker/stern)
-kubectl-debug [kubectl-debug](https://github.com/aylei/kubectl-debug)
+plugins ([krew](https://github.com/kubernetes-sigs/krew)): ctx/ns
+
+better:
+tail: [stern](https://github.com/wercker/stern)
+debug: [kubectl-debug](https://github.com/aylei/kubectl-debug)
 
 ### 验证
 #### [Node Conformance Test](https://kubernetes.io/docs/setup/node-conformance/)
@@ -721,7 +721,7 @@ iptables: (VIP: 10.96.0.1, PodIP: 192.168.99.101)
 -A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
 -A KUBE-SERVICES -d 10.96.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y
 -A KUBE-SVC-NPX46M4PTMTKRN6Y -j KUBE-SEP-6QO3ZMTIB4FPXHNT # 如果有多个 endpoints，用 –mode random 负载均衡
--A KUBE-SEP-6QO3ZMTIB4FPXHNT -s 192.168.99.101/32 -j KUBE-MARK-MASQ
+-A KUBE-SEP-6QO3ZMTIB4FPXHNT -s 192.168.99.101/32 -j KUBE-MARK-MASQ # 没有匹配，不 SNAT
 -A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
 -A KUBE-SEP-6QO3ZMTIB4FPXHNT -p tcp -m tcp -j DNAT --to-destination 192.168.99.101:6443 # 返回包自动 un-dnat
 ```
@@ -750,7 +750,7 @@ kube-proxy 会在 node 上预留占用所有地址对应的端口（不走流量
 #### [Source IP 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
 kube-proxy 使用 iptable 的情况，通过下面方式访问
 
-* ClusterIP: 不做 SNAT
+* ClusterIP: 不做 SNAT (除了 ExternalIP)
 * NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地 node 上的 endpoint 来避免（要求 node 上有对应 endpoint，否则 drop），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
 * LoadBalancer: 情况和 NodePort 类似，如果`service.spec.externalTrafficPolicy`设为`Local`，LB只会转发流量到有对应 endpoint 的 node 上（通过 health check `service.spec.healthCheckNodePort`）。
 

@@ -1190,7 +1190,7 @@ go func() {
 	log.Println(http.ListenAndServe("localhost:6060", nil))
 }()
 ```
-查看：`go tool pprof -seconds 5 http://localhost:6060/debug/pprof/profile(heap, block)`
+查看：`http://localhost:6060/debug/pprof/` 可以生成各种 prof 文件，查看 stack 信息等。
 
 ### Frame Graphs
 安装：
