@@ -1,17 +1,171 @@
 <!DOCTYPE html>
 <html>
 <meta charset="utf-8" />
-<title>GO Internals</title>
+<title>Go Internals</title>
 <xmp theme="united" style="display:none;">
-## Scheduler
-逻辑处理器 (P): 设置最大 P 数目 `runtime.GOMAXPROCS(n)`，默认为 `runtime.NumCPU()`
+# [Memory](https://github.com/golang/go/blob/master/src/runtime/malloc.go)
+span：67 种规格，分别规定了从 8, 16, ... 到 32k 分配对象的大小，及其页数量（8k 一个页）。每种 span，1-10 个页不等，其中含 1-1024 个对象不等。 
+每种规格都有两种类型：scan 包含指针的对象，noscan 不包含指针的对象，有助于 GC。
+
+```
+// class  bytes/obj  bytes/span  objects  tail waste  max waste
+//     1          8        8192     1024           0     87.50%
+//     2         16        8192      512           0     43.75%
+//     3         32        8192      256           0     46.88%
+//     4         48        8192      170          32     31.52%
+//     5         64        8192      128           0     23.44%
+...
+//    62      21760       65536        3         256      6.25%
+//    63      24576       24576        1           0     11.45%
+//    64      27264       81920        3         128     10.00%
+//    65      28672       57344        2           0      4.91%
+//    66      32768       32768        1           0     12.50%
+```
+
+mspan: 管理 span，包含 span 起始地址、span 规格和 span 中页的数量的双端链表。
+```
+type mspan struct {
+	next *mspan     // next span in list, or nil if none
+	prev *mspan     // previous span in list, or nil if none
+
+	startAddr uintptr // address of first byte of span aka s.base()
+	npages    uintptr // number of pages in span
+
+	spanclass   spanClass  // size class and noscan (uint8)
+	...
+}
+```
+
+mcache: 为每个 P 提供的本地缓存，包含所有规格（即 134 种）的 mspan 。
+```
+type mcache struct {
+	alloc [numSpanClasses]*mspan // spans to allocate from, indexed by spanClass
+	...
+}
+```
+
+mcentral: 所有某个规格的 mspan 集合，分为空闲对象的列表和无空闲对象的列表。
+```
+type mcentral struct {
+	spanclass spanClass
+	nonempty  mSpanList // list of spans with a free object, ie a nonempty free list
+	empty     mSpanList // list of spans with no free objects (or cached in an mcache)
+	...
+}
+
+type mSpanList struct {
+	first *mspan // first span in list, or nil if none
+	last  *mspan // last span in list, or nil if none
+}
+```
+
+mheap: 一个管理堆的全局对象。包含全部 mspan 的列表，各个规格的 mcentral。
+```
+type mheap struct {
+	free      mTreap // free spans
+
+	// allspans is a slice of all mspans ever created. Each mspan
+	// appears exactly once.
+	//
+	// The memory for allspans is manually managed and can be
+	// reallocated and move as the heap grows.
+	//
+	// In general, allspans is protected by mheap_.lock, which
+	// prevents concurrent access as well as freeing the backing
+	// store. Accesses during STW might not hold the lock, but
+	// must ensure that allocation cannot happen around the
+	// access (since that may free the backing store).
+	allspans []*mspan // all spans out there
+
+	// arenas is the heap arena map. It points to the metadata for
+	// the heap for every arena frame of the entire usable virtual
+	// address space.
+	//
+	// Use arenaIndex to compute indexes into this array.
+	//
+	// For regions of the address space that are not backed by the
+	// Go heap, the arena map contains nil.
+	//
+	// Modifications are protected by mheap_.lock. Reads can be
+	// performed without locking; however, a given entry can
+	// transition from nil to non-nil at any time when the lock
+	// isn't held. (Entries never transitions back to nil.)
+	//
+	// In general, this is a two-level mapping consisting of an L1
+	// map and possibly many L2 maps. This saves space when there
+	// are a huge number of arena frames. However, on many
+	// platforms (even 64-bit), arenaL1Bits is 0, making this
+	// effectively a single-level map. In this case, arenas[0]
+	// will never be nil.
+	arenas [1 << arenaL1Bits]*[1 << arenaL2Bits]*heapArena
+
+	// central free lists for small size classes.
+	// the padding makes sure that the mcentrals are
+	// spaced CacheLinePadSize bytes apart, so that each mcentral.lock
+	// gets its own cache line.
+	// central is indexed by spanClass.
+	central [numSpanClasses]struct {
+		mcentral mcentral
+		pad      [cpu.CacheLinePadSize - unsafe.Sizeof(mcentral{})%cpu.CacheLinePadSize]byte
+	}
+	...
+}
+```
+
+heapArena: 系统堆，初始为一个 heapArena 64M （64bit linux），8192 个 8192 字节 mspan。
+整个堆 arenas 是 heapArena 的二级映射（大多数系统只有一级）。arena 映射覆盖了一整块连续地址空间，分配器也尽量保持 arena 之间连续，以分配巨大的对象。
+```
+type heapArena struct {
+	// bitmap stores the pointer/scalar bitmap for the words in
+	// this arena. See mbitmap.go for a description. Use the
+	// heapBits type to access this.
+	bitmap [heapArenaBitmapBytes]byte
+
+	// spans maps from virtual address page ID within this arena to *mspan.
+	// For allocated spans, their pages map to the span itself.
+	// For free spans, only the lowest and highest pages map to the span itself.
+	// Internal pages map to an arbitrary span.
+	// For pages that have never been allocated, spans entries are nil.
+	//
+	// Modifications are protected by mheap.lock. Reads can be
+	// performed without locking, but ONLY from indexes that are
+	// known to contain in-use or stack spans. This means there
+	// must not be a safe-point between establishing that an
+	// address is live and looking it up in the spans array.
+	spans [pagesPerArena]*mspan
+	...
+}
+```
+
+对象分配流程：
+
+* 大于 32K 的大对象直接从 mheap 分配/释放，不走 mcache 和 mcentral。
+* 小于 16B 的使用 mcache 的微型分配器分配。
+* 对象大小在 16B ~ 32K 之间的，首先通过计算使用的大小规格（向上取整），然后使用 mcache 中对应大小规格的对象分配（利用 mspan 的空闲位图找到一个可用的空闲对象）。
+* 如果对应的大小规格 mspan 在 mcache 中没有空闲对象，则向 mcentral 申请一个新的符合规格的有空闲对象的 mspan。
+* 如果 mcentral 中可用 mspan 列表已经为空，则向 mheap 申请一个新的，并根据 BestFit 算法找到最合适的 mspan。如果申请到的 mspan 超出申请大小，将会根据需求进行切分，以返回规格所需的页数。剩余的页构成一个新的 mspan 放回 mheap 的空闲列表。
+* 如果 mheap 中也没有可用的 mspan，则向操作系统申请一系列新的页（最小 1MB）。
+
+对象释放流程：
+
+* 如果一个 mspan 被（GC）扫到需要释放以满足新的分配要求，其被归还给 mcache。
+* 如果不是为了新分配要求，且 mspan 里还有分配着的对象，则放到 mcentral 对应的规格里。
+* 如果 mspan 里所有对象都释放了，则处于 idle 状态，归还给 mheap（不再区分规格）。
+* 如果 mspan 在 mheap 里达到一定时间，则归还其页给操作系统。
+
+Ref:
+https://blog.learngoprogramming.com/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed / [zh](https://www.linuxzen.com/go-memory-allocator-visual-guide.html)
+
+
+# [Scheduler](https://github.com/golang/go/blob/master/src/runtime/proc.go)
+逻辑处理器 (P): 用来处理调度 G 的运行，P 运行时和 M 绑定
 系统线程 (M)
 Goroutine (G)
 
-全局运行队列 (GRQ): GRQ 用于尚未分配给 P 的 G。
-本地运行队列 (LRQ): 每个 P 都有一个 LRQ，用于管理分配给在 P 的上下文中执行的 G。
+Runnable Queue:
 
-Goroutine 状态：Waiting, Runnable, Executing
+* 全局运行队列 (GRQ): GRQ 用于尚未分配给 P 的 G。
+* 本地运行队列 (LRQ): 每个 P 都有一个 LRQ，用于管理分配给在 P 的上下文中执行的 G。
 
 调度决策（时机）：
 
@@ -19,10 +173,489 @@ Goroutine 状态：Waiting, Runnable, Executing
 * GC
 * syscall
   * 异步（网络）：将 G1 移到 NetPoller 中执行，完成后移回 LRQ。
-  * 同步：G1 导致 M1 阻塞，调度器将 M1 和 P1 分离，G1 留在 M1 上，将 P1 分配到新的 M 上处理。调用完成后移回 LRQ。
+  * 同步：G1 导致 M1 阻塞，调度器将 M1 和 P1 分离，G1 留在 M1 上，将 P1 分配到新的 M 上处理。调用完成后移回 GRQ。
 * 同步机制
+* 抢占：执行超过 10ms，在函数入口处调度，放到 GRQ 上。
 
-任务窃取(work-stealing): 当一个 P 的 G 都执行完了，会从其他 P 的 LRQ 中拿一半的 G 来处理，如果也没有会从 GRQ 中拿。
+任务窃取(work-stealing): 当一个 P 的 G 都执行完了，会从 GRQ 中拿，如果也没有会随机从其他 P 的 LRQ 中拿一半的 G 来处理。
+
+## M
+```
+type m struct {
+	g0      *g     // goroutine with scheduling stack
+	morebuf gobuf  // gobuf arg to morestack
+	divmod  uint32 // div/mod denominator for arm - known to liblink
+
+	// Fields not known to debuggers.
+	procid        uint64       // for debuggers, but offset not hard-coded
+	gsignal       *g           // signal-handling g
+	goSigStack    gsignalStack // Go-allocated signal handling stack
+	sigmask       sigset       // storage for saved signal mask
+	tls           [6]uintptr   // thread-local storage (for x86 extern register)
+	mstartfn      func()
+	curg          *g       // current running goroutine
+	caughtsig     guintptr // goroutine running during fatal signal
+	p             puintptr // attached p for executing go code (nil if not executing go code)
+	nextp         puintptr
+	oldp          puintptr // the p that was attached before executing a syscall
+	id            int64
+	mallocing     int32
+	throwing      int32
+	preemptoff    string // if != "", keep curg running on this m
+	locks         int32
+	dying         int32
+	profilehz     int32
+	spinning      bool // m is out of work and is actively looking for work
+	blocked       bool // m is blocked on a note
+	newSigstack   bool // minit on C thread called sigaltstack
+	printlock     int8
+	incgo         bool   // m is executing a cgo call
+	freeWait      uint32 // if == 0, safe to free g0 and delete m (atomic)
+	fastrand      [2]uint32
+	needextram    bool
+	traceback     uint8
+	ncgocall      uint64      // number of cgo calls in total
+	ncgo          int32       // number of cgo calls currently in progress
+	cgoCallersUse uint32      // if non-zero, cgoCallers in use temporarily
+	cgoCallers    *cgoCallers // cgo traceback if crashing in cgo call
+	park          note
+	alllink       *m // on allm
+	schedlink     muintptr
+	mcache        *mcache
+	lockedg       guintptr
+	createstack   [32]uintptr // stack that created this thread.
+	lockedExt     uint32      // tracking for external LockOSThread
+	lockedInt     uint32      // tracking for internal lockOSThread
+	nextwaitm     muintptr    // next m waiting for lock
+	waitunlockf   func(*g, unsafe.Pointer) bool
+	waitlock      unsafe.Pointer
+	waittraceev   byte
+	waittraceskip int
+	startingtrace bool
+	syscalltick   uint32
+	thread        uintptr // thread handle
+	freelink      *m      // on sched.freem
+
+	// these are here because they are too large to be on the stack
+	// of low-level NOSPLIT functions.
+	libcall   libcall
+	libcallpc uintptr // for cpu profiler
+	libcallsp uintptr
+	libcallg  guintptr
+	syscall   libcall // stores syscall parameters on windows
+
+	vdsoSP uintptr // SP for traceback while in VDSO call (0 if not in call)
+	vdsoPC uintptr // PC for traceback while in VDSO call
+
+	dlogPerM
+
+	mOS
+}
+```
+
+m0: 第一个启动的全局的 M。
+g0: 一个全局的 G，和 m0 绑定，用于执行调度循环。每个 M 也都有自己的成员 g0 实例。
+
+获取：
+`getm`: `g.m`。
+`acquirem`: 返回 `g.m` 并锁数加1。
+`releasem`：锁数减一。
+
+启动：`startm` （除了 m0）
+
+1. 和传入的 P 绑定 `m.nextp`，如果没有传入，则获取一个空闲的 P，如果没有空闲 P 则什么也不做。
+1. 获取一个空闲的 M，没有则创建一个，创建一个内核线程，并将其执行入口设为 `mstart`。如果有则唤醒它。
+1. `mstart`: 如果设置了 `mstartfn` 则先执行，然后执行调度循环。
+
+调度：`schedule` 并不是一个循环，大都时候由其他条件（比如 G 执行结束）再次触发调度，如果 P 之前已经释放，必须重新获得一个 P 才能进行调度
+
+1. 每处理61个 G，就先去 GRQ 里面取，确保公平。
+1. 从 LRQ 里面取。
+1. 从其他地方取，没有则阻塞，等待下次唤醒 `notewakeup`。
+  1. LRQ
+  1. GRQ
+  1. netpoll 列表里
+  1. 从其他 P 的 LRQ 里偷一半到自己的 LRQ，尝试4次
+  1. 进入 stop 流程 （释放 P 回 P 空闲列表，M 放回 M 空闲列表，然后阻塞 `notesleep`）
+1. 执行取得的 G。
+
+M.g0 上调用：`mcall`
+
+* 从 `mcall` 的被调用 goroutine g 转到 g0 上去调用传入函数 fn，栈状态保存在 `g->sched` 上以便以后恢复。
+* fn 永远不应返回，一般先改变 g 的状态为等待，记录 g 在某个数据结构中，使其以后能够被再调度，最后调用 `schedule` （g0 的实际工作）。
+* 当 g 被再次调度时，原在 g 中的 `mcall` 调用返回。
+
+后台监控：`sysmon` 使用一个单独的 M，没有 P
+
+1. 把 epoll ready 的 G 放入 GRQ。
+2. 定期扫描所有的 P：
+  * 对于正在 running 的，如果 G 占有时长超过 10 ms，在 G 上设置抢占标记 `stackPreempt`。等到栈扩张（`newstack` 发生函数调用）的时候，实施抢占（G 状态变为 runnable，被放回 GRQ）。
+  * 对于正在 syscall 的，如果超过 10 ms，使 P 变为 idle 状态，转换 `handoffp` 到一个新的 M 上执行，或放回 P 空闲队列。
+
+网络轮询：`netpoll`
+
+## P
+```
+type p struct {
+	id          int32
+	status      uint32 // one of pidle/prunning/...
+	link        puintptr
+	schedtick   uint32     // incremented on every scheduler call
+	syscalltick uint32     // incremented on every system call
+	sysmontick  sysmontick // last tick observed by sysmon
+	m           muintptr   // back-link to associated m (nil if idle)
+	mcache      *mcache
+	raceprocctx uintptr
+
+	deferpool    [5][]*_defer // pool of available defer structs of different sizes (see panic.go)
+	deferpoolbuf [5][32]*_defer
+
+	// Cache of goroutine ids, amortizes accesses to runtime·sched.goidgen.
+	goidcache    uint64
+	goidcacheend uint64
+
+	// Queue of runnable goroutines. Accessed without lock.
+	runqhead uint32
+	runqtail uint32
+	runq     [256]guintptr
+	// runnext, if non-nil, is a runnable G that was ready'd by
+	// the current G and should be run next instead of what's in
+	// runq if there's time remaining in the running G's time
+	// slice. It will inherit the time left in the current time
+	// slice. If a set of goroutines is locked in a
+	// communicate-and-wait pattern, this schedules that set as a
+	// unit and eliminates the (potentially large) scheduling
+	// latency that otherwise arises from adding the ready'd
+	// goroutines to the end of the run queue.
+	runnext guintptr
+
+	// Available G's (status == Gdead)
+	gFree struct {
+		gList
+		n int32
+	}
+
+	sudogcache []*sudog
+	sudogbuf   [128]*sudog
+
+	tracebuf traceBufPtr
+
+	// traceSweep indicates the sweep events should be traced.
+	// This is used to defer the sweep start event until a span
+	// has actually been swept.
+	traceSweep bool
+	// traceSwept and traceReclaimed track the number of bytes
+	// swept and reclaimed by sweeping in the current sweep loop.
+	traceSwept, traceReclaimed uintptr
+
+	palloc persistentAlloc // per-P to avoid mutex
+
+	_ uint32 // Alignment for atomic fields below
+
+	// Per-P GC state
+	gcAssistTime         int64    // Nanoseconds in assistAlloc
+	gcFractionalMarkTime int64    // Nanoseconds in fractional mark worker (atomic)
+	gcBgMarkWorker       guintptr // (atomic)
+	gcMarkWorkerMode     gcMarkWorkerMode
+
+	// gcMarkWorkerStartTime is the nanotime() at which this mark
+	// worker started.
+	gcMarkWorkerStartTime int64
+
+	// gcw is this P's GC work buffer cache. The work buffer is
+	// filled by write barriers, drained by mutator assists, and
+	// disposed on certain GC state transitions.
+	gcw gcWork
+
+	// wbBuf is this P's GC write barrier buffer.
+	//
+	// TODO: Consider caching this in the running G.
+	wbBuf wbBuf
+
+	runSafePointFn uint32 // if 1, run sched.safePointFn at next safe point
+
+	pad cpu.CacheLinePad
+}
+```
+
+状态：
+
+* 0 idle: 空闲，没有在运行用户代码或调度，一般在空闲 P 列表中等待被使用，LRQ 为空。
+* 1 running: 已和一个 M 绑定，正在运行用户代码或调度，只有 M 能改变它到其他状态（idle/syscall/gcstop），M 也可以将它移交给其他 M。
+* 2 syscall: 正在执行系统调用，与原 M 无绑定（和 idle 类似，但和原 M 有弱关联），可能被其他 M 偷走或 retake 变为其他状态。
+* 3 gcstop: 暂停运行，正在 GC，其 M 触发 STW，仍拥有使用 P，P 仍保持 LRQ。
+* 4 dead: 不在被使用，可能是 GOMAXPROCS 被缩减，但可以后被重新利用。
+
+设置最大 P 数目: `runtime.GOMAXPROCS(n)`，默认为 `runtime.NumCPU()`
+
+获取：
+`acquirep`: 使 P `p.m` 关联到当前的 M `m.p`。并将 P 的状态变为 running。
+`releasep`: 使 P 和当前 M 脱离关系。并将 P 的状态变为 idle。
+
+LRQ 入队：`runqput`
+LRQ 只有256长度，如果满了，则连同新的和 LRQ 的一半放入 GRQ。
+
+## G
+```
+type g struct {
+	// Stack parameters.
+	// stack describes the actual stack memory: [stack.lo, stack.hi).
+	// stackguard0 is the stack pointer compared in the Go stack growth prologue.
+	// It is stack.lo+StackGuard normally, but can be StackPreempt to trigger a preemption.
+	// stackguard1 is the stack pointer compared in the C stack growth prologue.
+	// It is stack.lo+StackGuard on g0 and gsignal stacks.
+	// It is ~0 on other goroutine stacks, to trigger a call to morestackc (and crash).
+	stack       stack   // offset known to runtime/cgo
+	stackguard0 uintptr // offset known to liblink
+	stackguard1 uintptr // offset known to liblink
+
+	_panic         *_panic // innermost panic - offset known to liblink
+	_defer         *_defer // innermost defer
+	m              *m      // current m; offset known to arm liblink
+	sched          gobuf
+	syscallsp      uintptr        // if status==Gsyscall, syscallsp = sched.sp to use during gc
+	syscallpc      uintptr        // if status==Gsyscall, syscallpc = sched.pc to use during gc
+	stktopsp       uintptr        // expected sp at top of stack, to check in traceback
+	param          unsafe.Pointer // passed parameter on wakeup
+	atomicstatus   uint32
+	stackLock      uint32 // sigprof/scang lock; TODO: fold in to atomicstatus
+	goid           int64
+	schedlink      guintptr
+	waitsince      int64      // approx time when the g become blocked
+	waitreason     waitReason // if status==Gwaiting
+	preempt        bool       // preemption signal, duplicates stackguard0 = stackpreempt
+	paniconfault   bool       // panic (instead of crash) on unexpected fault address
+	preemptscan    bool       // preempted g does scan for gc
+	gcscandone     bool       // g has scanned stack; protected by _Gscan bit in status
+	gcscanvalid    bool       // false at start of gc cycle, true if G has not run since last scan; TODO: remove?
+	throwsplit     bool       // must not split stack
+	raceignore     int8       // ignore race detection events
+	sysblocktraced bool       // StartTrace has emitted EvGoInSyscall about this goroutine
+	sysexitticks   int64      // cputicks when syscall has returned (for tracing)
+	traceseq       uint64     // trace event sequencer
+	tracelastp     puintptr   // last P emitted an event for this goroutine
+	lockedm        muintptr
+	sig            uint32
+	writebuf       []byte
+	sigcode0       uintptr
+	sigcode1       uintptr
+	sigpc          uintptr
+	gopc           uintptr         // pc of go statement that created this goroutine
+	ancestors      *[]ancestorInfo // ancestor information goroutine(s) that created this goroutine (only used if debug.tracebackancestors)
+	startpc        uintptr         // pc of goroutine function
+	racectx        uintptr
+	waiting        *sudog         // sudog structures this g is waiting on (that have a valid elem ptr); in lock order
+	cgoCtxt        []uintptr      // cgo traceback context
+	labels         unsafe.Pointer // profiler labels
+	timer          *timer         // cached timer for time.Sleep
+	selectDone     uint32         // are we participating in a select and did someone win the race?
+
+	// Per-G GC state
+
+	// gcAssistBytes is this G's GC assist credit in terms of
+	// bytes allocated. If this is positive, then the G has credit
+	// to allocate gcAssistBytes bytes without assisting. If this
+	// is negative, then the G must correct this by performing
+	// scan work. We track this in bytes to make it fast to update
+	// and check for debt in the malloc hot path. The assist ratio
+	// determines how this corresponds to scan work debt.
+	gcAssistBytes int64
+}
+```
+
+状态：
+
+* 0 idle: 刚被分配，未初始化。
+* 1 runnable: 在运行队列中，还未执行代码，未拥有栈。
+* 2 running: 正在执行用户代码，拥有栈，不在运行队列中，已分配 M 和 P。
+* 3 syscall: 正在执行系统调用，拥有栈，不在执行用户代码，已分配 M。
+* 4 waiting: 阻塞等待中，不在执行用户代码，未拥有栈（有例外），不在运行队列中，但记录在某个数据结构中，阻塞原因:
+  * GC assist marking
+  * IO wait
+  * chan receive (nil chan)
+  * chan send (nil chan)
+  * dumping heap
+  * garbage collection
+  * garbage collection scan
+  * panicwait
+  * select
+  * select (no cases)
+  * GC assist wait
+  * GC sweep wait
+  * chan receive
+  * chan send
+  * finalizer wait
+  * force gc (idle)
+  * semacquire
+  * sleep
+  * sync.Cond.Wait
+  * timer goroutine (idle)
+  * trace reader (blocked)
+  * wait for GC cycle
+  * GC worker (idle)
+* 5 moribund_unused: 未使用。
+* 6 dead: 刚初始化或刚退出在空闲列表中，不在执行用户代码，可能分配了栈。
+* 7 enqueue_unused: 未使用。
+* 8 copystack: 其栈正在被移动，不在执行用户代码，不在运行队列中。
+* 0x1000 scan: 和其他状态（除了 running）联合表示 GC 正在扫描栈，不在执行用户代码。
+
+获取：
+`getg`: 获取当前的 G。
+`dropg`: 使当前 G `g.m` 和 M `m.cug` 脱离关系。
+
+创建：`newproc`
+创建或从 free 列表复用一个 G，状态从 idle 变为 dead，runnable。然后放到 LRQ 等待执行。
+
+执行：`execute(gp *g, inheritTime bool)`
+关联 g 和当前 M，将状态从 runnable 变为 running，传入函数栈信息给 `gogo` 执行。永不返回。
+
+正常退出：`goexit`
+调用 `goexit1`，然后在当前 M 的 g0 中调用 `goexit0`，状态从 running 变为 dead，将其放回本地 free 列表，并执行下一轮调度。
+
+主动让出：`gopark`
+在 g0 中调用 `park_m`，状态从 running 变为 waiting（一般由调用者唤醒），并和当前 M 解绑，如果不需要等待解锁，则变为 runnable 继续执行，否则进行下一轮调度。
+
+系统调用：
+
+* （从外部）在系统调用上 wrap 了一个 pre/post 逻辑。
+* pre：保存执行现场，状态从 running 变为 syscall（P 也变为 syscall 状态），并将 M 和 P 脱离关联。
+* post: 在 g0 上调用，状态从 syscall 变为 runnable，如果有空闲的 P，则直接执行，否则 G 放回 GRQ，M 放回 M 空闲列表，然后阻塞等待被再次使用。
+
+
+## GODEBUG
+```
+GODEBUG=schedtrace=1000 ./test
+SCHED 0ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=1 idlethreads=0 runqueue=0 [0 1 2 0 0 0 0 0]
+SCHED 1016ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 [0 1 1 0 0 0 0 0]
+SCHED 2026ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 [0 1 1 0 0 0 0 0]
+...
+```
+
+* gomaxprocs：最大 P 数量
+* idleprocs：空闲 P 数量
+* threads：M 数量
+* spinningthreads：自旋状态 M 数量
+* idlethreads：空闲 M 数量
+* runqueue：GRQ 中的 G 数量，[0 1 2 0 0 0 0 0] 为 P 的 LRQ 中 G 的数量
+
+```
+GODEBUG=schedtrace=1000,scheddetail=1 ./test
+SCHED 0ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 gcwaiting=0 nmidlelocked=0 stopwait=0 sysmonwait=0
+  P0: status=1 schedtick=1 syscalltick=0 m=0 runqsize=0 gfreecnt=0
+  P1: status=1 schedtick=3 syscalltick=0 m=3 runqsize=0 gfreecnt=0
+  P2: status=1 schedtick=1 syscalltick=0 m=4 runqsize=0 gfreecnt=0
+  P3: status=1 schedtick=1 syscalltick=0 m=2 runqsize=1 gfreecnt=0
+  P4: status=1 schedtick=1 syscalltick=0 m=5 runqsize=1 gfreecnt=0
+  P5: status=1 schedtick=1 syscalltick=0 m=6 runqsize=0 gfreecnt=0
+  P6: status=1 schedtick=1 syscalltick=0 m=7 runqsize=0 gfreecnt=0
+  P7: status=1 schedtick=1 syscalltick=0 m=8 runqsize=0 gfreecnt=0
+  M8: p=7 curg=7 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M7: p=6 curg=8 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M6: p=5 curg=13 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M5: p=4 curg=12 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M4: p=2 curg=6 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M3: p=1 curg=5 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M2: p=3 curg=10 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M1: p=-1 curg=-1 mallocing=0 throwing=0 preemptoff= locks=1 dying=0 spinning=false blocked=false lockedg=-1
+  M0: p=0 curg=14 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  G1: status=4(semacquire) m=-1 lockedm=-1
+  G2: status=4(force gc (idle)) m=-1 lockedm=-1
+  G3: status=4(GC sweep wait) m=-1 lockedm=-1
+  G4: status=4(GC scavenge wait) m=-1 lockedm=-1
+  G5: status=2() m=3 lockedm=-1
+  G6: status=2() m=4 lockedm=-1
+  G7: status=2() m=8 lockedm=-1
+  G8: status=2() m=7 lockedm=-1
+  G9: status=1() m=-1 lockedm=-1
+  G10: status=2() m=2 lockedm=-1
+  G11: status=1() m=-1 lockedm=-1
+  G12: status=2() m=5 lockedm=-1
+  G13: status=2() m=6 lockedm=-1
+  G14: status=2() m=0 lockedm=-1
+```
+
+P:
+
+* status: 状态
+* schedtick: P 调度次数
+* syscalltick: P 的系统调用次数
+* m: 属于哪个 M, -1 表示未绑定
+* runqsize：LRQ 中的 G 数量
+* gfreecnt：可用的 G（状态为 dead）
+
+M:
+
+* p: 属于哪个 P
+* curg: 正在执行哪个 G
+* mallocing: 是否正在分配内存
+* throwing：是否抛出异常
+* preemptoff：如果不为空：不能被抢占，保持 curg 在这个 M 上运行
+* locks
+* dying
+* spinning: 是否自旋状态
+* blocked
+* lockedg: 是否有锁定的 G
+
+
+G：
+
+* status: 状态
+* m: 属于哪个 M
+* lockedm: 是否有锁定的 M
+
+# [channel](https://github.com/golang/go/blob/master/src/runtime/chan.go)
+```
+type hchan struct {
+	qcount   uint           // total data in the queue
+	dataqsiz uint           // size of the circular queue
+	buf      unsafe.Pointer // points to an array of dataqsiz elements
+	elemsize uint16
+	closed   uint32
+	elemtype *_type // element type
+	sendx    uint   // send index
+	recvx    uint   // receive index
+	recvq    waitq  // list of recv waiters
+	sendq    waitq  // list of send waiters
+
+	// lock protects all fields in hchan, as well as several
+	// fields in sudogs blocked on this channel.
+	//
+	// Do not change another G's status while holding this lock
+	// (in particular, do not ready a G), as this can deadlock
+	// with stack shrinking.
+	lock mutex
+}
+
+type waitq struct {
+	first *sudog
+	last  *sudog
+}
+```
+
+* `make(chan T, 3)` 在堆上分配内存，返回 `hchan` 结构的指针。
+* `buf` 是一个环形 FIFO 队列，`sendx`, `recvx` 指向队列中发送和接收数据的位置。
+* `sendq`, `recvq` 是双向链表，保存了等待发送和接受 goroutines 的上下文。
+
+有缓存情况：
+
+* 当队列满了，发送 goroutine (g1) 需要阻塞，将 g1 封装成 `sudog` 保存到 `sendq`，调用 `gopark(g1)` 使其进入 waiting 状态。当有数据被从队列中取出(g2)时，从 `sendq` (pop) 的`sudog` 中复制数据进队列，`goready(g1)` 恢复 g1 运行 runnable 状态，继续 g2 执行。
+* 当队列空了，接收 goroutine (g2) 需要阻塞，将 g2 封装成 `sudog` 保存到 `recvq`，调用 `gopark(g2)` 使其进入 waiting 状态。当有数据要被发送到 channel 时，直接复制到 `recvq` (pop) 的 `sudog` 栈上对应的值中，`goready(g2)` 恢复 g2 运行 runnable 状态，继续 g1 执行。
+
+无缓存情况（类似有缓存情况，但无 buf 队列复制，直接 `sudog` 复制）:
+
+* 先接收：发送时直接复制到接收 `sudog` 的栈上。
+* 先发送：接收时直接从发送 `sudog` 上复制。
+
+select的情况：
+
+* 所有 select 中的 channel 被锁住。
+* 一个 `sudog` 放入所有 channel 的 `recvq` 或 `sendq` 中。
+* 解锁 channel 并暂停 select 的 goroutine。
+* CAS 操作保证只有一个 channel 胜出。
+* 继续和暂停过程相反。
+
+Ref:
+https://speakerdeck.com/kavya719/understanding-channels / [zh](https://zhuanlan.zhihu.com/p/27917262)
 
 </xmp>
 <script src="../js/strapdown.js"></script>
