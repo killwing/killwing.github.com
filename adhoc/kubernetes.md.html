@@ -543,26 +543,43 @@ Priorities
 #### Scheduling Framework
 [![img](https://raw.githubusercontent.com/kubernetes/enhancements/master/keps/sig-scheduling/20180409-scheduling-framework-extensions.png)](https://github.com/kubernetes/enhancements/blob/master/keps/sig-scheduling/20180409-scheduling-framework.md)
 
-扩展点（由一系列插件组成）
+扩展点（由一系列插件组成）：在每个调度周期（scheduling context），扩展点顺序执行。但不同周期的绑定阶段的插件可能并行。因为绑定阶段是到另一个 goroutine 中异步执行。
 
-调度阶段：
+调度阶段：顺序执行
 
 * QueueSort: 对调度队列中的 pod 进行排序
 * Pre-Filter: 预过滤，检查一些集群或 pod 必须满足的条件
 * Filter: 类似 Predicate
 * Post-Filter: 后过滤，可以用来更新内部状态或日志
 * Scoring: 类似 Priority
-* Normalize-Scoring: 使 Scoring 的值正规化
+* Normalize-Scoring: 使 Scoring 的值正规化到规定的值域范围
 * Reserve: 有状态的插件利用来预留 node 给这个 pod 的资源（assume，预绑定）
 
-绑定阶段：
+绑定阶段：可能会并发执行
 
 * Permit: 同意/拒绝/等待
+  * approve: 所有插件 approve
+  * deny: 只要有一个插件 deny
+  * wait: 在此阶段等待直到有一个插件 approve
 * Pre-Bind: 准备绑定，如在 node 上 provision 工作
 * Bind: 只能有一个插件进行实际的绑定
 * Post-Bind: 用来清理相关资源
 * Un-Reverse: 当 pod 被 Reserve，然后被拒绝后才会调用
 
+自定义扩展：在主程序中注册，并在配置文件中 enable。
+```go
+func main() {
+	command := app.NewSchedulerCommand(func(r framework.Registry) error {
+		r.Register(mypl.Name, mypl.New)
+		return nil
+	})
+
+	if err := command.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+```
+同一个插件可以注册在不同扩展点（同一实例）。不同调度周期，通过插件内部状态共享信息，同一个调度周期内，（不同插件）通过 `CycleState` 共享信息。
 
 ### [Controller](https://git.k8s.io/community/contributors/devel/sig-api-machinery/controllers.md)
 #### [client-go](https://github.com/kubernetes/client-go/)
