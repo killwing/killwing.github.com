@@ -4,7 +4,7 @@
 <title>Go Internals</title>
 <xmp theme="united" style="display:none;">
 # [Memory](https://github.com/golang/go/blob/master/src/runtime/malloc.go)
-span：67 种规格，分别规定了从 8, 16, ... 到 32k 分配对象的大小，及其页数量（8k 一个页）。每种 span，1-10 个页不等，其中含 1-1024 个对象不等。 
+span：67 种规格，分别规定了从 8, 16, ... 到 32k 分配对象的大小，及其页数量（8k 一个页）。每种 span，1-10 个（连续的）页不等，其中含 1-1024 个对象不等。 
 每种规格都有两种类型：scan 包含指针的对象，noscan 不包含指针的对象，有助于 GC。
 
 ```
@@ -22,7 +22,7 @@ span：67 种规格，分别规定了从 8, 16, ... 到 32k 分配对象的大�
 //    66      32768       32768        1           0     12.50%
 ```
 
-mspan: 管理 span，包含 span 起始地址、span 规格和 span 中页的数量的双端链表。
+mspan: 管理 span，包含 span 起始地址、span 规格和 span 中页的数量，及分配情况（位图）的双向链表。
 ```
 type mspan struct {
 	next *mspan     // next span in list, or nil if none
@@ -112,7 +112,7 @@ type mheap struct {
 }
 ```
 
-heapArena: 系统堆，初始为一个 heapArena 64M （64bit linux），8192 个 8192 字节 mspan。
+heapArena: 系统堆，初始为一个 heapArena 64M （64bit linux），8192 个 8192 字节 mspan （一个页大小，无规格）。
 整个堆 arenas 是 heapArena 的二级映射（大多数系统只有一级）。arena 映射覆盖了一整块连续地址空间，分配器也尽量保持 arena 之间连续，以分配巨大的对象。
 ```
 type heapArena struct {
@@ -156,6 +156,14 @@ type heapArena struct {
 Ref:
 https://blog.learngoprogramming.com/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed / [zh](https://www.linuxzen.com/go-memory-allocator-visual-guide.html)
 
+
+## [MemStats](https://golang.org/pkg/runtime/#MemStats)
+
+* HeapAlloc: 已分配的堆中对象大小。
+* HeapInuse: 使用中或部分使用中的 span 大小 （实际分配大小为 HeapAlloc）。
+* HeapIdle: 未使用（没有分配对象）的 span 大小，已经归还给系统（HeapReleased）或保留被重用。
+* HeapSys: 从系统分配堆（虚拟）内存的总大小。（inuse + idle）
+* HeapReleased: 归还给系统的大小。只是建议，并不能直接反应真实情况。
 
 # [Scheduler](https://github.com/golang/go/blob/master/src/runtime/proc.go)
 逻辑处理器 (P): 用来处理调度 G 的运行，P 运行时和 M 绑定
@@ -392,8 +400,8 @@ type p struct {
 `acquirep`: 使 P `p.m` 关联到当前的 M `m.p`。并将 P 的状态变为 running。
 `releasep`: 使 P 和当前 M 脱离关系。并将 P 的状态变为 idle。
 
-LRQ 入队：`runqput`
-LRQ 只有256长度，如果满了，则连同新的和 LRQ 的一半放入 GRQ。
+LRQ 入队：`runqput(_p_ *p, gp *g, next bool)`
+LRQ 只有256长度，如果满了，则连同新的和 LRQ 的一半放入 GRQ。可以放在 next，优先执行（比如 `goready`）。
 
 ## G
 ```
@@ -504,7 +512,7 @@ type g struct {
 `dropg`: 使当前 G `g.m` 和 M `m.cug` 脱离关系。
 
 创建：`newproc`
-创建或从 free 列表复用一个 G，状态从 idle 变为 dead，runnable。然后放到 LRQ 等待执行。
+创建或从 free 列表复用一个 G，状态从 idle 变为 dead，runnable。然后放到 LRQ 等待执行。如果还有空闲的 P，则创建/唤醒一个 M 来执行。
 
 执行：`execute(gp *g, inheritTime bool)`
 关联 g 和当前 M，将状态从 runnable 变为 running，传入函数栈信息给 `gogo` 执行。永不返回。
@@ -515,6 +523,9 @@ type g struct {
 主动让出：`gopark`
 在 g0 中调用 `park_m`，状态从 running 变为 waiting（一般由调用者唤醒），并和当前 M 解绑，如果不需要等待解锁，则变为 runnable 继续执行，否则进行下一轮调度。
 
+重新调度: `goready(gp *g, traceskip int)`
+状态从 waiting 变为 runnable，放到 LRQ 的 next 等待执行。如果还有空闲的 P，则创建/唤醒一个 M 来执行。
+
 系统调用：
 
 * （从外部）在系统调用上 wrap 了一个 pre/post 逻辑。
@@ -522,9 +533,41 @@ type g struct {
 * post: 在 g0 上调用，状态从 syscall 变为 runnable，如果有空闲的 P，则直接执行，否则 G 放回 GRQ，M 放回 M 空闲列表，然后阻塞等待被再次使用。
 
 
+### sudog
+```
+type sudog struct {
+	// The following fields are protected by the hchan.lock of the
+	// channel this sudog is blocking on. shrinkstack depends on
+	// this for sudogs involved in channel ops.
+
+	g *g
+
+	// isSelect indicates g is participating in a select, so
+	// g.selectDone must be CAS'd to win the wake-up race.
+	isSelect bool
+	next     *sudog
+	prev     *sudog
+	elem     unsafe.Pointer // data element (may point to stack)
+
+	// The following fields are never accessed concurrently.
+	// For channels, waitlink is only accessed by g.
+	// For semaphores, all fields (including the ones above)
+	// are only accessed when holding a semaRoot lock.
+
+	acquiretime int64
+	releasetime int64
+	ticket      uint32
+	parent      *sudog // semaRoot binary tree
+	waitlink    *sudog // g.waiting list or semaRoot
+	waittail    *sudog // semaRoot
+	c           *hchan // channel
+}
+```
+sudog 是处于等待列表中 g 及其数据的一个封装，一个 g 可以在多个等待列表中，即多个 sudog 对应一个 g；多个 g 可以等待同一个同步对象，即多个 sudog 对应一个同步对象。
+
 ## GODEBUG
 ```
-GODEBUG=schedtrace=1000 ./test
+GODEBUG=schedtrace=1000 go run main.go
 SCHED 0ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=1 idlethreads=0 runqueue=0 [0 1 2 0 0 0 0 0]
 SCHED 1016ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 [0 1 1 0 0 0 0 0]
 SCHED 2026ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 [0 1 1 0 0 0 0 0]
@@ -539,7 +582,7 @@ SCHED 2026ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0
 * runqueue：GRQ 中的 G 数量，[0 1 2 0 0 0 0 0] 为 P 的 LRQ 中 G 的数量
 
 ```
-GODEBUG=schedtrace=1000,scheddetail=1 ./test
+GODEBUG=schedtrace=1000,scheddetail=1 go run main.go
 SCHED 0ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 gcwaiting=0 nmidlelocked=0 stopwait=0 sysmonwait=0
   P0: status=1 schedtick=1 syscalltick=0 m=0 runqsize=0 gfreecnt=0
   P1: status=1 schedtick=3 syscalltick=0 m=3 runqsize=0 gfreecnt=0
@@ -602,6 +645,39 @@ G：
 * status: 状态
 * m: 属于哪个 M
 * lockedm: 是否有锁定的 M
+
+# GC
+
+## GODEBUG
+gc 的阶段：
+
+1. STW sweep termination
+1. concurrent mark and scan
+1. STW mark termination
+
+
+```
+GODEBUG=gctrace=1 go run main.go
+gc 1 @0.033s 0%: 0.010+0.74+0.025 ms clock, 0.080+0.39/0.43/0.20+0.20 ms cpu, 4->4->0 MB, 5 MB goal, 8 P
+gc 2 @0.055s 0%: 0.11+0.66+0.18 ms clock, 0.92+0.38/0.45/0.067+1.5 ms cpu, 4->4->0 MB, 5 MB goal, 8 P
+gc 3 @0.065s 1%: 0.016+0.88+0.006 ms clock, 0.12+0.25/0.52/0.22+0.048 ms cpu, 4->4->0 MB, 5 MB goal, 8 P
+scvg: 0 MB released
+scvg: inuse: 2, idle: 61, sys: 63, released: 58, consumed: 4 (MB)
+```
+第三行为例：
+
+* 第三次 gc
+* 自程序启动程序运行时间为 0.065s 
+* 自启动共花费 1% 在 gc 上
+* gc 不同阶段的墙上时间 0.016+0.88+0.006 ms
+* gc 不同阶段的 cpu 时间，其中第二阶段(mark/scan)分为：assist time (GC performed in line with allocation), background GC time, and idle GC time
+* gc 开始时堆大小（consumed, sys - released） 4 MB，gc 结束时 4 MB，live heap （inuse） 大小 0 MB
+* gc 预估目标堆大小 5 MB
+* 所用 P 的数量 8
+
+scavenging: 释放内存归还给系统，字段参考 MemStats
+
+# [netpoll](https://github.com/golang/go/blob/master/src/runtime/netpoll.go)
 
 # [channel](https://github.com/golang/go/blob/master/src/runtime/chan.go)
 ```
