@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>runc</title>
+<xmp theme="united" style="display:none;">
+runc 是一个命令行工具根据 OCI 规范（利用 [libcontainer](https://github.com/opencontainers/runc/tree/master/libcontainer)）来创建和运行容器。
+
+## OCI Spec
+[runtime](https://github.com/opencontainers/runtime-spec)
+[image](https://github.com/opencontainers/image-spec)
+
+## [OCI Bundle](https://github.com/opencontainers/runtime-spec/blob/master/bundle.md)
+rootfs 目录：`mkdir rootfs && docker export $(docker create busybox) | tar -C rootfs -xvf -`
+config.json: `runc spec` 生成配置模版
+
+## libcontainer
+使用 libcontainer 需要调用者主程序自己（即 runc, `/proc/self/exe`）也是一个初始化程序接受 init 参数进行初始化工作。
+
+初始化进程一般如下：
+```
+import (
+	_ "github.com/opencontainers/runc/libcontainer/nsenter"
+)
+
+func init() {
+	if len(os.Args) > 1 && os.Args[1] == "init" {
+		runtime.GOMAXPROCS(1)
+		runtime.LockOSThread()
+		factory, _ := libcontainer.New("")
+		if err := factory.StartInitialization(); err != nil {
+			logrus.Fatal(err)
+		}
+		panic("--this line should have never been executed, congratulations--")
+	}
+}
+```
+
+[nsenter](https://github.com/opencontainers/runc/tree/master/libcontainer/nsenter) 的作用：一段 c 代码(cgo)，进行 namespace 操作，必须在 go runtime 之前执行。
+
+1. 从 `_LIBCONTAINER_INITPIPE` 读取 bootstrapData 配置。
+1. 调用 [setns](http://man7.org/linux/man-pages/man2/setns.2.html) 加入指定的 namespace。
+1. 调用 [clone](http://man7.org/linux/man-pages/man2/clone.2.html) 创建一个子进程（执行内部流程，setns 不能改变自己的 pid namespace），更新 uid/gid 映射等。
+1. 父进程(nsexec)退出，子进程被 go runtime 接管。
+
+## workflow
+容器初始进程（spec.process, entrypoint）
+
+runc 主进程
+
+1. 调用 `libcontainer.New` 创建一个 factory。
+1. 调用 `factory.Create` 并传入 spec 容器配置创建一个 container 对象。
+1. 调用 `container.Start` 启动初始化进程(即运行 runc init)。
+  1. 创建 `mkfifo` 一个执行同步管道(`_LIBCONTAINER_FIFOFD`, `/var/run/runc/{ID}/exec.fifo`)，用来同步执行。
+  1. 设置初始化进程的环境变量 `_LIBCONTAINER_INITTYPE` 为 standard。
+  1. 运行初始化进程。
+  1. 设置容器状态为 Created。
+1. runc 和初始化进程通过一个 socket pair 进行通信(`_LIBCONTAINER_INITPIPE`)，将初始化配置信息传给初始化进程，以及用于同步状态。
+  1. bootstrapData: cloneFlags, namespace paths, uid/gid mappings, oom_score_adj, rootless。
+  1. initConfig: 启动进程信息及配置。
+1. 等待 init pipe 初始化进程完成初始化后退出（如果是仅创建）。
+1. 如果运行容器，打开并读取 `exec.fifo` 内容，使初始化进程停止阻塞。
+
+初始化进程
+
+1. nsenter 完成 namespace 配置。
+1. 调用 `factory.StartInitialization` 进行初始化。
+1. 获取环境变量 `_LIBCONTAINER_INITTYPE`, `_LIBCONTAINER_INITPIPE`, `_LIBCONTAINER_FIFOFD`。
+1. 从 `_LIBCONTAINER_INITPIPE` 读取配置。
+  1. 配置网络
+  1. 配置路由
+  1. 准备 rootfs: mount points, devices, (sync procHooks)，最后 pivotRoot/chroot 切换目录。
+  1. 配置 console
+  1. 设置 hostname 等
+1. 通过 init pipe 通知 runc 主进程 procReady 完成初始化。
+1. 打开 `exec.fifo` 并写入一个字节，阻塞等待继续执行。
+1. 停止阻塞后，调用 `exec` 替换本进程，执行容器初始进程。
+
+exec 一个进程和容器初始进程流程大致相同，的区别在于容器状态是否为 Stopped，即是否已经有进程在运行。且 `_LIBCONTAINER_INITTYPE` 设置为 setns。初始化进程也不需要配置网络，路由，准备 rootfs 等步骤。
+
+## Reference
+https://github.com/opencontainers/runc
+https://github.com/opencontainers/runc/blob/master/libcontainer/SPEC.md
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
