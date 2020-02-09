@@ -1190,7 +1190,7 @@ go func() {
 	log.Println(http.ListenAndServe("localhost:6060", nil))
 }()
 ```
-查看：`http://localhost:6060/debug/pprof/` 可以生成各种 prof 文件，查看 stack 信息等。
+查看：`http://localhost:6060/debug/pprof/` 可以生成各种 prof, trace 文件（不加 debug 参数，并指定时长参数），查看 stack 信息等。
 
 ### Frame Graphs
 安装：
@@ -1220,7 +1220,7 @@ func main() {
 `go run main.go > trace.out`/`go test -bench=. -trace=trace.out`
 `go tool trace trace.out`
 
-使用 [gotrace](https://github.com/divan/gotrace) 可视化。
+使用 [gotrace](https://github.com/divan/gotrace) 3D 可视化。
 
 ## Documentation ([cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
 规范化注释格式，任何直接属于顶层声明的注释都会可被`godoc`提取为文档注释（除了package main）。

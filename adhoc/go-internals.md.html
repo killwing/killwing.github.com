@@ -565,7 +565,7 @@ type sudog struct {
 ```
 sudog 是处于等待列表中 g 及其数据的一个封装，一个 g 可以在多个等待列表中，即多个 sudog 对应一个 g；多个 g 可以等待同一个同步对象，即多个 sudog 对应一个同步对象。
 
-## GODEBUG
+## Scheduler GODEBUG
 ```
 GODEBUG=schedtrace=1000 go run main.go
 SCHED 0ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=1 idlethreads=0 runqueue=0 [0 1 2 0 0 0 0 0]
@@ -646,16 +646,58 @@ G：
 * m: 属于哪个 M
 * lockedm: 是否有锁定的 M
 
-# GC
+# [GC](https://github.com/golang/go/blob/master/src/runtime/mgc.go)
+根对象：GC 在标记过程中最先扫描的对象。包括全局对象，执行栈，和寄存器中的变量。
+STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
 
-## GODEBUG
-gc 的阶段：
+## [三色标记](https://en.wikipedia.org/wiki/Tracing_garbage_collection#Tri-color_marking)
 
-1. STW sweep termination
-1. concurrent mark and scan
-1. STW mark termination
+白色：未被扫描到的对象，不可达对象。
+灰色：已被扫描到的对象，可能包含指针指向白色对象。
+黑色：存活对象，所有字段都被扫描，其中任何指针都不可能直接指向白色对象。
 
+扫描开始时，全白。扫描结束时，只有黑和白。扫描：即白->灰->黑的推进过程。
 
+## GC 阶段
+
+1. Sweep Termination
+
+	a. **STW**, 这样所有的 P 都能够安全地 gc。
+	b. 清扫上一次未清扫的 span。只有这次 gc 是在计划执行之前强制执行时才会有。
+
+1. Mark
+
+	a. 准备标记，**设置阶段从 `_GCoff` 为 `_GCmark`，启用写屏障**，启用辅助 gc，将根标记任务放入工作队列。直到所有的 P 都启用了写屏障（通过 STW），否则不能开始扫描对象。
+	b. **解除 STW**，从此 GC 工作由调度器启动的标记 worker 和作为分配过程中一部分的辅助 gc (`mallocgc`)共同完成。写屏障着色被覆写的指针和新创建的指针。新分配的对象标记为黑色。
+	c. GC 开始执行根标记任务：扫描所有栈，着色所有的全局对象，着色所有 off-heap 数据结构上的堆指针。扫描栈的时候会停止 goroutine，找到并着色栈上所有的指针，然后再继续执行。
+	d. GC 从工作队列中拿出灰色对象，扫描将其变为黑色，着色对象中的找到的所有指针。
+	e. 因为 GC 工作的执行分布在本地 cache 中，使用一个分布式终止算法来检测没有剩余的根标记任务以及灰色对象。至此，GC 转为 Mark Termination 阶段。
+
+1. Mark Termination
+
+	a. **STW**
+	b. **设置阶段为 `_GCmarktermination`**，停止禁用 gc workers 和 assists。
+	c. 清理工作，如刷新 mcache。
+
+1. Sweep
+
+	a. 准备清扫，**设置阶段为 `_GCoff`**，设置清扫状态，**关闭写屏障**。
+	b. **解除 STW**，从此之后新分配的对象为白色，如果需要的话分配时会进行清扫 span 回收使用。
+	c. GC 并发地在后台做清扫工作。
+
+1. 当发生了足够多的分配，重复以上步骤。
+
+## 并发清扫
+清扫阶段和程序正常执行是并发执行的。堆的清扫是按一个个 span，同时通过惰性清扫（goroutine 需要一个新的 span 的时候）和并发的一个后台 goroutine 执行（一个 span 接一个清扫）。在 Mark Termination 阶段结束的时候，所有 span 都被标记为需要清扫。
+当 goroutine 需要一个新的 span 的时候，首先通过清扫来回收可用的 span。
+未清扫的 span 不能够被使用。在 GC 过程中，所有的 mcache 被刷新到 central cache 里面，所以它们为空。当一个 goroutine 拿到一个 span 到 mcache 中时，清扫它。当一个 goroutine 显式地释放一个对象，保证其 span 被清扫过。
+
+## GC 频率
+下一次 GC 的时机是根据额外新分配的内存大小和现在使用的内存大小(live heap)的一个比例确定。这个比例由 `GOGC` 这个环境变量来控制（或 `debug.SetGCPercent`），默认 100。如果这次使用了 4M，则当使用到 8M 的时候，执行下次 GC。GC 的开销就和分配成线性关系。
+
+主动触发：`runtime.GC`
+
+## GC GODEBUG
 ```
 GODEBUG=gctrace=1 go run main.go
 gc 1 @0.033s 0%: 0.010+0.74+0.025 ms clock, 0.080+0.39/0.43/0.20+0.20 ms cpu, 4->4->0 MB, 5 MB goal, 8 P
@@ -675,7 +717,11 @@ scvg: inuse: 2, idle: 61, sys: 63, released: 58, consumed: 4 (MB)
 * gc 预估目标堆大小 5 MB
 * 所用 P 的数量 8
 
-scavenging: 释放内存归还给系统，字段参考 MemStats
+[scavenging](https://github.com/golang/go/blob/master/src/runtime/mgcscavenge.go): 释放内存归还给系统（`debug.FreeOSMemory`），字段参考 MemStats。
+
+其他：
+`debug.ReadGCStats`
+`runtime.ReadMemStats`
 
 # [netpoll](https://github.com/golang/go/blob/master/src/runtime/netpoll.go)
 
