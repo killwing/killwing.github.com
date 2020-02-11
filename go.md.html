@@ -5,7 +5,7 @@
 <xmp theme="readable" style="display:none;">
 [http://golang.org](http://golang.org)
 
-## 准备
+# 准备
 ### [下载安装](http://golang.org/doc/install)
 
 下载安装包，并解压到安装路径(如`$HOME/go`)，最后配置环境变量。
@@ -62,7 +62,7 @@ golang.org/x/tools/cmd/goimports
 golang.org/x/tools/cmd/oracle
 golang.org/x/tools/cmd/gorename
 
-## Basics
+# Basics
 源文件以UTF-8编码。
 语句以分号结尾，一个语句时通常省略，全局域中以及括号后边也不需要。
 圆括号通常只用在参数列表中。
@@ -704,12 +704,12 @@ s.String()
 ```
 
 
-## Concurrency
+# Concurrency
 > [Do not communicate by sharing memory; instead, share memory by communicating.](http://blog.golang.org/share-memory-by-communicating)
 
 并发模型：[CSP模型(Communicating Sequential Processes)](https://en.wikipedia.org/wiki/Communicating_sequential_processes)
 
-### [内存模型](https://golang.org/ref/mem)
+## [内存模型](https://golang.org/ref/mem)
 发生顺序（逻辑顺序）：如果事件e1在e2之前发生，那么e2就在e1之后发生；如果e1既不在e2之前发生，也不在e2之后发生，则e1和e2并发。
 在单独的goroutine的内部，发生顺序由程序指定。
 多个goroutine情况下，必需使用同步机制保证不同goroutine变量之间的读写发生顺序。
@@ -736,14 +736,14 @@ lock: 对任何Mutex/RWMutex变量l，以及n<m，调用n次Unlock在m次Lock之
 once: 一个单独的`once.Do(f)`内的`f()`调用在任何`once.Do(f)`调用返回之前发生。
 
 
-### Goroutine
+## Goroutine
 goroutine指在同一地址空间内并发执行的函数，非常廉价和轻量级。执行: `go f()`
 `go`也可以用于启动新定义的内部函数（闭包）为goroutines。
 可以在不同的处理器上并发运行，而且共享内存。(gccgo目前是使用pthread实现的)
 goroutine的默认堆栈大小8KB，最大1GB（64bit），250M（32bit）。
 goroutine是系统资源，从外部无法结束它，除非自己退出，否则会造成资源泄露（通常是一直阻塞在里面的channel上）。
 
-### 调度
+## 调度
 `runtime.GOMAXPROCS(n)` 指定最多可以并行执行的goroutine数目（实际系统线程数可以大于PROC数，最大256），默认为CPU核心线程数。`runtime.NumGoroutine()`返回当前存在的goroutine的数目。`runtime.NumCPU()`返回CPU核心数目。
 `runtime.Goexit()`终止当前goroutine的执行（defer仍起作用）。
 `runtime.Gosched()`暂停当前goroutine，等待被再次调度（类似协程里的yield）。
@@ -752,12 +752,12 @@ goroutine如果内部调用了非内联函数（内联函数如lambda，编译�
 
 关于goroutine的调度，可以看[go-scheduler](http://morsmachine.dk/go-scheduler) （[中文](http://mikespook.com/2013/07/%E7%BF%BB%E8%AF%91go-%E7%9A%84%E8%B0%83%E5%BA%A6%E5%99%A8/)）, [netpoller](http://morsmachine.dk/netpoller)，以及[原始设计文档](https://docs.google.com/document/d/1TTj4T2JO42uD5ID9e89oa0sLKhJYD0Y_kqxDv3I3XMw)。
 
-#### G-P-M 模型
+### G-P-M 模型
 G: Goroutine
 P: 逻辑处理单元（GOMAXPROCS个）
 M: 物理处理单元（系统线程）
 
-### Channel
+## Channel
 声明: `chan element_type`，创建: `var c = make(chan int)`
 channel是引用类型，内部同步，并发安全。
 `len`返回未被读取的缓冲元素个数，`cap`返回缓冲区大小。
@@ -946,8 +946,8 @@ for i := 0; i < cap(sem); i++ {
 ```
 
 
-## 错误处理
-### [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
+# 错误处理
+## [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
 error的描述一般小写开头，最后不带句号，因为经常被嵌入到其他描述中。
 ```
@@ -957,7 +957,7 @@ type error interface {
 ```
 `errors.New`/`fmt.Errorf`：创建error对象。
 
-### [panic and recover](http://blog.golang.org/defer-panic-and-recover)
+## [panic and recover](http://blog.golang.org/defer-panic-and-recover)
 `defer`
 
 * defer后面的语句在函数return时候调用（最终返回之前，(如果有)计算return表达式之后，并可改变返回参数的值）。
@@ -990,7 +990,7 @@ func main() {
 `recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。没有捕获到panic则返回nil。
 
 
-## Packages
+# Packages
 > [magic is bad; global state is magic → no package level vars; no func init](https://peter.bourgon.org/blog/2017/06/09/theory-of-modern-go.html)
 
 每个go的源文件第一行都必须是`package xxx`
@@ -1017,7 +1017,7 @@ import (
 一般来说，一个目录一个包，作为一个单元一起编译，忽略测试文件。
 按照惯例，包名使用小写，且为一个单词的名字；不要使用下划线或者混合大小写。
 
-### Vendoring ([cmd](https://github.com/golang/dep))
+## Vendoring ([cmd](https://github.com/golang/dep))
 在src下如果有形如`d/vendor`的目录（一般vendor不直接放在src下），那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
 
 `./...`不会匹配vendor目录。
@@ -1089,8 +1089,8 @@ replace: 只作用于当前 module
 
 plugin可以导出任何类型的包函数和变量，但一般导出接口类型，这样可以使用接口的全部方法集。
 
-## Testing ([pkg](http://golang.org/pkg/testing/))
-### Test
+# Testing ([pkg](http://golang.org/pkg/testing/))
+## Test
 * 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。
 * 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
@@ -1117,7 +1117,7 @@ func TestFoo(t *testing.T) {
 
 [Go advanced testing tips & tricks](https://medium.com/@povilasve/go-advanced-tips-tricks-a872503ac859#.smbsuk2mg)
 
-### Benchmarks
+## Benchmark
 `go test -bench=. -benchtime=3s -benchmem`
 测试函数必须形如：`b.N`是本轮测试循环次数，会根据每个测试的要求时间自动调整（默认1s）。
 ```
@@ -1134,7 +1134,11 @@ func BenchmarkHello(b *testing.B) {
 输出如`50000000    24.1 ns/op    8 B/op    1 allocs/op` 表示跑了50000000次循环，每次循环用时24.1 ns, 分配了8 Byte堆内存，有1次堆内存分配。
 用 [benchstat](https://godoc.org/golang.org/x/perf/cmd/benchstat) 比较结果。
 
-### [Examples](https://blog.golang.org/examples)
+## [Coverage](https://blog.golang.org/cover) ([cmd](http://golang.org/cmd/cover/))
+生成：`go test -coverprofile=cover.out`
+查看：`go tool cover -html=cover.out`
+
+## [Examples](https://blog.golang.org/examples)
 示例函数命名(suffix可选)：
 
 * package: Example_suffix
@@ -1145,7 +1149,7 @@ func BenchmarkHello(b *testing.B) {
 examples在go doc里可以直接run。
 examples也是测试，通过stdout输出和`Output:`注释比较来判断测试是否通过，如果没有`Output:`则不会执行。(内置函数`print/println`输出到stderr)
 
-### util packages
+## util packages
 `net/http/httptest`: 测试http
 `testing/iotest`：模拟io读写错误等
 `testing/quick`: 产生随机数做黒盒测试，[详解](http://blog.matttproud.com/2015/06/testingquick-blackbox-testing-in-go-for.html)
@@ -1153,12 +1157,14 @@ https://github.com/dvyukov/go-fuzz : 随机数据测试
 https://github.com/stretchr/testify : 辅助测试工具
 
 
-## Logging
-### 非结构化
+# Logging
+## 非结构化
 [Logging Conventions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-instrumentation/logging.md)
 
-### 结构化
+## 结构化
 [logr](https://github.com/go-logr/logr)
+
+# [Diagnostics](https://golang.org/doc/diagnostics.html)
 
 ## Debuging ([pkg](https://golang.org/pkg/runtime/debug/))
 查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`
@@ -1173,10 +1179,6 @@ Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/d
 
 * debug: 禁止内联和优化 `-gcflags "-N -l"`。(查看全部`go tool compile -help`)
 * release: 删除调试信息和符号表 `-ldflags "-w -s"`。
-
-## [Coverage](https://blog.golang.org/cover) ([cmd](http://golang.org/cmd/cover/))
-生成：`go test -coverprofile=cover.out`
-查看：`go tool cover -html=cover.out`
 
 ## [Profiling](http://blog.golang.org/profiling-go-programs) ([cmd](http://golang.org/cmd/pprof/) [pkg](https://golang.org/pkg/runtime/pprof/))
 测试时：`go test -bench=. -cpuprofile/-memprofile/-blockprofile out.prof`
@@ -1222,6 +1224,7 @@ func main() {
 
 使用 [gotrace](https://github.com/divan/gotrace) 3D 可视化。
 
+# Comments
 ## Documentation ([cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
 规范化注释格式，任何直接属于顶层声明的注释都会可被`godoc`提取为文档注释（除了package main）。
 
@@ -1240,13 +1243,6 @@ func main() {
 [What's in a name?](https://talks.golang.org/2014/names.slide)
 [When in Go, do as Gophers do](https://talks.golang.org/2014/readability.slide)
 
-## Build Constraints([pkg](https://golang.org/pkg/go/build/))
-又称build tag或条件编译。在`go run/build/test`的时候以`-tags`指定。
-指令：在源文件（不一定是go文件）中以`// +build`表示，必须在package之前并以空行隔开。
-条件：`空格：或`，`逗号：与`，`!：非`，多行表示“与”。比如`// +build linux,386 darwin,!cgo`表示`(linux OR darwin) AND 386`
-特殊的tag：操作系统`runtime.GOOS`，架构`runtime.GOARCH`，编译器`gc`/`gccgo`，`cgo`，版本`go1.x`，忽略`ignore`。
-操作系统和架构也可以以文件名的形式说明：`*_GOOS`, `*_GOARCH`, `*_GOOS_GOARCH`，如`source_windows_amd64.go`
-
 ## [Code Generation](https://blog.golang.org/generate)
 指令：在任意go文件中，以注释：
 `//go:generate goyacc -o gopher.go -p parser gopher.y`
@@ -1254,8 +1250,23 @@ func main() {
 
 调用`go generate`执行注释后的命令生成文件。
 
-## [Std Packages](https://golang.org/pkg/)
-### [context](http://blog.golang.org/context)
+## Build Constraints([pkg](https://golang.org/pkg/go/build/))
+又称build tag或条件编译。在`go run/build/test`的时候以`-tags`指定。
+指令：在源文件（不一定是go文件）中以`// +build`表示，必须在package之前并以空行隔开。
+条件：`空格：或`，`逗号：与`，`!：非`，多行表示“与”。比如`// +build linux,386 darwin,!cgo`表示`(linux OR darwin) AND 386`
+特殊的tag：操作系统`runtime.GOOS`，架构`runtime.GOARCH`，编译器`gc`/`gccgo`，`cgo`，版本`go1.x`，忽略`ignore`。
+操作系统和架构也可以以文件名的形式说明：`*_GOOS`, `*_GOARCH`, `*_GOOS_GOARCH`，如`source_windows_amd64.go`
+
+## pragmas
+https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
+
+`//go:noescape` 表示函数里的内存分配不会逃逸到堆上 `-gcflags -m` / `-gcflags -m -m` 查看逃逸情况
+`//go:norace`
+`//go:nosplit`
+`//go:noinline`
+
+# [Std Packages](https://golang.org/pkg/)
+## [context](http://blog.golang.org/context)
 Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
 Context本身是线程安全的，它携带的参数也必须是线程安全的。
 Context可以有继承关系，当一个Context被取消，它所有的子Context都会被取消（收到通知）。
@@ -1291,8 +1302,8 @@ http中使用`Request.WithContext`，net中使用`Dialer.DialContext`
 1.7中使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp.go deprecates `Request.Cancel`/`Transport.CancelRequest`
 1.7前使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp_pre17.go
 
-### net/http
-#### connection
+## net/http
+### connection
 client:
 
 * 在得到http请求的响应且没有错误的情况下(resp不为nil)，在读取完body之后（或没有body），都要手动进行`resp.Body.Close()`。只有body读完并关闭之后才能重用连接。
@@ -1303,7 +1314,7 @@ server:
 
 * server的接收请求的body，由Server负责关闭，handler不必关心。
 
-#### handler
+### handler
 http://www.alexedwards.net/blog/a-recap-of-request-handling
 
 * `http.ListenAndServe`：新建一个Server并`Server.ListenAndServe`没有设超时等参数，如果handler为nil则使用DefaultServerMux。一般不直接传普通handler给Server，而是传一个mux，否则要自己做路由。
@@ -1335,7 +1346,7 @@ func main() {
 }
 ```
 
-#### 超时
+### 超时
 http://www.oschina.net/translate/the-complete-guide-to-golang-net-http-timeouts
 
 * 服务端：对于不需要返回流的服务器，使用http.Server并设置ReadTimeout和WriteTimeout。（http.ListenAndServe无法设置）
@@ -1379,23 +1390,23 @@ func (t *TimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 ```
 
 
-### [reflection](http://blog.golang.org/laws-of-reflection)
+## [reflection](http://blog.golang.org/laws-of-reflection)
 通过reflection可以取得接口里面的类型和值的信息。
 
-#### 从接口得到reflection对象
+### 从接口得到reflection对象
 `reflect.ValueOf()` 取得值对象
 `reflect.Type()` 取得类型对象
 `reflect.Kind()/reflect.Type().Kind()` 取得类型的枚举值(底层类型)，可以用getter/setter方法转为相应的（最大范围）类型。
 
-#### 从reflection对象到接口
+### 从reflection对象到接口
 `v.Interface()` 将reflect值对象转为interface。
 `v.Elem()` 如果v底层是Interface或Ptr对象，取得其包含或指向的对象。
 `t.Elem()` 如果v底层是Array, Chan, Map, Ptr, 或Slice类型，取得其元素类型。
 
-#### 更新可设置reflection对象的值
+### 更新可设置reflection对象的值
 `v.CanSet()` 测试一个值是否可以设置(是否可以通过reflection对象来设置原始值，这就要求取得reflection对象时必须传递指针给ValueOf()，则`v.Elem().CanSet()`为true)。
 
-#### Struct
+### Struct
 通过value对象的field方法取得field对象。
 通过type对象的field方法取得field元信息。
 struct的field可设置必须首先是导出的。
@@ -1429,7 +1440,7 @@ for i := 0; i < n; i++ {
  }
 ```
 
-#### select
+### select
 执行类似 select 语句的操作。
 ```
 var cases []reflect.SelectCase
@@ -1442,8 +1453,8 @@ for _, c := range channels {
 index, value, ok := reflect.Select(cases) // return from channels[index]
 ```
 
-### [encoding/json](https://blog.golang.org/json-and-go)
-#### encoding/marshal
+## [encoding/json](https://blog.golang.org/json-and-go)
+### encoding/marshal
 * 对于map类型必须以string为key
 * channel, complex, function类型不能被encode
 * 循环数据结构不能被encode
@@ -1462,7 +1473,7 @@ map[string]T|object
 struct|object
 nil|null
 
-#### decoding/unmarshal
+### decoding/unmarshal
 * decode匹配字段struct tag > 字段名 > 不区分大小写字段名，找不到匹配的则忽略
 * 对于指针，slice，map类型若没预先分配则会自动分配内存，如果没有匹配字段则为nil
 * 数据流使用`NewDecoder`
@@ -1477,13 +1488,13 @@ null|nil
 array|[]interface{}
 object|map[string]interface{}
 
-#### struct tag
+### struct tag
 `json:"-"` 忽略这个字段
 `json:"myName"` 在json里key为myName
 `json:"myName,omitempty"` 如果字段为空值则忽略
 `json:",string"` 数值，布尔类型在json里转为string编码。如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)从而不丢失精度，进而转为数值类型。
 
-### text/template
+## text/template
 Action: 以`{{...}}`表示，进行求值或组成控制结构。`{{- ...`和`... -}}`可以trim左边和右边的空白。
 data: 模版执行的上下文数据，叫dot用`.`表示。
 Variables: `$var := pipeline`, `range $index, $element := pipeline`，变量作用域为控制结构结束或到模版结束。
@@ -1499,11 +1510,11 @@ function: 预定义的全局函数。
 `{{with "output"}}{{printf "%q" .}}{{end}}` // "output"
 ```
 
-### regexp
+## regexp
 https://golang.org/pkg/regexp/syntax/
 https://github.com/StefanSchroeder/Golang-Regex-Tutorial
 
-### sync
+## sync
 条件变量：有一个关联锁，当条件改变的时候（保护条件检查相关数据），及调用 Wait 的时候必须持有这个锁。
 ```
 type Cond struct {
@@ -1525,14 +1536,14 @@ c.L.Unlock()
 ```
 当调用 Signal/Broadcast 的时候，可以但并不要求持有锁。
 
-### misc
+## misc
 * `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
 * 未导出的结构体的字段将不会被（json、xml、gob等）编码。
 
-## [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
+# [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
 用`CGO_ENABLED`环境变量启用／禁用。
 
-### preamble
+## preamble
 preamble以注释的形式在`import "C"`前面，会在编译这个包的时候一起编译。
 
 * 直接代码。
@@ -1558,7 +1569,7 @@ func Seed(i int) {
 }
 ```
 
-### C->Go
+## C->Go
 所有C/C++类型对应在Go里都是非导出的。
 不能在Go里直接调用C函数指针。但可以存在变量里传递。
 
@@ -1592,7 +1603,7 @@ func C.GoStringN(*C.char, C.int) string
 func C.GoBytes(unsafe.Pointer, C.int) []byte
 ```
 
-### Go->C
+## Go->C
 使用`export`导出函数。
 
 ```
@@ -1604,15 +1615,7 @@ func MyFunction(arg1, arg2 int, arg3 string) int64 {...}
 extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 ```
 
-## pragmas
-https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
-
-`//go:noescape` 表示函数里的内存分配不会逃逸到堆上 `-gcflags -m` / `-gcflags -m -m` 查看逃逸情况
-`//go:norace`
-`//go:nosplit`
-`//go:noinline`
-
-## Reference
+# Reference
 https://golang.org/ref/spec
 https://tip.golang.org/cmd/go/
 http://godoc.org/
