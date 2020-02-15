@@ -300,6 +300,8 @@ M.g0 上调用：`mcall`
   * 对于正在 running 的，如果 G 占有时长超过 10 ms，在 G 上设置抢占标记 `stackPreempt`。等到栈扩张（`newstack` 发生函数调用）的时候，实施抢占（G 状态变为 runnable，被放回 GRQ）。
   * 对于正在 syscall 的，如果超过 10 ms，使 P 变为 idle 状态，转换 `handoffp` 到一个新的 M 上执行，或放回 P 空闲队列。
 
+信号抢占(1.14)： `runtime.doSigPreempt`
+
 网络轮询：`netpoll`
 
 ## P

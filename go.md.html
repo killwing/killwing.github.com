@@ -1060,8 +1060,10 @@ replace: 只作用于当前 module
 
 `go mod init <mod-path>`: 初始化，mod-path不指定会自动检测
 `go mod vendor` 可以把依赖从缓存 copy 到 module 的 vendor 目录下。
+`go mod graph` 显示模块依赖图。
 `go build` 自动分析下载依赖并更新`go.mod`(require)，然后编译。
 `go list -m -json all` 显示 build list，编译依赖的所有 module。
+`go list -m -versions github.com/pkg/errors` 显示指定包的所有版本。
 `go clean -modcache` && `go mod tidy` 重新更新缓存。
 
 ### 依赖管理
@@ -1193,6 +1195,9 @@ go func() {
 }()
 ```
 查看：`http://localhost:6060/debug/pprof/` 可以生成各种 prof, trace 文件（不加 debug 参数，并指定时长参数），查看 stack 信息等。
+
+其他：
+[gops](https://github.com/google/gops) 诊断工具。
 
 ### Frame Graphs
 安装：

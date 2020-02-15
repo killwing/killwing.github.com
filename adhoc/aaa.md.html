@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>AAA</title>
+<xmp theme="united" style="display:none;">
+# Concept
+Authentication(认证) - 指用户在使用系统中的资源时对用户身份的确认。
+Authorization(授权) - 系统授权用户以特定的方式使用其资源，这一过程指定了被认证的用户在接入系统后能够使用的业务和拥有的权限。
+Accounting(计费) - 系统收集、记录用户对资源的使用，以便向用户收取资源使用费用，或者用于审计等目的。
+AAA协议: Diameter.
+
+窃听(Interception) - Confidentiality
+修改(Modification) - Integrity
+伪造(Fabrication) - Integrity
+拦截(Interruption) - Availability
+抵赖(Repudiation) - Non-Repudiation
+
+有效性(Availability) - 收件人能收到信息。
+保密性(Confidentiality) - 只有收件人才能阅读信息。
+认证性(Authenticity ) - 确认信息发送者的身份。
+完整性(Integrity) - 信息在传递过程中不会被篡改。
+不可抵赖性(Non-Repudiation) - 发送者不能否认已发送的信息。
+
+|                        |Availability   |Confidentiality   |Authenticity   |Integrity   |Non-Repudiation|
+|-                       |-              |-                 |-              |-           |-              |
+|SecretKey(AES/DES)    |                      |√||||
+|PublicKey(RSA)         |                     |√                |√|||
+|HASH(SHA-1, MD5)       |                      |                 |             |√||
+|HMAC                    |                     |                 |√           |√||
+|DigitalSignature(RSA)    |                     |                |√           |√             |√|
+
+# Crypto
+加密一般分为三类，对称加密，非对称加密及单向散列函数。
+
+## 对称加密 symmetric cryptography/secret-key cryptography
+又分分组密码和序列密码:
+分组密码(block cipher)是将明文按一定的位长分组，明文组经过加密运算得到密文组，密文组经过解密运算（加密运算的逆运算），还原成明文组。典型例子为DES,RC5,IDEA,AES。
+序列密码(stream cipher)是指利用少量的密钥（制乱元素）通过某种复杂的运算（密码算法）产生大量的伪随机位流，用于对明文位流的加密。解密是指用同样的密钥和密码算法及与加密相同的伪随机位流，用以还原明文位流。典型例子为RC4。
+
+CBC(Cipher Block Chaining)模式这个词在分组密码中经常会用到，它是指一个明文分组在被加密之前要与前一个的密文分组进行异或运算。
+当加密算法用于此模式的时候除密钥外，还需协商一个初始化向量（IV），这个IV没有实际意义，只是在第一次计算的时候作为种子需要用到。采用这种模式的话安全性会有所提高。
+
+## 非对称加密 asymmetric cryptography/public-key cryptography
+简单的说就是加密密钥与解密密钥不同，分私钥和公钥。这种方法大多用于密钥交换和数字签名，RSA便是一个我们熟知的例子。
+还有一个常用的称作Diffie-Hellman, 它只能用于密钥交换，不能用来加密。
+
+## 单向散列函数 Hash Functions
+由于信道本身的干扰和人为的破坏，接受到的信息可能与原来发出的信息不同，一个通用的办法就是加入校验码。
+单向散列函数便可用于此用途，一个典型的例子是我们熟知的MD5，它产生128位的摘要，在现实中用的更多的是安全散列算法（SHA），SHA的早期版本存在问题，目前用的实际是SHA-1，它可以产生160位的摘要，因此比128位散列更能有效抵抗穷举攻击。
+由于单向散列的算法都是公开的，所以其它人可以先改动原文，再生成另外一份摘要。解决这个问题的办法可以通过HMAC（Keyed-Hashing for Message Authentication）,它包含了一个密钥，只有拥有相同密钥的人才能鉴别这个散列。
+
+### 安全性
+散列函数就是把任意长的输入消息串变化成固定长的输出串的一种函数。这个输出串称为该消息的散列值。
+一个安全的杂凑函数应该至少满足以下几个条件：
+
+1. 输入长度是任意的；
+2. 输出长度是固定的，根据目前的计算技术应至少取128bit 长，以便抵抗生日攻击；
+3. 对每一个给定的输入，计算输出即散列值是很容易的；
+4. 给定散列函数的描述，其一是寻找两个输入得到相同的输出值在计算上是不可行的，这就是通常所说的抗碰撞的；其二是找一个输出，能得到给定的输入在计算上是不可行的，即不可从结果推导出它的初始状态。
+
+攻击散列函数的典型方法是生日攻击。理论上，安全的散列函数的存在性依赖于单向函数的存在性，已形成一套理论。
+散列函数主要用于完整性校验和提高数字签名的有效性，目前已有很多方案。
+这些算法都是伪随机函数，任何散列值都是等可能的。输出并不以可辨别的方式依赖于输入。在任何输入串中单个比特的变化，将会导致输出比特串中大约一半的比特发生变化。
+
+## MAC (Message Authentication Codes)
+是一种较短的信息，由一个变长消息和一个密钥经过某种认证机制输出而来，如基于Hash算法的HMAC-SHA1, HMAC-MD5。
+数字签名是MAC的一种应用，密钥使用自己的私钥并使用Hash算法。
+
+# RSA (Rivest-Shamir-Adlemman)
+## Basic
+RSA算法是一种非对称密码算法，所谓非对称，就是指该算法需要一对密钥，使用其中一个加密，则需要用另一个才能解密。
+两种情况，加密和签名：
+1、向对方传送加密数据，希望只有对方可以解密，需要首先获取对方密钥对中公开的那一个密钥，e及n。然后用这个密钥进行加密，这样密文只有对方可以解密，因为对应的私钥只有对方拥有。 (公钥加密（密文），私钥解密)
+2、向对方传送一段数据附加数字签名，需要对数据进行MD5之类的运算以取得数据的摘要，再对摘要进行加密，加密将使用密钥对中的不公开的私钥。对方收到数据后，用同样的运算获得摘要，再用公钥对加密的摘要进行解密，比较两者是否一致，即可确定数据是否的确是我方发送的、以及在传输过程中是否被篡改。 (私钥加密（摘要），公钥解密验证)
+密钥的获得，通常由某个机构颁发（如CA中心），当然也可以自己创建密钥，但这样生成的密钥并不具有权威性。
+
+## Key Generation
+1. 取2个大质数p,q
+2. n = p*q		(n的二进制表示时所占用的位数，就是所谓的密钥长度)
+3. m = (p-1)(q-1)
+4. 取非负的e，使e与m互质
+5. 取d，使 de % m =1
+
+(n,e) 就为 PublicKey
+(n,d) 就为 PrivateKey
+
+设P为明文，C为密文(P必须小于p和q?)
+加密：C = P^e % n
+解密：P = C^d % n
+e和d可以互换使用
+
+For example:
+
+1. p = 7
+   q = 19
+2. n = 7 * 19  = 133
+3. m = (7 - 1)(19 - 1)  = 6 * 18  = 108
+4. e = 2 => gcd(e, 108) = 2 (no)
+    e = 3 => gcd(e, 108) = 3 (no)
+    e = 4 => gcd(e, 108) = 4 (no)
+    e = 5 => gcd(e, 108) = 1 (yes!)
+5. d = (1 + nm) / e
+    n = 0 => d = 1 / 5 (no)
+    n = 1 => d = 109 / 5 (no)
+    n = 2 => d = 217 / 5 (no)
+    n = 3 => d = 325 / 5 = 65 (yes!)
+
+Public Key
+n = 133  e = 5
+Private Key
+n = 133  d = 65
+
+设P = 6
+加密：
+```
+C = P^e % n
+  = 6^5 % 133
+  = 7776 % 133
+  = 62
+```
+
+解密：
+```
+P = C^d % n
+  = 62^65 % 133
+  = 62 * 62^64 % 133
+  = 62 * (622)^32 % 133
+  = 62 * 3844^32 % 133
+  = 62 * (3844 % 133)^32 % 133
+  = 62 * 120^32 % 133
+  = 62 * 36^16 % 133
+  = 62 * 99^8 % 133
+  = 62 * 92^4 % 133
+  = 62 * 85^2 % 133
+  = 62 * 43 % 133
+  = 2666 % 133
+  = 6
+```
+
+## Techniques
+拉宾米勒素数测试算法（Miller-Rabin probabilistic primality test）
+欧几里得算法（Euclid's algorithm，又称辗转相除法）
+中国剩余定理（Chinese Remainder Theorem）
+
+## Encoding
+ASN.1: 抽象语法规则（OSI定义抽象对象的方法），它允许定义多种数据类型，从integer、bit string 一类的简单类型到结构化类型如set 和sequence ，还可以使用这些类型构造复杂类型.
+BER: 基本编码规则（定义了如何把ASN.1类型的值编码为8bit的字节流，通常每个值不止有一种的BER编码方法）
+DER: 可辨别编码规则（它是BER的一个子集，对每个ASN.1值只有唯一一种编码方法）
+
+## Reference
+RFC 3447 Public-Key Cryptography Standards (PKCS) #1 RSA Cryptography Specifications Version 2.1
+PKCS #1 v2.1: RSA Cryptography Standard(RSA Laboratories)
+
+
+# Diffie-Hellman
+## Basic
+Diffie-Hellman密钥交换算法的有效性依赖于计算离散对数的难度(虽然计算以一个素数为模的指数相对容易，但计算离散对数却很困难).
+原根:
+一个素数q的原根，为其各次幂产生从1 到q-1的所有整数根。
+也就是说，如果a是素数q的一个原根，那么数值:
+a mod q, a^2 mod q, ..., a^(q-1) mod q
+是各不相同的整数，并且以某种排列方式组成了从1到q-1的所有整数。
+
+离散对数:
+对于一个整数b和素数q的一个原根a，可以找到惟一的指数i，使得
+b = a^i mod q     其中0 ≤ i ≤ (q-1)
+指数i称为b的以a为基数的模p的离散对数或者指数, 记为i = ind a ,q (b)。
+
+必要的公开数值q和a都需要提前知道, 另一种方法是用户A选择q和a的值，并将这些数值包含在第一个报文中发送给B。
+
+## Key Exchange
+1. 两个全局公开的参数，一个素数q(prime)和一个整数a(generator)，a是q的一个原根。
+2. A的私钥:随机数Xa<q, 计算公钥Ya=a^Xa mod q.
+3. B的私钥:随机数Xb<q, 计算公钥Yb=a^Xb mod q.
+4. A计算共享密钥：K = (Yb)^Xa mod q
+5. B计算共享密钥：K = (Ya)^Xb mod q
+6. A和B获得相同的密钥K.
+
+For example:
+
+1. 素数q = 97和97的一个原根a = 5
+2. Xa=36, Ya=5^36 mod 97=50
+3. Xb=58, Yb=5^58 mod 97=44
+4. K=44^36 mod 97 = 75
+5. K=50^58 mod 97 = 75
+
+共享密钥为75，从|50，44|出发，攻击者要计算出75很不容易。
+
+
+## Pros and cons
+1. 仅当需要时才生成密钥，减小了将密钥存储很长一段时间而致使遭受攻击的机会。
+2. 除对全局参数的约定外，密钥交换不需要事先存在的基础结构。
+
+不足：
+
+1. 没有提供双方身份的任何信息。
+2. 它是计算密集性的，因此容易遭受阻塞性攻击，即对手请求大量的密钥。受攻击者花费了相对多的计算资源来求解无用的幂系数而不是在做真正的工作。
+3. 没办法防止重演攻击。
+4. 容易遭受中间人的攻击。第三方C在和A通信时扮演B；和B通信时扮演A。A和B都与C协商了一个密钥，然后C就可以监听和传递通信量。
+
+中间人的攻击按如下进行：
+
+1. B在给A的报文中发送他的公开密钥。
+2. C截获并解析该报文。C将B的公开密钥保存下来并给A发送报文，该报文具有B的用户ID但使用C的公开密钥YC，仍按照好像是来自B的样子被发送出去。A收到C的报文后，将YC和B的用户ID存储在一块。类似地，C使用YC向B发送好像来自A的报文。
+3. B基于私有密钥XB和YC计算秘密密钥K1。A基于私有密钥XA和YC计算秘密密钥K2。C使用私有密钥XC和YB计算K1，并使用XC和YA计算K2。
+4. 从现在开始，C就可以转发A发给B的报文或转发B发给A的报文，在途中根据需要修改它们的密文。使得A和B都不知道他们在和C共享通信。
+
+## Oakley
+Oakley算法是对Diffie-Hellman密钥交换算法的优化，它保留了优点，同时克服了其弱点。
+五个重要特征：
+
+1. 它采用称为cookie程序的机制来对抗阻塞攻击。
+2. 它使得双方能够协商一个全局参数集合。
+3. 它使用了现时来保证抵抗重演攻击。
+4. 它能够交换Diffie-Hellman公开密钥。
+5. 它对Diffie-Hellman交换进行鉴别以对抗中间人的攻击。
+
+三个不同的鉴别方法：
+
+1. 数字签名：通过签署一个相互可以获得的散列代码来对交换进行鉴别；每一方都使用自己的私钥对散列代码加密。散列代码是在一些重要参数上生成的，如用户ID和现时。
+2. 公开密钥加密：通过使用发送者的私钥对诸如ID和现时等参数进行加密来鉴别交换。
+3. 对称密钥加密：通过使用某种共享密钥对交换参数进行对称加密，实现交换的鉴别。
+
+## Reference
+RFC 2412 The OAKLEY Key Determination Protocol
+RFC 2631 Diffie-Hellman Key Agreement Method
+PKCS #3: Diffie-Hellman Key-Agreement Standard(RSA Laboratories)
+
+
+# PKI/CA
+PKI(Public Key Infrastructure)指的是公钥基础设施。 CA(Certificate Authority)指的是认证中心。 PKI 从技术上解决了网络通信安全的种种障碍。 CA从运营、管理、规范、法律、人员等多个角度来解决了网络信任问题。由此，人们统称为"PKI/CA"。从总体构架来看， PKI/CA 主要由最终用户、认证中心和注册机构来组成。
+
+## 工作原理
+PKI/CA 的工作原理就是通过发放和维护数字证书来建立一套信任网络，在同一信任网络中的用户通过申请到的数字证书来完成身份认证和安全处理。
+
+## CA
+CA是证书的签发机构,它是PKI的核心。CA是负责签发证书、认证证书、管理已颁发证书的机关。它要制定政策和具体步骤来验证、识别用户身份，并对用户证书进行签名，以确保证书持有者的身份和公钥的拥有权。CA 也拥有一个证书（内含公钥）和私钥。网上的公众用户通过验证 CA 的签字从而信任 CA ，任何人都可以得到 CA 的证书（含公钥），用以验证它所签发的证书。 
+一个认证中心是以它为信任源，由它维护一定范围的信任体系，在该信任体系中的所有用户、服务器，都被发放一张数字证书来证明其身份已经被鉴定过，并为其发放一张数字证书，每次在进行交易的时候，通过互相检查对方的数字证书即可判别是否是本信任域中的可信体。
+
+使用证书验证Authenticity：
+如果用户想得到一份属于自己的证书，他应先向 CA 提出申请。在 CA 判明申请者的身份后，便为他分配一个公钥，并且 CA 将该公钥与申请者的身份信息绑在一起，并为之签字后，便形成证书发给申请者。 如果一个用户想鉴别另一个证书的真伪，他就用 CA 的公钥对那个证书上的签字进行验证，一旦验证通过，该证书就被认为是有效的。
+具体过程：
+
+1. A将一个签名的证书请求（包含他的名字、公钥、可能还有其他一些信息，私钥自己保留）发送到 CA。
+1. CA使用A的请求创建一个消息。CA使用CA的私钥对消息进行签名，以便创建一个单独的签名。CA 将消息和签名返回给A。消息和签名共同构成了A的证书。
+1. A将他的证书发送给B，以便授权他访问他的公钥(在证书中)。
+1. B使用CA的公钥(一般浏览器中已经内置了许多CA的证书/公钥)对证书签名进行验证。如果证明签名是有效的，他就承认证书中的公钥是A的公钥。
+然后进一步A可以要求B证明他的身份(是否拥有对应的私钥)。B则重新进行发一次消息，计算消息的摘要，签名之后发给A，A可以用从证书得到的公钥(此时证书中的公钥已确认为真)检查B的消息摘要，从而判断B的身份。
+
+
+## 注册机构
+注册中心负责审核证书申请者的真实身份，在审核通过后，负责将用户信息通过网络上传到认证中心，由认证中心负责最后的制证处理。证书的吊销、更新也需要由注册机构来提交给认证中心做处理。总的来说，认证中心是面向各注册中心的，而注册中心是面向最终用户的，注册机构是用户与认证中心的中间渠道。
+
+## 数字证书
+证书实际是由CA签发的对用户的公钥的认证，是向用户传送公钥使用的分发机制，是一种把公钥绑定到名字的标准方式。
+通常，CA对证书进行签名，以便确认公钥来自声称发送公钥的主体。
+证书的内容包括：电子签证机关的信息、公钥用户信息、公钥、权威机构的签字和有效期等等。目前，证书的格式和验证方法普遍遵循 [X.509](https://tools.ietf.org/html/rfc5280) 国际标准。
+数字证书为实现双方安全通信提供了电子认证。在因特网、公司内部网或外部网中，使用数字证书实现身份识别和电子信息加密。数字证书中含有密钥对所有者的识别信息，通过验证识别信息的真伪实现对证书持有者身份的认证。具体使用RSA公钥体制实现对数字信息的加密和签名。
+
+证书编码格式：
+
+* PEM Privacy Enhanced Mail: 文本格式，以"-----BEGIN..."开头, "-----END..."结尾, 内容是BASE64编码。
+* DER Distinguished Encoding Rules: 二进制格式。
+
+X.509 RDNs:
+
+* CN: CommonName
+* OU: OrganizationalUnit
+* O: Organization
+* L: Locality
+* S: StateOrProvinceName
+* C: CountryName
+
+## 签名验证
+收方在收到信息后用如下的步骤验证签名：
+
+1. 使用自己的私钥将信息转为明文；
+1. 使用发信方的公钥从数字签名部分得到原摘要；
+1. 收方对您所发送的源信息进行hash运算，也产生一个摘要；
+1. 收方比较两个摘要，如果两者相同，则可以证明信息签名者的身份。
+
+如果两摘要内容不符，则：
+可能对摘要进行签名所用的私钥不是签名者的私钥，这就表明信息的签名者不可信；
+也可能收到的信息根本就不是签名者发送的信息，信息在传输过程中已经遭到破坏或篡改。
+
+## openssl utils
+[生成自签名证书](https://stackoverflow.com/questions/19665863/how-do-i-use-a-self-signed-certificate-for-a-https-node-js-server)
+```
+#!/bin/bash
+FQDN=$1
+
+# make directories to work from
+mkdir -p server/ client/ all/
+
+# Create your very own Root Certificate Authority
+openssl genrsa \
+  -out all/my-private-root-ca.privkey.pem \
+  2048
+
+# Self-sign your Root Certificate Authority
+# Since this is private, the details can be as bogus as you like
+openssl req \
+  -x509 \
+  -new \
+  -nodes \
+  -key all/my-private-root-ca.privkey.pem \
+  -days 1024 \
+  -out all/my-private-root-ca.cert.pem \
+  -subj "/C=US/ST=Utah/L=Provo/O=ACME Signing Authority Inc/CN=example.com"
+
+# Create a Device Certificate for each domain,
+# such as example.com, *.example.com, awesome.example.com
+# NOTE: You MUST match CN to the domain name or ip address you want to use
+openssl genrsa \
+  -out all/privkey.pem \
+  2048
+
+# Create a request from your Device, which your Root CA will sign
+openssl req -new \
+  -key all/privkey.pem \
+  -out all/csr.pem \
+  -subj "/C=US/ST=Utah/L=Provo/O=ACME Tech Inc/CN=${FQDN}"
+
+# Sign the request from Device with your Root CA
+openssl x509 \
+  -req -in all/csr.pem \
+  -CA all/my-private-root-ca.cert.pem \
+  -CAkey all/my-private-root-ca.privkey.pem \
+  -CAcreateserial \
+  -out all/cert.pem \
+  -days 500
+
+# Put things in their proper place
+rsync -a all/{privkey,cert}.pem server/
+cat all/cert.pem > server/fullchain.pem         # we have no intermediates in this case
+rsync -a all/my-private-root-ca.cert.pem server/
+rsync -a all/my-private-root-ca.cert.pem client/
+
+# create DER format crt for iOS Mobile Safari, etc
+openssl x509 -outform der -in all/my-private-root-ca.cert.pem -out client/my-private-root-ca.crt
+```
+
+查看证书内容： `openssl x509 -in cert.pem -noout -text`
+
+curl 发送带客户端证书请求： `curl --cacert ca.crt --cert client.crt --key client.key https://...`
+
+# [JWT](https://jwt.io)
+## 格式
+`Header.Payload.Signature` Header, Payload 部分都是 JSON 内容的 URL Base64 编码。
+
+Header
+
+* alg (algorithm)： "HS256"(HMAC SHA256), "RS256"(RSA SHA256)
+* typ (type)： 固定值 "JWT"
+* kid (key ID): 加密所使用的 key ID
+
+Payload
+
+* iss (issuer)：签发人
+* exp (expiration time)：过期时间
+* sub (subject)：主题
+* aud (audience)：受众
+* nbf (not before)：生效时间
+* iat (issued at)：签发时间
+* jti (JWT ID)：编号
+
+可以有私有字段
+
+Signature
+`HMACSHA256(base64UrlEncode(header) + "." + base64UrlEncode(payload), secret)`
+
+## 使用
+`Authorization: Bearer <token>`
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
