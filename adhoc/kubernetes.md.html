@@ -923,8 +923,8 @@ spec:
 * Leader Lease 过期了 （本地当前时间已经超过了最后一次在本地观察到 record 变化（即刷新过）的时间+本地配置的租期）
 * 现 Leader 就是自己
 
-一般用 `endpoint`/`configmap` 表示资源锁对象：
-相关信息 `LeaderElectionRecord`（只有`HolderIdentity`被用来判断自己是否是 leader，其他都是记录信息） 存在 `control-plane.alpha.kubernetes.io/leader` annotation 里面。
+一般用 `endpoint`/`configmap`/`lease` 表示资源锁对象：
+相关信息 `LeaderElectionRecord`（只有`HolderIdentity`被用来判断自己是否是 leader，其他都是记录信息） 存在 `control-plane.alpha.kubernetes.io/leader` annotation 或 lease spec 里面。
 
 ```
 type LeaderElectionRecord struct {

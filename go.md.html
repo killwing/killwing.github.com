@@ -989,6 +989,11 @@ func main() {
 `panic`: 类似抛出异常，一直向上传递，并终止程序（不能跨越goroutine的边界）。参数类型为`interface{}`，可接受任何参数。一些运行时错误比如数组越界，引用空指针也会引发panic。
 `recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。没有捕获到panic则返回nil。
 
+不能被 recover 的情况：
+
+* 并发写 map
+* 标准库或 runtime 里面的 throw
+* 超出最大系统线程数 `debug.SetMaxThreads`，默认1万
 
 # Packages
 > [magic is bad; global state is magic → no package level vars; no func init](https://peter.bourgon.org/blog/2017/06/09/theory-of-modern-go.html)
@@ -1229,6 +1234,52 @@ func main() {
 
 使用 [gotrace](https://github.com/divan/gotrace) 3D 可视化。
 
+## Escape Analysis
+https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-stacks-and-pointers.html
+https://www.ardanlabs.com/blog/2018/01/escape-analysis-flaws.html
+
+编译时 `-gcflags -m` / `-gcflags "-m -m"` （最多4个）查看逃逸情况
+
+常见情况：
+
+* 函数返回内部创建变量的指针，或被超出函数 scope 的指针所引用。
+* make 时不能在编译时确定大小，或者太大超出栈的限制。
+* 当创建的变量赋值给一个接口，并接口调用了其方法时。
+
+如果变量分配在栈上，其指针可能随着栈的扩张或收缩而变化。
+```
+var gp *string
+func main() {
+        s := "test"
+        p := &s
+		// gp = p // 如果赋值给全局变量，则 s 逃逸到堆上，地址不会变化
+        grow(p, 0, [1000]int{})
+}
+
+func grow(p *string, c int, a [1000]int) {
+        println(c, p, *p)
+
+        c++
+        if c == 10 {
+                return
+        }
+
+        grow(p, c, a)
+}
+
+// output:
+0 0xc000097f40 test
+1 0xc000097f40 test
+2 0xc0000a7f40 test
+3 0xc0000a7f40 test
+4 0xc0000a7f40 test
+5 0xc0000a7f40 test
+6 0xc0000c7f40 test
+7 0xc0000c7f40 test
+8 0xc0000c7f40 test
+9 0xc0000c7f40 test
+```
+
 # Comments
 ## Documentation ([cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
 规范化注释格式，任何直接属于顶层声明的注释都会可被`godoc`提取为文档注释（除了package main）。
@@ -1265,10 +1316,10 @@ func main() {
 ## pragmas
 https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 
-`//go:noescape` 表示函数里的内存分配不会逃逸到堆上 `-gcflags -m` / `-gcflags -m -m` 查看逃逸情况
+`//go:noescape` 表示函数里的内存分配不会逃逸到堆上
 `//go:norace`
 `//go:nosplit`
-`//go:noinline`
+`//go:noinline` 禁止内联函数
 
 # [Std Packages](https://golang.org/pkg/)
 ## [context](http://blog.golang.org/context)
@@ -1398,15 +1449,19 @@ func (t *TimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 ## [reflection](http://blog.golang.org/laws-of-reflection)
 通过reflection可以取得接口里面的类型和值的信息。
 
+1. Reflection goes from interface value to reflection object. （接口 -> 反射对象）
+2. Reflection goes from reflection object to interface value. （反射对象 -> 接口）
+3. To modify a reflection object, the value must be settable. （要修改反射对象，值必须可以更改）
+
 ### 从接口得到reflection对象
 `reflect.ValueOf()` 取得值对象
-`reflect.Type()` 取得类型对象
-`reflect.Kind()/reflect.Type().Kind()` 取得类型的枚举值(底层类型)，可以用getter/setter方法转为相应的（最大范围）类型。
+`reflect.TypeOf()/v.Type()` 取得类型对象
+`v.Kind()/v.Type().Kind()` 取得类型的枚举值(底层类型)，可以用getter/setter方法转为相应的（最大范围）类型。
 
 ### 从reflection对象到接口
 `v.Interface()` 将reflect值对象转为interface。
-`v.Elem()` 如果v底层是Interface或Ptr对象，取得其包含或指向的对象。
-`t.Elem()` 如果v底层是Array, Chan, Map, Ptr, 或Slice类型，取得其元素类型。
+`v.Elem()` 如果v底层是Interface或Ptr对象，取得其包含或指向的值对象。
+`t.Elem()` 如果v底层是Array, Chan, Map, Ptr, 或Slice类型，取得其包含元素的类型对象。
 
 ### 更新可设置reflection对象的值
 `v.CanSet()` 测试一个值是否可以设置(是否可以通过reflection对象来设置原始值，这就要求取得reflection对象时必须传递指针给ValueOf()，则`v.Elem().CanSet()`为true)。

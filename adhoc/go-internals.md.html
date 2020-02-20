@@ -36,7 +36,7 @@ type mspan struct {
 }
 ```
 
-mcache: 为每个 P 提供的本地缓存，包含所有规格（即 134 种）的 mspan 。
+[mcache](https://github.com/golang/go/blob/master/src/runtime/mcache.go): 为每个 P 提供的本地缓存，包含所有规格（即 134 种）的 mspan 各一个。当 mspan 中对象分配完时，再向 mcentral 申请一个。
 ```
 type mcache struct {
 	alloc [numSpanClasses]*mspan // spans to allocate from, indexed by spanClass
@@ -44,7 +44,7 @@ type mcache struct {
 }
 ```
 
-mcentral: 所有某个规格的 mspan 集合，分为空闲对象的列表和无空闲对象的列表。
+[mcentral](https://github.com/golang/go/blob/master/src/runtime/mcentral.go): 所有某个规格的 mspan 集合，分为空闲对象的列表和无空闲对象的列表。当分配一个给 mcache 时，从 nonempty 移到 empty（因为假设里面的对象会被 mcache 全部分配完）。准备 gc 的时候，mcache 里的 mspan 全部归还给 mcentral，如果 mspan 中还有未被分配的对象，则从 empty 移回 nonempty。
 ```
 type mcentral struct {
 	spanclass spanClass
@@ -59,7 +59,7 @@ type mSpanList struct {
 }
 ```
 
-mheap: 一个管理堆的全局对象。包含全部 mspan 的列表，各个规格的 mcentral。
+[mheap](https://github.com/golang/go/blob/master/src/runtime/mheap.go): 一个管理堆的全局对象。包含全部 mspan 的列表，各个规格的 mcentral。
 ```
 type mheap struct {
 	free      mTreap // free spans
@@ -137,7 +137,7 @@ type heapArena struct {
 }
 ```
 
-对象分配流程：
+对象分配流程（mallocgc）：
 
 * 大于 32K 的大对象直接从 mheap 分配/释放，不走 mcache 和 mcentral。
 * 小于 16B 的使用 mcache 的微型分配器分配。
@@ -146,16 +146,12 @@ type heapArena struct {
 * 如果 mcentral 中可用 mspan 列表已经为空，则向 mheap 申请一个新的，并根据 BestFit 算法找到最合适的 mspan。如果申请到的 mspan 超出申请大小，将会根据需求进行切分，以返回规格所需的页数。剩余的页构成一个新的 mspan 放回 mheap 的空闲列表。
 * 如果 mheap 中也没有可用的 mspan，则向操作系统申请一系列新的页（最小 1MB）。
 
-对象释放流程：
+对象释放流程 (mspan.sweep)：
 
-* 如果一个 mspan 被（GC）扫到需要释放以满足新的分配要求，其被归还给 mcache。
-* 如果不是为了新分配要求，且 mspan 里还有分配着的对象，则放到 mcentral 对应的规格里。
+* 如果一个 mspan 被（GC）扫到需要释放其中的对象以满足新的分配要求，其被归还给 mcache。
+* 如果不是为了新分配要求，且 mspan 里还有分配着的对象，则放到 mcentral 对应的规格 nonempty 里。
 * 如果 mspan 里所有对象都释放了，则处于 idle 状态，归还给 mheap（不再区分规格）。
 * 如果 mspan 在 mheap 里达到一定时间，则归还其页给操作系统。
-
-Ref:
-https://blog.learngoprogramming.com/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed / [zh](https://www.linuxzen.com/go-memory-allocator-visual-guide.html)
-
 
 ## [MemStats](https://golang.org/pkg/runtime/#MemStats)
 
@@ -164,6 +160,10 @@ https://blog.learngoprogramming.com/a-visual-guide-to-golang-memory-allocator-fr
 * HeapIdle: 未使用（没有分配对象）的 span 大小，已经归还给系统（HeapReleased）或保留被重用。
 * HeapSys: 从系统分配堆（虚拟）内存的总大小。（inuse + idle）
 * HeapReleased: 归还给系统的大小。只是建议，并不能直接反应真实情况。
+
+## Ref
+https://blog.learngoprogramming.com/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed / [zh](https://www.linuxzen.com/go-memory-allocator-visual-guide.html)
+https://deepu.tech/memory-management-in-golang/
 
 # [Scheduler](https://github.com/golang/go/blob/master/src/runtime/proc.go)
 逻辑处理器 (P): 用来处理调度 G 的运行，P 运行时和 M 绑定
@@ -648,6 +648,9 @@ G：
 * m: 属于哪个 M
 * lockedm: 是否有锁定的 M
 
+## Ref
+https://www.ardanlabs.com/blog/2018/08/scheduling-in-go-part1.html
+
 # [GC](https://github.com/golang/go/blob/master/src/runtime/mgc.go)
 根对象：GC 在标记过程中最先扫描的对象。包括全局对象，执行栈，和寄存器中的变量。
 STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
@@ -725,6 +728,9 @@ scvg: inuse: 2, idle: 61, sys: 63, released: 58, consumed: 4 (MB)
 `debug.ReadGCStats`
 `runtime.ReadMemStats`
 
+## Ref
+https://www.ardanlabs.com/blog/2018/12/garbage-collection-in-go-part1-semantics.html
+
 # [netpoll](https://github.com/golang/go/blob/master/src/runtime/netpoll.go)
 
 # [channel](https://github.com/golang/go/blob/master/src/runtime/chan.go)
@@ -778,7 +784,7 @@ select的情况：
 * CAS 操作保证只有一个 channel 胜出。
 * 继续和暂停过程相反。
 
-Ref:
+## Ref
 https://speakerdeck.com/kavya719/understanding-channels / [zh](https://zhuanlan.zhihu.com/p/27917262)
 
 </xmp>
