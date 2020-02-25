@@ -282,12 +282,12 @@ g0: 一个全局的 G，和 m0 绑定，用于执行调度循环。每个 M 也�
 1. 从其他地方取，没有则阻塞，等待下次唤醒 `notewakeup`。
   1. LRQ
   1. GRQ
-  1. netpoll 列表里
+  1. netpoll 列表里 (调用`netpoll(false)`)
   1. 从其他 P 的 LRQ 里偷一半到自己的 LRQ，尝试4次
-  1. 进入 stop 流程 （释放 P 回 P 空闲列表，M 放回 M 空闲列表，然后阻塞 `notesleep`）
+  1. 进入 stop 流程 （释放 P 回 P 空闲列表，M 放回 M 空闲列表，调用`netpoll(true)`检查，然后阻塞 `notesleep`）
 1. 执行取得的 G。
 
-M.g0 上调用：`mcall`
+M.g0 上调用：`mcall(fn func(*g))`
 
 * 从 `mcall` 的被调用 goroutine g 转到 g0 上去调用传入函数 fn，栈状态保存在 `g->sched` 上以便以后恢复。
 * fn 永远不应返回，一般先改变 g 的状态为等待，记录 g 在某个数据结构中，使其以后能够被再调度，最后调用 `schedule` （g0 的实际工作）。
@@ -295,7 +295,7 @@ M.g0 上调用：`mcall`
 
 后台监控：`sysmon` 使用一个单独的 M，没有 P
 
-1. 把 epoll ready 的 G 放入 GRQ。
+1. 调用 `netpoll(false)` 把 epoll ready 的 G 放入 GRQ。
 2. 定期扫描所有的 P：
   * 对于正在 running 的，如果 G 占有时长超过 10 ms，在 G 上设置抢占标记 `stackPreempt`。等到栈扩张（`newstack` 发生函数调用）的时候，实施抢占（G 状态变为 runnable，被放回 GRQ）。
   * 对于正在 syscall 的，如果超过 10 ms，使 P 变为 idle 状态，转换 `handoffp` 到一个新的 M 上执行，或放回 P 空闲队列。
@@ -528,7 +528,7 @@ type g struct {
 重新调度: `goready(gp *g, traceskip int)`
 状态从 waiting 变为 runnable，放到 LRQ 的 next 等待执行。如果还有空闲的 P，则创建/唤醒一个 M 来执行。
 
-系统调用：
+系统调用(syscall.Syscall)：
 
 * （从外部）在系统调用上 wrap 了一个 pre/post 逻辑。
 * pre：保存执行现场，状态从 running 变为 syscall（P 也变为 syscall 状态），并将 M 和 P 脱离关联。
@@ -732,6 +732,46 @@ scvg: inuse: 2, idle: 61, sys: 63, released: 58, consumed: 4 (MB)
 https://www.ardanlabs.com/blog/2018/12/garbage-collection-in-go-part1-semantics.html
 
 # [netpoll](https://github.com/golang/go/blob/master/src/runtime/netpoll.go)
+以 [epoll](https://github.com/golang/go/blob/master/src/runtime/netpoll_epoll.go) 为例：
+
+`netpollinit()` 初始化，创建 epoll fd。
+`netpollopen(fd uintptr, pd *pollDesc) int32` 将 fd 加入 epoll 轮询列表，监听事件为 `_EPOLLIN | _EPOLLOUT | _EPOLLRDHUP | _EPOLLET`，pd 作为 data。
+`netpoll(block bool) gList` 进行一次 epoll 轮询，对有事件发生的 fd 回调 `netpollready(toRun *gList, pd *pollDesc, mode int32)` 返回 g 的列表。调用时机：
+
+* schedule 调度 G 的时候
+* sysmon 循环
+* gc work 时 `gcDrain`
+* gc 恢复 STW 时
+
+```
+type pollDesc struct {
+	link *pollDesc // in pollcache, protected by pollcache.lock
+
+	// The lock protects pollOpen, pollSetDeadline, pollUnblock and deadlineimpl operations.
+	// This fully covers seq, rt and wt variables. fd is constant throughout the PollDesc lifetime.
+	// pollReset, pollWait, pollWaitCanceled and runtime·netpollready (IO readiness notification)
+	// proceed w/o taking the lock. So closing, everr, rg, rd, wg and wd are manipulated
+	// in a lock-free way by all operations.
+	// NOTE(dvyukov): the following code uses uintptr to store *g (rg/wg),
+	// that will blow up when GC starts moving objects.
+	lock    mutex // protects the following fields
+	fd      uintptr
+	closing bool
+	everr   bool    // marks event scanning error happened
+	user    uint32  // user settable cookie
+	rseq    uintptr // protects from stale read timers
+	rg      uintptr // pdReady, pdWait, G waiting for read or nil
+	rt      timer   // read deadline timer (set if rt.f != nil)
+	rd      int64   // read deadline
+	wseq    uintptr // protects from stale write timers
+	wg      uintptr // pdReady, pdWait, G waiting for write or nil
+	wt      timer   // write deadline timer
+	wd      int64   // write deadline
+}
+```
+
+`netpollblock(pd *pollDesc, mode int32, waitio bool) bool` 将 pd 状态设为 pdWait，`gopark` 让出（`netpollblockcommit`将状态设为当前 g），g 等待原因 IOWait。非阻塞系统调用返回 EAGAIN 时调用。
+`netpollunblock(pd *pollDesc, mode int32, ioready bool) *g` 将 pd 状态设为 pdReady，返回保存的 g。`netpoll` 有事件 ready 时调用，一般将返回的 g 列表放回 GRQ (`injectglist`)。
 
 # [channel](https://github.com/golang/go/blob/master/src/runtime/chan.go)
 ```

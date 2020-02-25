@@ -62,7 +62,7 @@ ReceiptHandle: 每次收到消息的唯一ID（可能是重试的相同的消息
 * 以记录方式存储，以topic分类记录，每个记录包含key, value, timestamp。topic就是记录流。
 * topic以分区log的形式组织，每个记录追加到分区的commit log上，并由seq id(offset)标识。消费者只根据分区级的offset来收取消息。
 * 记录不管有没有消费都一直保持，直到保持时间过期。
-* 每个分区都有一个leader节点负责读写，其它followers节点负责复制记录。一个节点可以同时是一个分区的leader，另一个分区的follower。
+* 如果设置了副本，每个分区都有一个leader节点负责读写，其它followers节点负责复制记录。一个节点可以同时是一个分区的leader，另一个分区的follower。
 * 生产者决定发布在一个topic的记录如何分区以达到更好的性能。
 * 对于订阅的topic，不同消费者组(即subscriber)消费同一个消息(broadcast)，同一个消费者组里的消费者消费不同的消息(load balanced)。这里LB是分区级别的，即把不同分区固定分配给一个组里的不同消费者，所以同组消费者实例不大于分区数量(实例的增减会导致重新分配)。
 

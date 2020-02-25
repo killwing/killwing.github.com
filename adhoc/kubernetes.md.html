@@ -851,9 +851,11 @@ memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/bu
 * Subject: 作用对象
 * `RoleBinding`/`ClusterRoleBinding`: Role 和 Subject 的绑定关系
 
+可以将 RoleBinding 创建在特定 namespace 下，并绑定其他 namespace 的 ServiceAccount 和一个 ClusterRole，以实现只控制特定 namespace 的资源。
+
 Subject:
 
-* `ServiceAccount`, pod 指定后认证信息(对应`kubernetes.io/service-account-token`类型的Secret)会挂载在 `/var/run/secrets/kubernetes.io/serviceaccount` 目录。
+* `ServiceAccount`, pod 指定后认证信息(对应`kubernetes.io/service-account-token` JWT 类型的Secret)和 apiserver 根证书会挂载在 `/var/run/secrets/kubernetes.io/serviceaccount` 目录。
 * `User`: `system:serviceaccount:<ServiceAccount-Name>` （SA对应）
 * `Group`: `system:serviceaccounts:<Namespace-Name>` （内置，对应Namespace里面的所有SA）
 
