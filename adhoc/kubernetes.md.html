@@ -743,7 +743,9 @@ iptables: (VIP: 10.96.0.1, PodIP: 192.168.99.101)
 -A KUBE-SEP-6QO3ZMTIB4FPXHNT -p tcp -m tcp -j DNAT --to-destination 192.168.99.101:6443 # 返回包自动 un-dnat
 ```
 
-[IPVS 负载均衡](https://github.com/kubernetes/kubernetes/blob/master/pkg/proxy/ipvs/README.md)：`TODO`
+iptables 规则由 kube-proxy 负责维护，参考 [kube-proxy iptables 模式源码分析](https://blog.tianfeiyu.com/2019/11/06/kube_proxy_iptables/)。
+
+当服务多了之后，iptables 做负载均衡有性能问题，可以使用 [IPVS 负载均衡](https://github.com/kubernetes/kubernetes/blob/master/pkg/proxy/ipvs/README.md)。
 
 Headless Service: `spec.ClusterIP: None`
 
@@ -856,8 +858,8 @@ memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/bu
 Subject:
 
 * `ServiceAccount`, pod 指定后认证信息(对应`kubernetes.io/service-account-token` JWT 类型的Secret)和 apiserver 根证书会挂载在 `/var/run/secrets/kubernetes.io/serviceaccount` 目录。
-* `User`: `system:serviceaccount:<ServiceAccount-Name>` （SA对应）
-* `Group`: `system:serviceaccounts:<Namespace-Name>` （内置，对应Namespace里面的所有SA）
+* `User`: 认证用户名 / `system:serviceaccount:<Namesapce-Name>:<ServiceAccount-Name>` （SA对应）
+* `Group`: 认证组名 / `system:serviceaccounts:<Namespace-Name>` （内置，对应Namespace里面的所有SA）
 
 ### Monitoring
 #### metrics

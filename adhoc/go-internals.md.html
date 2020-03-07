@@ -32,9 +32,17 @@ type mspan struct {
 	npages    uintptr // number of pages in span
 
 	spanclass   spanClass  // size class and noscan (uint8)
+    state       mSpanState // mspaninuse etc
 	...
 }
 ```
+
+状态：
+
+* inuse: 在堆上分配，可被 GC 回收
+* free: 未分配
+* manual: 手动管理，如分配给 goruntine 的栈空间，可能在系统栈上或堆上
+
 
 [mcache](https://github.com/golang/go/blob/master/src/runtime/mcache.go): 为每个 P 提供的本地缓存，包含所有规格（即 134 种）的 mspan 各一个。当 mspan 中对象分配完时，再向 mcentral 申请一个。
 ```
@@ -114,6 +122,7 @@ type mheap struct {
 
 heapArena: 系统堆，初始为一个 heapArena 64M （64bit linux），8192 个 8192 字节 mspan （一个页大小，无规格）。
 整个堆 arenas 是 heapArena 的二级映射（大多数系统只有一级）。arena 映射覆盖了一整块连续地址空间，分配器也尽量保持 arena 之间连续，以分配巨大的对象。
+系统堆内存使用 mmap 分配。
 ```
 type heapArena struct {
 	// bitmap stores the pointer/scalar bitmap for the words in
@@ -826,6 +835,11 @@ select的情况：
 
 ## Ref
 https://speakerdeck.com/kavya719/understanding-channels / [zh](https://zhuanlan.zhihu.com/p/27917262)
+
+# sync.Mutex
+## Ref
+https://www.infoq.com/presentations/go-locks / [slide](https://speakerdeck.com/kavya719/lets-talk-locks)
+
 
 </xmp>
 <script src="../js/strapdown.js"></script>

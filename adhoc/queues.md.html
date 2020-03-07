@@ -66,6 +66,27 @@ ReceiptHandle: 每次收到消息的唯一ID（可能是重试的相同的消息
 * 生产者决定发布在一个topic的记录如何分区以达到更好的性能。
 * 对于订阅的topic，不同消费者组(即subscriber)消费同一个消息(broadcast)，同一个消费者组里的消费者消费不同的消息(load balanced)。这里LB是分区级别的，即把不同分区固定分配给一个组里的不同消费者，所以同组消费者实例不大于分区数量(实例的增减会导致重新分配)。
 
+物理存储格式：
+
+每个分区由多个 segment 组成，每个 segment  由多个 message 组成。
+
+segment: index, log, timeindex 三个文件组成，文件名为起始 offset
+
+* index: 保存了这个 segment 的稀疏 offset 和对应的物理位置（字节），所以只能定位到最近的 offset
+* log: 数据文件，以 message 格式保存
+* timeindex: 时间索引
+
+message
+
+* offset(8)
+* size(4)
+* CRC32(4)
+* magic(1) 协议版本号
+* attr(1) 压缩或编码类型
+* len(4) key 长度
+* key(len)
+* payload(size)
+
 ## [Disqueue](https://github.com/antirez/disque)
 Disque 只能在内存中操作，使用同步复制作为可靠性保证。
 translate: http://mp.weixin.qq.com/s/gCgz5tfMw13XXQl3nfXkwg

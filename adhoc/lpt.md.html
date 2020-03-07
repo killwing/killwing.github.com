@@ -700,6 +700,7 @@ ipv4     2 udp      17 11 src=10.0.2.15 dst=116.203.151.74 sport=123 dport=123 s
 ## [ipset](https://www.linuxjournal.com/content/advanced-firewall-configurations-ipset)
 
 ## nslookup/dig
+PTR 反向解析:
 ```
 nslookup -type=PTR 114.114.114.114 8.8.8.8
 Server:		8.8.8.8
@@ -710,7 +711,6 @@ Non-authoritative answer:
 
 Authoritative answers can be found from:
 ```
-PTR: 反向解析
 
 ```
 $ dig +search nginx
@@ -733,6 +733,11 @@ nginx.default.svc.cluster.local. 5 IN	A	192.168.37.165
 ;; SERVER: 172.16.0.10#53(172.16.0.10)
 ;; WHEN: Mon Aug 19 00:48:14 CST 2019
 ;; MSG SIZE  rcvd: 190
+```
+
+指定 DNS 服务器：
+```
+$ dig kubernetes.default.svc.cluster.local @10.32.0.10
 ```
 
 ## [tcpdump](https://www.tcpdump.org/manpages/tcpdump.1.html)

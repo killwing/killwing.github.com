@@ -1599,7 +1599,7 @@ c.L.Unlock()
 * 未导出的结构体的字段将不会被（json、xml、gob等）编码。
 
 # [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
-用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替，但会导致 dns 解析(nsswitch)等行为和标准不一致。
+用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc（alpine 下链接 musl）。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替，但会导致 dns 解析(nsswitch)等行为和标准不一致。
 
 [glibc](https://lwn.net/Articles/117972/) 禁止静态链接，[musl](http://dominik.honnef.co/posts/2015/06/statically_compiled_go_programs__always__even_with_cgo__using_musl/) 可以。
 
