@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>IEEE754</title>
+<xmp theme="united" style="display:none;">
+# 科学计数法
+（浮点）数值 = 尾数 mantisa × 底数 base ^ 指数 exponent ，（附加正负号 sign）
+
+# IEEE754 表示
+
+TYPES|	SIGN|	BIASED EXPONENT|	NORMALISED MANTISA|	BIAS
+-|-|-|-|-
+Single precision|1(31st bit)|8(30-23)|23(22-0)|127
+Double precision|1(63rd bit)|11(62-52)|52(51-0)|1023
+
+* base: 2（二进制）。
+* sign: 0 为正，1 为负。
+* biased exponent: 移码表示的（正负）指数 (+bias)。
+* normalized mantisa: 正规化的尾数（0 < 尾数 < 底数），小数点前只能是 1，记小数点后部分。也有可能小数太小了指数位不够表示导致小数点前面为 0，称为 denormalised，此时指数位置 0。
+* little endian: sign 在最高位。
+
+e.g:
+```
+85.125
+85 = 1010101
+0.125 = 0.001 // 小数二进制：不断 *2 取出整数位
+85.125 = 1010101.001 = 1.010101001 x 2^6 (127 + 6 = 133 = 10000101)
+sign = 0
+
+= 0 10000101 01010100100000000000000
+```
+
+```
+0.3
+0.3 = 0.0100110011001... = 1.00110011001... x 2^-2 (127 -2 = 01111101)
+sign = 0
+
+= 0 01111101 001100110011001100110011001... // “四舍五入”进位
+= 0 01111101 00110011001100110011010 // 实际值：0.300000011920928955078125
+```
+
+特殊值：
+
+EXPONENT|MANTISA|VALUE
+-|-|-
+0|0|exact 0
+0|not 0|denormalised
+all 1|0|Infinity
+all 1|not 0|Not a number (NAN)
+
+* 根据符号位，有 +0 和 -0，+Infinity 和 -Infinity 之分。
+
+分布：
+因为不是所有小数都能用二进制精确表示，以及尾数部分位数有限，所以值域中有很多整形和非整形的空洞，分布数轴上越靠近原点0越密，越远越稀疏。
+
+# golang
+`math.Float32frombits(math.Float32bits(x)) == x`
+`math.Float64frombits(math.Float64bits(x)) == x`
+
+```
+fmt.Printf("%b\n", math.Float32bits(.3))
+fmt.Printf("%.54f\n", .3)
+var a float32 = .3
+fmt.Printf("%b\n", math.Float32bits(a))
+fmt.Printf("%.54f\n", a)
+
+111110100110011001100110011010
+0.299999999999999988897769753748434595763683319091796875 // 更接近 0.3，因为此时 0.3 是个常量而不是浮点数，具有绝对精度
+111110100110011001100110011010
+0.300000011920928955078125000000000000000000000000000000 // 转为浮点数储存
+```
+
+# tools
+https://0.30000000000000004.com
+https://www.h-schmidt.net/FloatConverter/IEEE754.html
+
+# Ref
+https://www.geeksforgeeks.org/ieee-standard-754-floating-point-numbers
+http://blog.reverberate.org/2014/09/what-every-computer-programmer-should.html
+http://blog.reverberate.org/2016/02/06/floating-point-demystified-part2.html
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>
