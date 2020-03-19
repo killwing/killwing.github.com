@@ -194,8 +194,6 @@ Runnable Queue:
 * 同步机制
 * 抢占：执行超过 10ms，在函数入口处调度，放到 GRQ 上。
 
-任务窃取(work-stealing): 当一个 P 的 G 都执行完了，会从 GRQ 中拿，如果也没有会随机从其他 P 的 LRQ 中拿一半的 G 来处理。
-
 ## M
 ```
 type m struct {
@@ -273,6 +271,13 @@ type m struct {
 m0: 第一个启动的全局的 M。
 g0: 一个全局的 G，和 m0 绑定，用于执行调度循环。每个 M 也都有自己的成员 g0 实例。
 
+g0 的其他作用：
+
+* 负责创建 goroutine，放在 LRQ 头部
+* 处理分配 defer 函数
+* gc 操作: STW, 扫描栈等
+* 增长 goroutine 的栈大小
+
 获取：
 `getm`: `g.m`。
 `acquirem`: 返回 `g.m` 并锁数加1。
@@ -298,7 +303,7 @@ g0: 一个全局的 G，和 m0 绑定，用于执行调度循环。每个 M 也�
 
 M.g0 上调用：`mcall(fn func(*g))`
 
-* 从 `mcall` 的被调用 goroutine g 转到 g0 上去调用传入函数 fn，栈状态保存在 `g->sched` 上以便以后恢复。
+* 从 `mcall` 的被调用 goroutine g 转到 g0 上去调用传入函数 fn，栈状态保存在 `g.sched` (gobuf) 上以便以后恢复。
 * fn 永远不应返回，一般先改变 g 的状态为等待，记录 g 在某个数据结构中，使其以后能够被再调度，最后调用 `schedule` （g0 的实际工作）。
 * 当 g 被再次调度时，原在 g 中的 `mcall` 调用返回。
 
@@ -411,8 +416,11 @@ type p struct {
 `acquirep`: 使 P `p.m` 关联到当前的 M `m.p`。并将 P 的状态变为 running。
 `releasep`: 使 P 和当前 M 脱离关系。并将 P 的状态变为 idle。
 
-LRQ 入队：`runqput(_p_ *p, gp *g, next bool)`
-LRQ 只有256长度，如果满了，则连同新的和 LRQ 的一半放入 GRQ。可以放在 next，优先执行（比如 `goready`）。
+LRQ 入队：`runqput(_p_ *p, gp *g, next bool)`，对于可能频繁唤醒的 g（比如 `goready`），放到 `runnext` 里比 LRQ 具有更高优先级（原 `runnext` 不为空的话，会被替换掉到队尾），否则放到队尾。
+LRQ 只有256长度，如果满了，则连同新的和 LRQ 的一半放入 GRQ。
+
+任务窃取 (work-stealing):
+当一个 P 的 G 都执行完了，会从 GRQ 中拿，如果也没有会随机从其他 P 的 LRQ 中拿一半的 G 来处理。
 
 ## G
 ```
@@ -542,6 +550,11 @@ type g struct {
 * （从外部）在系统调用上 wrap 了一个 pre/post 逻辑。
 * pre：保存执行现场，状态从 running 变为 syscall（P 也变为 syscall 状态），并将 M 和 P 脱离关联。
 * post: 在 g0 上调用，状态从 syscall 变为 runnable，如果有空闲的 P，则直接执行，否则 G 放回 GRQ，M 放回 M 空闲列表，然后阻塞等待被再次使用。
+
+goroutine 调度切换：
+
+* 当一个 goroutine 发生阻塞（锁，channel）时，或被抢占时，通过 `mcall` 切换到 g0 运行；当其被重新调度时，从 g0 切换回去。
+* 当前指令保存在 gobuf 结构中的 PC (program counter)，当前栈指针保存在 SP。
 
 
 ### sudog
@@ -840,6 +853,10 @@ https://speakerdeck.com/kavya719/understanding-channels / [zh](https://zhuanlan.
 ## Ref
 https://www.infoq.com/presentations/go-locks / [slide](https://speakerdeck.com/kavya719/lets-talk-locks)
 
+# Reference
+https://www.ardanlabs.com/all-posts
+https://speakerdeck.com/kavya719
+https://medium.com/a-journey-with-go
 
 </xmp>
 <script src="../js/strapdown.js"></script>

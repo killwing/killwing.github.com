@@ -303,6 +303,14 @@ https://www.jianshu.com/p/dd572541df2e
 daemon 实例操作：`ceph daemon <who> help` / `ceph tell <who> help`
 mon 操作：`ceph osd --help`
 
+#### 删除 osd
+1. `ceph osd out {osd-num}`
+1. osd host: `systemctl stop ceph-osd@{osd-num}`, `systemctl disable ceph-osd@{osd-num}`
+1. `ceph osd purge {id}`
+1. 若 `/etc/ceph/ceph.conf` 下有具体这个 osd 配置，需删除并同步到其他节点上，并重启 `systemctl restart ceph-osd.target`
+1. 若要删除节点上所有组件 deploy host: `ceph-deploy purge hostname`, `ceph-deploy purgedata hostname`
+1. 删除对应的 lvm, osd host: `lvremove /dev/ceph-...`, `vgremove ceph-...`
+
 ## Reference
 http://docs.ceph.com
 https://xiaqunfeng.gitbooks.io/ceph-practice-handbook
