@@ -71,7 +71,7 @@ ceph-deploy mgr create node1 node2
 
 创建 pool
 ```
-ceph osd pool create <poolname> <int[0-]> {<int[0-]>} {replicated|erasure} {<erasure_code_profile>} {<rule>} {<int>}
+ceph osd pool create <poolname> <pg-num> {pgp-num} {replicated|erasure} {erasure_code_profile} {rule} {expected-num-objects}
 ceph osd pool set <poolname> size 3 # 改为3副本
 ceph osd pool application enable <poolname> rbd # for rbd
 ```
@@ -243,6 +243,10 @@ ceph pg 6.6a query
 ceph osd find 1
 ```
 
+根据 pool/osd 查询 pg：
+`ceph pg ls-by-pool <pool-name>`
+`ceph pg ls-by-osd osd.<id>`
+
 ## Usage
 ### RBD
 创建 `rbd create <pool-name>/<image-name> --size 102400`
@@ -289,10 +293,15 @@ config 来源：
 设置到中心配置DB `ceph config set <who> <option> <value>`
 运行时修改 `ceph tell mon.\* injectargs '--mon-allow-pool-delete=true'`
 
+[Configuring Ceph from CERN IT Storage Group](https://indico.cern.ch/event/588794/contributions/2374222/attachments/1383112/2103509/Configuring_Ceph.pdf)
+https://www.jianshu.com/p/dd572541df2e
+
 ### OP
 列出所有服务 `systemctl status ceph\*.service ceph\*.target`
 启动所有osd实例 `systemctl start ceph-osd.target`
 查看某个osd/mon实例状态 `systemctl status ceph-osd@1` `systemctl status ceph-mon@node1`
+daemon 实例操作：`ceph daemon <who> help` / `ceph tell <who> help`
+mon 操作：`ceph osd --help`
 
 ## Reference
 http://docs.ceph.com
