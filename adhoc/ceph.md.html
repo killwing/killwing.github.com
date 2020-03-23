@@ -74,6 +74,7 @@ ceph-deploy mgr create node1 node2
 ceph osd pool create <poolname> <pg-num> {pgp-num} {replicated|erasure} {erasure_code_profile} {rule} {expected-num-objects}
 ceph osd pool set <poolname> size 3 # 改为3副本
 ceph osd pool application enable <poolname> rbd # for rbd
+ceph osd pool ls detail
 ```
 [pg 计算](https://ceph.com/pgcalc/)
 
@@ -293,7 +294,13 @@ config 来源：
 设置到中心配置DB `ceph config set <who> <option> <value>`
 运行时修改 `ceph tell mon.\* injectargs '--mon-allow-pool-delete=true'`
 
+### Tuning
 [Configuring Ceph from CERN IT Storage Group](https://indico.cern.ch/event/588794/contributions/2374222/attachments/1383112/2103509/Configuring_Ceph.pdf)
+https://tracker.ceph.com/projects/ceph/wiki/Tuning_for_All_Flash_Deployments
+https://www.flashmemorysummit.com/English/Collaterals/Proceedings/2018/20180808_SOFT-202-1_Liu.pdf
+https://yourcmc.ru/wiki/Ceph_performance
+https://ceph.io/community/bluestore-default-vs-tuned-performance-comparison
+https://blog.csdn.net/lzw06061139/article/details/51320138
 https://www.jianshu.com/p/dd572541df2e
 
 ### OP
@@ -302,6 +309,7 @@ https://www.jianshu.com/p/dd572541df2e
 查看某个osd/mon实例状态 `systemctl status ceph-osd@1` `systemctl status ceph-mon@node1`
 daemon 实例操作：`ceph daemon <who> help` / `ceph tell <who> help`
 mon 操作：`ceph osd --help`
+报告及进度：`ceph report`, `ceph progress`
 
 #### 删除 osd
 1. `ceph osd out {osd-num}`
