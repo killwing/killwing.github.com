@@ -178,7 +178,7 @@ UDP
 * docker0 网桥必须使用 flannel 为 node 分配的子网。
 * flanneld 将原始 IP 包/二层帧封成 UDP 包（接收到时解包），并依据 etcd 里保存的 pod 和 node 地址信息更新路由表以转发到目标 node。
 * 性能差：用户态内核态数据拷贝；用户态 UDP 解包封包。
-* 为什么用 UDP？因为 UDP 高效，如果需要可靠性，则上层（内部封装的）协议会保证。
+* 为什么用 UDP 而不是 TCP？因为 UDP 高效，如果需要可靠性，则上层（内部封装的）协议会保证。为什么不用 IP？ 因为 IP 不能穿越 NAT，一些基于端口的负载均衡也无法完成。(VXLAN 类似)
 
 VXLAN
 [![img](https://msazure.club/content/images/2018/05/Flannel.jpg)](https://msazure.club/flannel-networking-demystify/)
