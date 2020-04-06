@@ -48,7 +48,7 @@ D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有�
 内核为任何一个给定的监听套接字维护两个队列：
 
 未完成连接队列 (SYNs queue)：收到SYN分节，并发送SYNACK，还未收到 ACK，处于SYN_RCVD状态。由 `/proc/sys/net/ipv4/tcp_max_syn_backlog` 决定。
-已完成连接队列（accept queue）：已收到 ACK 完成三次握手，处于ESTABLISHED状态，但还没 accept，收到的数据会被缓存，长度由backlog参数指定（取和 `/proc/sys/net/core/somaxconn` 的最小值）。
+已完成连接队列（accept queue）：已收到 ACK 完成三次握手，处于ESTABLISHED状态，但还没 accept，收到的数据会被缓存，长度由 listen 的 backlog 参数指定（取和 `/proc/sys/net/core/somaxconn` 的最小值）。
 在三次握手正常完成的前提下，未完成连接队列中任何一项在其中的存留时间就是一个RTT。
 
 当有客户端新SYN到达时，如果这些队列是满的，TCP就忽略丢弃该分节，而不发送RST。
@@ -56,6 +56,8 @@ D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有�
 相关内核参数
 syns queue 由 `net.ipv4.tcp_max_syn_backlog` 决定。
 accept queue 由 backlog 参数和 `net.core.somaxconn` 的最小值决定。
+
+为了防止 sync flood 攻击，可以设置 `net.ipv4.tcp_syncookies = 1`（默认启用），这样就不会放入 sync queue，而是计算一个隐藏信息在响应 SYNACK 中，等最后 ACK 回来验证。
 
 ### TIME_WAIT 状态
 MSL: 任何 IP 数据报能够在因特网中存活的最长时间。

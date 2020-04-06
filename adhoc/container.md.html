@@ -62,20 +62,28 @@ perf_event: 对cgroup进行性能监控
  * 进程加入新的 cgroup，自动从原 cgroup 中删除。
 
 主要控制文件
-cpu.cfs_period_us: 默认 100ms，表示一段 cpu 时间。
-cpu.cfs_quota_us: 默认 -1，在 cfs_period_us 内的最多能占用的时间，如果大于 cpu.cfs_period_us 表示占用多于一核。超过时通过 throttling 限制(cpu.stat 查看)。
-cpu.shares: 设置 cpu 总量（默认 1024），可以让子 cgroup 按比例分配 cpu 资源。
-memory.limit_in_bytes: 限制内存使用大小。超过时会回收缓存(page cache)或OOM kill 进程(memory.failcnt 查看)。写入 -1 不限制。
-pid.max: 总进程（线程）数。
-blkio.throttle.read_bps_device: 限制块设备读取速度。
-cgroup.clone_children: 只对cpuset有影响，内容为1时，新创建的cgroup将会继承父cgroup的配置。
-cgroup.procs: cgroup 中的所有受控制的进程ID。
-cgroup.sane_behavior
-notify_on_release: 内容为1时，当cgroup退出时（不再包含任何进程和子cgroup），将调用release_agent里面配置的命令。
-release_agent: cgroup退出时将会执行的命令，系统调用该命令时会将相应cgroup的相对路径当作参数传进去。
-tasks: 线程级别控制，cgroup 中的所有受控制的线程ID。
+`cpu.cfs_period_us`: 默认 100ms，表示一段 cpu 时间。
+`cpu.cfs_quota_us`: 默认 -1，在 `cfs_period_us` 内的最多能占用的时间，如果大于 `cpu.cfs_period_us` 表示占用多于一核。超过时通过 throttling 限制(cpu.stat 查看)。
+`cpu.shares`: 设置 cpu 总量（默认 1024），可以让子 cgroup 按比例分配 cpu 资源。
+`cpuset.cpus`: 绑定 cpu 核心。
+`memory.limit_in_bytes`: 限制内存使用（不算vm，但算 page cache，算在第一次分配 page 的 group 进程上，见下）大小。超过时会回收缓存(page cache)或OOM kill 进程(memory.failcnt 查看)。写入 -1 不限制。
+`memory.oom_control`: 默认 0 启用 OOM。
+`memory.stat`: 内存统计。
+`pid.max`: 总进程（线程）数。
+`blkio.throttle.read_bps_device`: 限制块设备读取速度。
+`net_cls.classid`: 给报文打标记，需要利用 traffic control 内核模块做流量控制。
+`cgroup.clone_children`: 只对cpuset有影响，内容为1时，新创建的cgroup将会继承父cgroup的配置。
+`cgroup.procs`: cgroup 中的所有受控制的进程ID。
+`cgroup.sane_behavior`
+`notify_on_release`: 内容为1时，当cgroup退出时（不再包含任何进程和子cgroup），将调用 `release_agent` 里面配置的命令。
+`release_agent`: cgroup退出时将会执行的命令，系统调用该命令时会将相应cgroup的相对路径当作参数传进去。
+`tasks`: 线程级别控制，cgroup 中的所有受控制的线程ID。
 
 `/proc` 文件系统并不反映被 cgroup 限制的情况，可以用 [lxcfs](https://github.com/lxc/lxcfs) 解决。
+
+关于内存统计计算：
+https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-memory
+http://blog.chinaunix.net/uid-20321537-id-3465943.html
 
 ### tools
 cgset

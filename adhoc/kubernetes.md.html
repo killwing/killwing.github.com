@@ -176,18 +176,20 @@ UDP
 
 * flannel0: TUN 设备（三层，在应用程序 flanneld 和设备间传递 IP 包）
 * docker0 网桥必须使用 flannel 为 node 分配的子网。
-* flanneld 将原始 IP 包封成 UDP 包，并依据 etcd 里保存的 node 地址信息进行转发。
+* flanneld 将原始 IP 包/二层帧封成 UDP 包（接收到时解包），并依据 etcd 里保存的 pod 和 node 地址信息更新路由表以转发到目标 node。
 * 性能差：用户态内核态数据拷贝；用户态 UDP 解包封包。
+* 为什么用 UDP？因为 UDP 高效，如果需要可靠性，则上层（内部封装的）协议会保证。
 
 VXLAN
 [![img](https://msazure.club/content/images/2018/05/Flannel.jpg)](https://msazure.club/flannel-networking-demystify/)
+VXLAN 实现的是一个二层网络的隧道，通过让处于同一个 VXLAN 网络（VNI相同）中的机器看似（逻辑上）处在同一个二层网络中，而网络包转发的方式也类似二层网络中的交换机。只不过 FDB 从 MAC->目标端口变为 MAC->目标 IP，如：`e2:7a:57:13:65:4e dst 10.255.1.225 self permanent`
 
-* flannel.1: VTEP(VXLAN Tunnel End Point)设备（ 二层，类似 flannel0 + flanneld 转发）
+* flannel.1: VTEP(VXLAN Tunnel End Point)设备（ 二层，相当于 VNI:1 这个交换机的网口，过程类似 flannel0 + flanneld 转发）
 * flanneld 下发维护:
-  * node 上路由表：找到其他 node 上的 VTEP 节点，出口为本 VTEP 节点
-  * node 上 ARP 表：根据 VTEP 的 IP 地址，找到其他 node 上的 VTEP 节点的 MAC 地址
-  * flannel.1 上 FDB 表(`bridge fdb show`)：根据 VTEP 的 MAC 地址，找到 VTEP 节点所在 node 的 IP 地址
-* 封包格式：
+  * node 上路由表：根据目标容器网络，找到网关为目标 node 上的 VTEP 节点，出口为本 VTEP 节点（VETP 节点和本机容器在同一子网）
+  * node 上 ARP 表：根据网关 VTEP 的 IP 地址，找到其 MAC 地址 (dest VTEP MAC)
+  * flannel.1 上 FDB 表(`bridge fdb show dev flannel.1`)：根据网关 VTEP 的 MAC 地址，找到 VTEP 节点所在 node 的 IP 地址 (dest node IP)
+* 封包格式（省略了source）：
 
 ```
 | Outer Ethernet Header | Outer IP Header | Outer UDP Header | VXLAN Header | Inner Ethernet Header | Inner IP Header     |
@@ -264,7 +266,7 @@ node 之间必须二层连通，否则需要使用 IPIP 模式：
 * NetworkPolicy: 通过 label selector 应用于一组 endpoint (label 从 pod 复制)，对应于 k8s 的 `NetworkPolicy`。
 
 ### [CNI](https://github.com/containernetworking/cni)
-[spec](https://github.com/containernetworking/cni/blob/master/SPEC.md) / [k8s cni](https://github.com/kubernetes/community/blob/master/contributors/devel/kubelet-cri-networking.md)
+[spec](https://github.com/containernetworking/cni/blob/master/SPEC.md) / [k8s cni](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-node/kubelet-cri-networking.md)
 
 功能：
 
@@ -588,7 +590,7 @@ func main() {
 client-go 库内部组件：
 
 * Reflector: 从 Kubernetes API 监听 (watch) 特定的资源类型 (kind)，可以是内置资源，也可以是自定义资源。当它收到新增资源对象的通知时，会把新的资源对象从 APIServer 取出 (list) 并放入 Delta Fifo 队列。
-* Informer: 从 Delta Fifo 队列中取出对象放入本地 Indexer 缓存，然后调用自定义控制器注册的事件处理函数。定期同步功能，将 Indexer 中已知的对象重新放入 Delta Fifo 中。
+* Informer: 从 Delta Fifo 队列中取出对象放入本地 Indexer 缓存，然后调用自定义控制器注册的事件处理函数。定期同步功能(resync)，将 Indexer 中已知的对象(knownObjects，就是 Indexer 的引用)重新放入 Delta Fifo 中，以重新通知 Event Handler 处理。
 * Indexer: 提供对象的索引功能，可以根据对象的标签创建索引提高对象查询效率。它使用一个线程安全的数据存储作为后端缓存存储对象和其键值（一般为`<namespace>/<name>`）。
 
 自定义控制器组件：
@@ -674,6 +676,26 @@ condition
 * Initialized: init 容器成功完成
 * Unschedulable: 未能成功调度
 * ContainersReady: 所有容器已 ready
+
+#### PLEG
+[![img](https://raw.githubusercontent.com/kubernetes/community/master/contributors/design-proposals/node/pleg.png)](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/pod-lifecycle-event-generator.md)
+
+kubelet 需要根据 pod spec 的变化同步容器状态，也要根据容器状态同步到 pod status。每个 pod 都有自己的同步 goroutine worker，同时周期性请求 container runtime 会造成性能问题，PLEG 就作为单独模块来查询 (relist) container runtime 作为代替，并将容器的事件转为 pod 事件发送给 kubelet 处理，kubelet 会再根据事件 ID 派给各个 pod worker 处理。 relist 也可能对性能有影响，所以也接受一个事件流。
+
+pod 事件类型：
+```golang
+// ContainerStarted - event type when the new state of container is running.
+ContainerStarted PodLifeCycleEventType = "ContainerStarted"
+// ContainerDied - event type when the new state of container is exited.
+ContainerDied PodLifeCycleEventType = "ContainerDied"
+// ContainerRemoved - event type when the old state of container is exited.
+ContainerRemoved PodLifeCycleEventType = "ContainerRemoved"
+// PodSync is used to trigger syncing of a pod when the observed change of
+// the state of the pod cannot be captured by any single event above.
+PodSync PodLifeCycleEventType = "PodSync"
+// ContainerChanged - event type when the new state of container is unknown.
+ContainerChanged PodLifeCycleEventType = "ContainerChanged"
+```
 
 ### Deployment
 部署策略
@@ -924,7 +946,7 @@ spec:
 `tryAcquireOrRenew` 获得锁的条件（或）：
 
 * 锁资源还没创建，创建并声明获得
-* Leader Lease 过期了 （本地当前时间已经超过了最后一次在本地观察到 record 变化（即刷新过）的时间+本地配置的租期）
+* Leader Lease 过期了 （本地当前时间已经超过了最后一次在本地观察到 record 内容变化（即刷新过）的时间+本地配置的租期）
 * 现 Leader 就是自己
 
 一般用 `endpoint`/`configmap`/`lease` 表示资源锁对象：
@@ -940,7 +962,7 @@ type LeaderElectionRecord struct {
 }
 ```
 
-不能保证只有一个 leader (fencing) , 如果出现2个(split brain)，由 controller 自己靠调谐 (reconciliation) 来解决冲突。
+不能保证只有一个 leader (fencing, 如果原 leader 由于网络或系统原因没能及时更新租期，导致 leader 被别人抢到，而自己又没能及时退出，此时2个实列都在运行) , 如果出现2个(split brain)，由 controller 自己靠调谐 (reconciliation) 来解决冲突。
 可以容忍绝对时钟偏移值（因为计算都用的本地单调时钟），但会受到时钟偏移率的影响。
 
 ## Sigs
