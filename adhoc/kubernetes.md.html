@@ -182,11 +182,11 @@ UDP
 
 VXLAN
 [![img](https://msazure.club/content/images/2018/05/Flannel.jpg)](https://msazure.club/flannel-networking-demystify/)
-VXLAN 实现的是一个二层网络的隧道，通过让处于同一个 VXLAN 网络（VNI相同）中的机器看似（逻辑上）处在同一个二层网络中，而网络包转发的方式也类似二层网络中的交换机。只不过 FDB 从 MAC->目标端口变为 MAC->目标 IP，如：`e2:7a:57:13:65:4e dst 10.255.1.225 self permanent`
+VXLAN 实现的是一个虚拟的二层网络隧道，通过让处于同一个 VXLAN 网络（VNI相同）中的机器看似（逻辑上）处在同一个二层网络中（二层相通），而网络包转发的方式也类似二层网络中的交换机。只不过 FDB 从 MAC->目标端口变为 MAC->目标 IP，如：`e2:7a:57:13:65:4e dst 10.255.1.225 self permanent`
 
 * flannel.1: VTEP(VXLAN Tunnel End Point)设备（ 二层，相当于 VNI:1 这个交换机的网口，过程类似 flannel0 + flanneld 转发）
 * flanneld 下发维护:
-  * node 上路由表：根据目标容器网络，找到网关为目标 node 上的 VTEP 节点，出口为本 VTEP 节点（VETP 节点和本机容器在同一子网）
+  * node 上路由表：根据目标容器网络，找到网关为目标 node 上的 VTEP 节点，出口为本 VTEP 节点（每个 node 一个网段，本 VETP 节点和本机容器在同一子网，网关和出口 VTEP 在同一个 VXLAN 网络）: `10.244.14.0/24 via 10.244.14.0 dev flannel.1`
   * node 上 ARP 表：根据网关 VTEP 的 IP 地址，找到其 MAC 地址 (dest VTEP MAC)
   * flannel.1 上 FDB 表(`bridge fdb show dev flannel.1`)：根据网关 VTEP 的 MAC 地址，找到 VTEP 节点所在 node 的 IP 地址 (dest node IP)
 * 封包格式（省略了source）：
@@ -200,17 +200,24 @@ VXLAN 实现的是一个二层网络的隧道，通过让处于同一个 VXLAN �
 ![img](https://feisky.gitbooks.io/sdn/container/calico/calico.png)
 
 [calico](https://www.projectcalico.org/)
+路由： `目标 via 网关 dev 设备`，网关要和（出口）设备之间二层连通。
 
 原理：
-在 node 上添加目的 Pod 子网的路由，下一跳为 Pod 所在 node IP：`192.168.1.0/24 via 172.17.0.2 dev eth0`。
+在 node 上添加目的 Pod 子网的路由（每个 node 一个网段），下一跳网关为目标 Pod 所在 node IP：`192.168.1.0/24 via 172.17.0.2 dev eth0`。
 目的 node 上再通过路由转到目的 Pod 的 veth 上：`192.168.1.3 dev cali1234abc scope link`。
 可以无需网桥设备，但网桥可以减少路由数量。
 
 node 之间必须二层连通，否则需要使用 IPIP 模式：
 当 node 之间三层通而二层不通时，须通过 tunl0 IP 隧道设备
-`192.168.1.0/24 via 172.17.0.2 dev tunl0` 其中下一跳地址变为新 IP 包的目的地址，即通过三层转发了内部 IP 包。
+`192.168.1.0/24 via 172.17.0.2 dev tunl0` 其中下一跳网关地址（目标 node IP）变为新 IP 包的目的地址，即通过三层转发了内部 IP 包。
 或者：
 添加 Pod 子网路由到 node 子网的网关(将 node 的网关也加入 BGP peer)，不过一般无权限修改。
+
+比较：
+
+* Host-GW: 本来二层就通
+* IPIP: 变为 host IP 包，可以走中间路由
+* VXLAN: 变为 host UDP 包，虚拟二层（MACinUDP）
 
 组件：
 

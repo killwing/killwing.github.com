@@ -20,6 +20,9 @@ UTS         |CLONE_NEWUTS      |主机名和NIS域名
 数字是inode号，如果两个进程某个类型的namespace的inode一样，说明同属一个namespace。
 当一个namespace中的所有进程都退出时，该namespace将会被删除。
 
+### Network
+每个 namespace 都有独立的网络设备，协议栈，IP 地址，路由表，iptables 规则，ipvs。
+
 ### Cgroup
 使每个容器有独立的 cgroup root 和 cgroup filesytem 视图，隐藏了 host 的 cgroup 信息，更安全；不同 host 间迁移cgroup变得容易。
 
