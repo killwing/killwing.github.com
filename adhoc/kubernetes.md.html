@@ -710,28 +710,36 @@ ContainerChanged PodLifeCycleEventType = "ContainerChanged"
 [![img](https://raw.githubusercontent.com/ContainerSolutions/k8s-deployment-strategies/master/decision-diagram.png)](https://container-solutions.com/kubernetes-deployment-strategies/)
 
 * 重建 recreate: 先删掉旧的版本，再发布新的版本。`.spec.strategy.type==Recreate`
-* 滚动更新 ramped: 一个接一个更新，更新时新旧版本共存。 `.spec.strategy.type==RollingUpdate`（默认）
-  * maxSurge: 允许除 desired 外创建多余的新 pod 数目，默认 %25 desired。
-  * maxUnavailable: 最多不可用的 pod 数目，默认 %25 desired。
-* 蓝/绿 blue/green: 先发布新版本，再将流量从旧版本切到新版本，最后删掉旧版本。通过 service.selector 更新不同版本切换。
-* 金丝雀 canary: 先发布新版本，再将部分流量切到新版本，最后再切全量。使用两个 deployment，设置不同的 replicas 比例。
+* 滚动更新 ramped: 一个接一个更新，更新时新旧版本共存，本质上就是同时更新两个版本的 replicaset 中 pod 的数目。 `.spec.strategy.type==RollingUpdate`（默认）
+  * maxSurge: 允许除 desired 外创建多余的新 pod 数目，默认 %25 desired。当为0，只有先删一个 pod，才能创建一个 pod。
+  * maxUnavailable: 最多不可用的 pod 数目，默认 %25 desired。当为0，只有先创一个 pod，才能删一个 pod。所以和 maxSurge 不能同时为0。
+* 蓝/绿 blue/green: 先发布新版本，再将流量从旧版本切到新版本，最后删掉旧版本。通过 service.selector 更新不同版本切换两个 deployment。
+* 金丝雀 canary（灰度，手动 RollingUpdate）: 先发布新版本，再将部分流量切到新版本，最后再切全量。使用两个 deployment，设置不同的 replicas 比例，一个 Service 选中两个 deployment 所有 pod（或使用一个 Statefulset，用 partition 区分）。
 * a/b 测试: 类似 canary，但以更精确的方式（比如 HTTP 头）针对发布。利用 Istio, Nginx 等控制。
 * 阴影 shadow: 新版本和旧版本共存，但只接收少部分流量，且不影响回应。可以通过 Istio 复制请求等方式。
 
-用 `spec.revisionHistoryLimit` 控制历史版本数 （旧`ReplicaSet`数目）。
+用 `spec.revisionHistoryLimit` 控制历史版本数 （旧`ReplicaSet`数目）。不同的 template-hash 就是不同的版本。
+`minReadySeconds`: pod ready 再加上这个时间才算做 available 状态。
 
 ### StatefulSet
-指定 `serviceName` 为对应的 Headless Service。
+指定 `.spec.serviceName` 为对应的 Headless Service。
 
-* 利用 Headless Service，每个 pod 的 DNS 域名：`<statefulset-name>-<seq>.<svc-name>.<namespace>.svc.cluster.local`
+* 利用 Headless Service，每个 pod 的 DNS 域名：`<statefulset-name>-<seq>.<svc-name>.<namespace>.svc.cluster.local`。前缀对应到同名 pod 稳定不变，所以网络标识也是不变稳定的。
 * 如果申请了持久存储，名字也一一和 pod 对应：`<pvc-name>-<statefulset-name>-<seq>`
 * 创建和删除 pod 时，严格按照编号顺序（删除反序）。
 
 更新策略：`.spec.updateStrategy.type`
 
-* `RollingUpdate`（默认）: 滚动更新，按照删除的顺序更新，每次更新一个 pod。
-  * `partition`: 分区，只有序号大于等于其值的才会更新。
-* `OnDelete`: 不更新，必须手动删除老 pod，让 controller 创建新 pod 来更新。
+* `RollingUpdate`（默认）: 滚动更新，按照删除的顺序（2->1->0）更新，每次更新一个 pod。相当于 maxSurge 为 0。
+  * `partition`: 分区（灰度），不全部更新，只有序号大于等于其值的才会更新，即保留旧版本的数量。
+* `OnDelete`: 不更新，必须手动删除老 pod（或缩容再扩容），让 controller 创建新 pod 来更新。
+
+每个 pod 有个 `controller-revision-hash` label，标识属于那个版本（`ControllerRevision`）。
+
+扩缩容策略: `.spec.podMangementPolicy`
+
+* `orderedReady`: （默认）按顺序等上一个及其前面所有 pod ready 之后才创建新的。
+* `parallel`： 不需要等 pod ready，创建出一个，就可以继续创建下一个。
 
 ### DaemonSet
 通过 `nodeAffinity` 和 `toleration` 保证每个 node 上运行一个 pod 实例。
@@ -829,6 +837,8 @@ provisioning:
 动态 provisioning:（StorageClass 指定了具体的 provisoner）: PVC 指定 storage class 名字，provisoner 根据 PVC 的要求及 StorageClass 的属性，创建出 PVC 对应的 PV。
 绑定执行：kube-controller-manager `PersistentVolumeController`
 
+StorageClass 可以指定 `allowedTopologies` 以限制创建出来的 PV 的 topo 位置，使用它的 pod 调度的时候只能调度到符合 topo 的节点上。
+
 attaching:
 为 node 挂载磁盘（一般为块设备，其他比如分布式文件系统 NFS，CephFS 并不需要）。
 执行：kube-controller-manager (`AttachDetachController`调用具体 volume plugin，如rbd, csi...的`Attacher.Attach`)
@@ -848,6 +858,8 @@ volumeBindingMode: WaitForFirstConsumer
 ```
 不支持动态 provisioning: 需要手动创建 PV（指定节点信息），可以利用 [local-static-provisioner](https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner)自动创建 PV（当对应绑定的 PVC 删除后，对应 PV 会清除并重建）。
 延迟绑定: PVC 和 PV 不立即绑定，等到第一个使用 PVC 的 Pod 调度的时候，由调度器综合考虑 PV 节点情况再绑定。（删除 Pod 后，PVC 和 PV 还是绑定状态，若不删除，下次 Pod 还是会调度到这个节点上）
+
+如果是支持动态 provisioning 的，也可做延迟创建（并绑定）。
 
 ### NetworkPolicy
 podSelector: 被选中的处于 Deny All，在 ingress, egress 设置白名单允许规则。
