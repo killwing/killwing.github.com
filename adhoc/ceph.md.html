@@ -97,6 +97,7 @@ ceph fs status
 * LV: 逻辑卷，在 VG 里面分割，大小可动态改变（为 PE 整数倍）
   * lvcreate, lvs, lvdisplay, lvextend, lvreduce, lvremove
   * device 路径在 /dev/{vg}/{lv}，后可以格式化挂载使用
+  * 分 [linear 和 striped](https://sysadmincasts.com/episodes/27-lvm-linear-vs-striped-logical-volumes) 模式，`lsdisplay -m` 查看
 
 ## Crush Map
 ```
