@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Tree</title>
+<xmp theme="united" style="display:none;">
+## B Tree
+每个节点最多包含 m 个孩子，称为 m 阶。每个节点存放在一个磁盘页上，m 一般取决于磁盘页大小。
+
+性质：
+
+* 子节点数量 = key 数量 + 1，即满足：[ceil(m/2), m]。
+* 根节点 key 满足 [1, m - 1]。其子节点数量 [2, m]。
+* 每个非根节点 key 满足：[ceil(m/2)-1, m-1]。
+* 每个节点中的 key 都按照从小到大的顺序排列，每个 key 的左子树中的所有 key 都小于它，而右子树中的所有 key 都大于它。即把 N 个 key 之间划分成 N + 1 个区间。
+* 所有的叶子结点都位于同一层。
+
+优点：
+
+* 因为节点附带数据，就查询一条数据相对 B+ 树来说，基本不需走完从根节点到叶子节点路径，经过节点比 B+ 树要少。
+* 查询/修改时间复杂度 O(logN)。遍历 M·O(logN)。
+
+例子：
+
+Mongo
+
+* 较强的单条记录（Document）读写需求。使用嵌入文档，而不是通过外键相连（遍历查找）。
+* 默认存储引擎 WiredTiger 使用 B 树来存储数据。也可以选择使用 LSM Tree。
+
+文件系统索引
+
+## B+ Tree
+性质：
+
+* 子节点数量 = key 数量。
+* 非叶子节点 key 也会出现在子节点中，且在子节点中为所有 key 中最小。即把 N 个 key 之后包括 key 本身划分成 N 个区间。
+* 非叶子节点只是用来索引，不保存数据值。而在 B 树中，非叶子节点既保存索引也保存数据值。
+* 所有 key（及数据值）都存在于叶子节点且在同一层，叶子节点构成有序链表（有相邻节点的指针），而且 key 按照从小到大顺序连接。
+
+优点：
+
+* 非叶子节点不存值（的指针），一个磁盘页可以容纳更多节点或一个节点可以容纳更多 key。树高就小，查询 IO 次数少。
+* 查询稳定，因为都要经过从根到叶子的路径（才能拿到值），路径长度相同。
+* 所有叶子节点构成有序列表，有利于范围查询。
+* 查询/修改时间复杂度 O(logN)。遍历 O(logN)+M。
+
+相对于 Hash 来说，Hash 无法有效范围查询和排序，只能全部遍历。
+相对于 B 树来说，因为要取值，B 树每次查询从根节点开始，往下遍历查找范围内的节点，查找的节点多，随机 IO 就多。
+
+例子：
+
+MySQL
+
+* 较强的查找遍历需求。包括范围查询，或者查找相同 key 的所有匹配值。
+* 默认的存储引擎 InnoDB 使用 B+ 树来存储数据。
+* 主键索引：`id: row`；辅助索引：`index: id` 再根据 id 找到 row。
+
+BoltDB
+
+## [SkipList](https://www.epaperpress.com/sortsearch/download/skiplist.pdf)
+跳表是一种链表，加了分层跳跃功能（锚点，从上往下查找），使得查找时间复杂度为 O(logN)。类比一个节点只有一个 key 的 B+ 树。
+
+插入：基于概率(1/2)决定是否需要上一层的插入方法。
+删除：和链表一样。
+
+优点：
+
+* 不需要红黑平衡，及 B/B+ 树那样的复杂插入删除操作，由此影响的其他节点数量少。
+
+## Red Black Tree
+
+## LSM Tree
+[Log Structured Merge Tree](http://paperhub.s3.amazonaws.com/18e91eb4db2114a06ea614f0384f2784.pdf)
+不可变结构的优点：
+不用预分配空间，减少存储开销
+读取时不用加锁，提高并发读性能
+顺序写，效率高，碎片少 single pass, append-only
+
+定期合并重写，减少文件总数量，以减少查询时需要的文件数量
+因为不可变，插入更新删除都需要重写整个文件（旧文件不更新，而是通过合并出新文件，再删掉旧文件）。
+
+### SSTable
+LSM-Tree的一种实现：[Sorted String Table](https://static.googleusercontent.com/media/research.google.com/en//archive/bigtable-osdi06.pdf) 是一种持久化的，有序的，不可变的 map 结构，kv 都是 byte string。
+
+结构：
+index block: `{key:offset}`，在内存中，可以用搜索树（B Tree, skiplist）实现，offset 指向 data block 中的数据偏移。
+data block: `{key:value}`，持久化不变结构，kv 记录一个接一个依次相接。
+
+特性：
+一层上的每个 SSTable key 有序且 key range 不重合（第 0 层可以有重合）。
+每个item都有一个timestamp，如插入时间，更新时间，删除时间。
+删就是加一个placeholder记录并标记为删除，改就是一个新的timestamp的记录 (shadowing)。这是为了方便相同值合并。
+
+操作：
+写：直接写内存(内存里对应一个可变的搜索树结构 MemTable)，同时写 WAL，当树大小（或定时）超过阈值，就写磁盘为一个新的 SSTable (flush)。
+读：根据索引搜索所有磁盘上的 SSTable, 同时检查内存里的 MemTable，然后合并结果。
+压缩(housekeeping)：为提高读性能，减少冗余记录，对所有 SSTable 做类似归并排序的合并操作（和读取时合并相同），并重构索引。
+分层：可以将同样树大小的 SSTable 归为一个 level（越往下树大小越大），当这个 level 的 table 数量达到阈值时压缩，弹出一个上层的 table 和下层（所有涉及范围的 table）压缩。
+
+优化：
+
+* 将 B/B+ 树的随机写，变为顺序写，提高写性能，而读相对较慢。所有的写操作都是顺序写：写 MemTable 到 SSTable，合并压缩，WAL。
+* 为顺序读写优化:从某一点读取范围是顺序读。
+
+缺点：有读写放大问题。
+
+例子：
+[LevelDB](https://github.com/golang/leveldb), RocksDB, Cassandra, [badger](https://github.com/dgraph-io/badger)
+
+### WAL
+Write-Ahead Log: 保证可靠性，在改变数据文件之前追加写操作日志。
+重放 WAL 以恢复状态，这样就不用每次操作都要将整个数据文件 sync 到磁盘。
+WAL 一般写在和数据文件不同的磁盘上。
+
+## Bitcask
+
+</xmp>
+<script src="../js/strapdown.js"></script>
+</html>

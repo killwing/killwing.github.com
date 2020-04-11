@@ -58,38 +58,66 @@ R：至少读R个副本才算读成功。
 因为任意节点都可以读写，仍需数据版本，矢量时钟等机制保证数据不冲突，若发现冲突则交给用户处理。
 
 ## [Raft](https://raft.github.io/)
-https://github.com/maemual/raft-zh_cn/blob/master/raft-zh_cn.md
 一种分布式一致性协议。
-只要一个cluster中多数node可用（一般总数为3或5），就可以就某个值达成一致。
+只要一个 cluster 中多数 node 可用（一般总数为3或5），就可以就某个值达成一致。
 
-node分为三种状态：
-follower
-candidate
-leader
+node 分为三种状态：
+
+* leader 领导者
+* candidate 候选人
+* follower 跟随者
+
+[![img](https://raw.githubusercontent.com/maemual/raft-zh_cn/master/images/raft-%E5%9B%BE4.png)](https://github.com/maemual/raft-zh_cn/blob/master/raft-zh_cn.md)
+
+动画演示： http://thesecretlivesofdata.com/raft
 
 ### Leader Election
 
-* 所有node初始处于follower状态，并启动一个election timeout(150ms-300ms的随机值)，时间到的node变为candidate状态。
-* candidate发起一轮选举(term)：
-    1. 重置election timeout，先投自己一票，然后发送RequestVote消息到其它node。
-    1. 如果收到消息的node本轮还没有投过票则投candidate一票（响应）并重置election timeout。
-    1. 如果candidate收到多数投票(`>N/2`，不用等待收全)，则变为leader状态。
-    1. leader定期(heartbeat timeout)发送AppendEntries消息作为heartbeat到它的followers。
-    1. followers收到AppendEntries后重置election timeout并发送响应。
-    1. 如果一个follower没收到heartbeat导致election timeout，就发起新一轮的选举。
-* 因为多数票机制，每轮选举只会产生一个leader。
-* 如果两个（或多个）follower同时变成candidate，则发生split vote:
-    * 同一轮中，两个candidate都发出RequestVote到其它node。
-    * 一个candidate收到RequestVote不做任何动作。收到heartbeat则变为follower并重置election timeout。
-    * 一个candidate没收到heartbeat导致election timeout，就发起新一轮的选举。
+* 所有 node 初始处于 follower 状态，并启动一个 election timeout (150ms-300ms的随机值)，时间到的 node 变为 candidate 状态。
+* candidate 增加自己的当前任期号，发起一轮新任期的选举(term)：
+    1. 重置 election timeout，先投自己一票，然后发送 `RequestVote` 消息到其它 node。
+    1. 如果收到消息的 node 本轮还没有投过票则投 candidate一票（响应）并重置 election timeout。
+    1. 如果 candidate 收到多数投票(`>N/2`，不用等待收全)，则变为 leader 状态。
+    1. leader 定期(heartbeat timeout)发送 `AppendEntries` 消息作为 heartbeat 到它的 followers。
+    1. followers 收到 `AppendEntries` 后重置 election timeout 并发送响应。
+    1. 如果一个 follower 没收到 heartbeat 导致 election timeout，就发起新一轮的选举。
+* 因为多数票机制，每轮选举只会产生一个 leader。leader 一旦选举出来，在本任期内就不再变化。有可能一个任期选举失败（多个 candidate 得到选票相等），没有选出 leader 而结束。
+* 如果两个（或多个）follower 同时变成 candidate，则发生 split vote:
+    * 同一轮中，两个 candidate 都发出 `RequestVote` 到其它 node。
+    * 一个 candidate 收到 `RequestVote` 不做任何动作。收到 `AppendEntries` (heartbeat) 则变为 follower 并重置 election timeout。
+    * 一个 candidate 没收到 heartbeat 导致 election timeout，就发起新一轮的选举。
+* 任何 node 收到任期大于当前的请求或响应，则当前任期设为新的，变为 follower 状态。收到任期过期的，则拒绝。
 
 ### Log Replication
-读写都通过leader。
+读写都通过leader（如果请求发给其他角色，则转给 leader）。
 
-1. leader收到client的update请求，先记在log里，并随下一次heartbeat发给followers。
-1. follower收到也先记在log里。
-1. leader一旦收到多数followers的响应(`>N/2`)就commit这个值，然后发送响应给client。
-1. 提交状态随下一次heartbeat通知到followers，followers也同步相应数据。
+1. leader 收到 client 的 update 请求，先把指令记在 log 里（加上自己的任期号和索引），并随下一次 heartbeat 发给 followers。
+1. follower 收到也先记在 log 里。
+1. leader 一旦收到多数 followers 的响应(`>N/2`)就 commit 这个值，然后发送响应给 client。
+1. 提交状态随下一次 heartbeat 通知到 followers，followers 也同步相应数据。
+
+日志一致性：
+
+* 如果在不同的日志中的两个条目拥有相同的索引和任期号，那么他们存储了相同的指令。
+* 如果在不同的日志中的两个条目拥有相同的索引和任期号，那么他们之前的所有日志条目也全部相同。
+
+冲突：
+
+* 如果 follower 收到 `AppendEntries` 时 log 一致性检查失败，则拒绝这个请求。leader 就会减小发送日志的 nextIndex 值并进行重试。
+* 当 follower 收到的 nextIndex 和自己对应重合一致时，就删除之后不一致的部分。
+* leader 从来不会覆盖或者删除自己的日志。
+
+### Network Partition
+网络分区（假设分了2个区，leader 在少数区）会导致产生 2 个 leader，一个在现有任期的原 leader，一个为在多数区新任期选出的新 leader。
+分区后 QUORUM 不变，如果 leader 在多数区，则少数区因为 QUORUM 不够而选不出新 leader。
+两个客户端分别发送两个值给两个 leader，由于原 leader 在少数区，所以不能 commit 这个值，而新 leader 则可以 commit 设置的值。
+当分区恢复时，新任期 leader 成为唯一 leader，并同步新的 commit 到 followers。
+
+### 安全性
+增加限制来保证领导人完整性特性: 任何的领导人对于给定的任期号，都拥有了之前任期的所有被提交的日志条目。
+
+* `RequestVote` 的限制：请求中包含了候选人的日志信息，然后投票人会拒绝掉那些日志没有自己新的投票请求。
+* 只有领导人当前任期里的日志条目可以通过计算副本数目被提交。
 
 http://www.cnblogs.com/mindwind/p/5231986.html
 http://www.zenlife.tk/raft-fault-tolerance.md
