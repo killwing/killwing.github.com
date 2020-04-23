@@ -196,6 +196,8 @@ VXLAN 实现的是一个虚拟的二层网络隧道，通过让处于同一个 V
 | (dest node MAC)       | (dest node IP)  | (Port:4789)      | (VNI:1)      | (dest VTEP MAC)       | (dest container IP) |
 ```
 
+容器内目标非本网段网关为网桥地址(cni0，通过veth pair)，本网段（其他容器）直接通过网桥转发。
+
 #### Routing (Host-GW)
 ![img](https://feisky.gitbooks.io/sdn/container/calico/calico.png)
 
@@ -218,6 +220,8 @@ node 之间必须二层连通，否则需要使用 IPIP 模式：
 * Host-GW: 本来二层就通
 * IPIP: 变为 host IP 包，可以走中间路由
 * VXLAN: 变为 host UDP 包，虚拟二层（MACinUDP）
+
+容器内所有目标网关地址为: 169.254.1.1, MAC 为`ee:ee:ee:ee:ee:ee`: 使用网卡的 ARP 代理功能，当 ARP 请求目标跨网段时，网关设备收到此 ARP 请求，会用自己的 MAC 地址返回给请求者。这样网关的 IP 和 MAC 是什么并无影响。
 
 组件：
 
@@ -882,6 +886,9 @@ cpu limit: cpu.cfs_quota_us, cpu_period_us
 cpu request: cpu.shares
 memory limit: memory.limit_in_bytes
 memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/burstable] cgroup 进行预留控制
+
+cpuset
+`--cpu-manager-policy` 设为 static（默认none）后，如果 Guaranteed 且是数量是整数，则会使用 cpuset cgroup 绑定到固定的核数上。
 
 ### Initializer
 1. `InitializerConfiguration` 配置所用 Initializer 的名字及需匹配的资源。
