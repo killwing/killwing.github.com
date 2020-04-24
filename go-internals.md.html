@@ -2,7 +2,7 @@
 <html>
 <meta charset="utf-8" />
 <title>Go Internals</title>
-<xmp theme="united" style="display:none;">
+<xmp theme="readable" style="display:none;">
 # [Memory](https://github.com/golang/go/blob/master/src/runtime/malloc.go)
 span：67 种规格，分别规定了从 8, 16, ... 到 32k 分配对象的大小，及其页数量（8k 一个页）。每种 span，1-10 个（连续的）页不等，其中含 1-1024 个对象不等。 
 每种规格都有两种类型：scan 包含指针的对象，noscan 不包含指针的对象，有助于 GC。
@@ -859,5 +859,5 @@ https://speakerdeck.com/kavya719
 https://medium.com/a-journey-with-go
 
 </xmp>
-<script src="../js/strapdown.js"></script>
+<script src="js/strapdown.js"></script>
 </html>
