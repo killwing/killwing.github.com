@@ -203,14 +203,20 @@ DocumentFragment | #document-fragment| null|11
 selector|name|description|example
 -|-|-|-
 `*`  |通用	|所有元素|`* { ... }`
+标签名|类型 |符合标签的所有元素 |`p { ... }`
 `,`  |分组	|被分组的选择器就可以共享相同的定义|`h1,h2 { ... }`
 空格 |派生	|包含所有子级的所有对象|`body p { ... }`
 `>`  |子对象|仅包含下一级对象元素|`body > p { font-size:14px; }`
+`~`  |后继  |之后且具有同一父节点|`.a~.b { ... }`
+`+`  |直接后继  |相邻之后且具有同一父节点, 即 nextSlibling|`.a+.b { ... }`
 `#`  |ID	|唯一标识符的 ID|`#sidebar p { ... }`
-`.`  |类型	|基于类而被选择|`.center { ... }, td.myclass { ... }`
+`.`  |类型	|基于类而被选择|`.center { ... }` `td.myclass { ... }` `td.class1.class2 { ... }`
 `:`  |伪类	|用于向某些选择器添加特殊的效果|`a:link {color: #FF0000}`
 `::` |伪元素|创建了一些抽象元素，这些抽象元素是不存在DOM树中|`h1::before { content: "Hello "; }`
-`[]` |属性	|选择具有某属性的元素|`h[title] { color: blue; }`
+`[]` |属性	|选择具有某属性的元素|`h[title] { color: blue; }` `h[title=report] { color: blue; }`
+
+优先级大致可认为`ID > 伪类 > 伪元素和标签`，对于同一优先级的选择器，后面的规则覆盖前面的。
+图解：https://specifishity.com/
 
 ### 盒模型
 * 位置：元素内容(element) - 内边距(padding) - 边框(border) - 外边距(margin)。

@@ -149,7 +149,7 @@ Bit Hacking:
 var(变量): 必须有类型和初始化表达式之一。
 未初始化的变量自动为0, 指针和引用为nil。
 不用的变量可以使用`_`。
-`:=`缩写声明并初始化变量，只可以在函数中使用。
+`:=`缩写声明并初始化变量，只可以在函数中使用。注意会隐藏上一级 scope 的变量，函数参数和返回值变量与函数体同一 scope。
 未被使用的局部非常变量或导入的包被认为是个错误。
 多重赋值的时候，先计算等号右边的表达式，再进行赋值（都是从左到右的顺序）。多重赋值可以用于函数调用时实参传给形参。
 ```
@@ -1025,13 +1025,13 @@ import (
 
 `./...`不会匹配vendor目录。
 
-## [Modules](https://blog.golang.org/using-go-modules) ([zh](https://www.4async.com/2019/03/using-go-modules/))
+## [Modules](https://blog.golang.org/using-go-modules) ([zh](https://www.4async.com/2019/03/2019-03-20-using-go-modules/))
 https://github.com/golang/go/wiki/Modules
 
 `GO111MODULE=on` 默认auto自动检测是否启用。
 
 module: 带版本的包的集合。版本符合 [semver](https://semver.org/) 形式：`v(major).(minor).(patch)`。如果没有 semver，会使用伪版本。
-module 本身不再依赖`GOPATH`，不再需要 `bin`, `src`, `pkg` 目录。但依赖缓存会下载到`~/go/pkg/mod`，`go install`会安装到`~/go/bin`（如果 GOPATH 没有定义）。
+module 本身不再依赖`GOPATH`，不再需要 `bin`, `src`, `pkg` 目录。依赖的缓存会下载到`GOMODCACHE`定义的路径(默认`~/go/pkg/mod`)，`go install`会安装到`~/go/bin`（如果 GOPATH 没有定义）。
 module 可以有子 module （go.mod 定义）。
 
 ### go.mod
@@ -1058,14 +1058,17 @@ require: 依赖包
 exclude: 只作用于当前 module
 replace: 只作用于当前 module
 
+`// indirect`: 表示这个项目当前与 module 机制不兼容：任何tag版本或master最新版本都没有 go.mod 文件。
+
 ### command
 相关命令从当前目录开始向上找`go.mod`，第一个找到的 module 作为 main module（命令运行目录）。
 
 `go mod init <mod-path>`: 初始化，mod-path不指定会自动检测
 `go mod vendor` 可以把依赖从缓存 copy 到 module 的 vendor 目录下。
 `go mod graph` 显示模块依赖图。
+`go mod why -m` 显示模块依赖顺序。
 `go build` 自动分析下载依赖并更新`go.mod`(require)，然后编译。
-`go list -m -json all` 显示 build list，编译依赖的所有 module。
+`go list -m -json all` 显示 build list，编译依赖的所有 module 及实际使用的版本。
 `go list -m -versions github.com/pkg/errors` 显示指定包的所有版本。
 `go clean -modcache` && `go mod tidy` 重新更新缓存。
 
@@ -1081,6 +1084,13 @@ replace: 只作用于当前 module
 * 如果 tag 主版本是 v2 或更高，mod-path 和 import path 都必须包含主版本（后缀）。如果是 v0 或 v1 则不需要包含。
 
 用不同 branch 区分不同主版本进行开发。
+
+### [MVS (Minimal Version Selection)](https://www.ardanlabs.com/blog/2019/12/modules-03-minimal-version-selection.html) ([zh](https://tonybai.com/2019/12/21/go-modules-minimal-version-selection/))
+当多个 module 依赖同一个（相同主版本的） target module 时，选择（满足多个 module 需求的）最新而非（target module 的）最大的版本。
+
+基于 MVS 升级：`go get -t -d -v ./...`
+最新最大版本升级：`go get -u -t -d -v ./...` （会在 go.mod 中增加对最大版本的显式依赖，无论有没有代码使用）
+重置依赖：删除 go.mod/go.sum，重新 init。
 
 ## Plugin
 必须是main包（可以没有main函数），用`-buildmode=plugin`或`-buildmode=c-shared`编译，生成动态库文件。
@@ -1199,8 +1209,7 @@ go func() {
 ```
 查看：`http://localhost:6060/debug/pprof/` 可以生成各种 prof, trace 文件（不加 debug 参数，并指定时长参数），查看 stack 信息等。
 
-其他：
-[gops](https://github.com/google/gops) 诊断工具。
+其他：[gops](https://github.com/google/gops) 集成诊断工具。
 
 ### Frame Graphs
 安装：
@@ -1351,10 +1360,10 @@ type Context interface {
 `func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)` 当超过某段时间时，ctx得到通知。
 `func WithDeadline(parent Context, deadline time.Time) (Context, CancelFunc)` 当某个时间点到达时，ctx得到通知。
 `func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
+注意不同包间使用 key 时可能会冲突，一般将 key 定义为自定义类型`type ctxKey int`，这样不同包的 key 类型就肯定不一样，即使值一样也代表不同的 key。
 
 http中使用`Request.WithContext`，net中使用`Dialer.DialContext`
 1.7中使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp.go deprecates `Request.Cancel`/`Transport.CancelRequest`
-1.7前使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp_pre17.go
 
 ## net/http
 ### connection
@@ -1404,7 +1413,12 @@ func main() {
 http://www.oschina.net/translate/the-complete-guide-to-golang-net-http-timeouts
 
 * 服务端：对于不需要返回流的服务器，使用http.Server并设置ReadTimeout和WriteTimeout。（http.ListenAndServe无法设置）
-* 客户端：使用http.Client设置超时，从发起连接到接收响应结束。（http.Get等无法设置）
+* 客户端：对于 API 请求，使用 http.Client 设置超时，从发起连接到接收响应结束。对于流式请求，使用默认 transport + ResponseHeaderTimeout，从发起请求到收到 header。
+
+```
+tr := http.DefaultTransport.(*http.Transport).Clone()
+tr.ResponseHeaderTimeout = 10 * time.Second
+```
 
 使用timeout transport控制超时：
 ```

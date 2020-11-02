@@ -245,7 +245,7 @@ CA是证书的签发机构,它是PKI的核心。CA是负责签发证书、认证
 1. CA使用A的请求创建一个消息。CA使用CA的私钥对消息进行签名，以便创建一个单独的签名。CA 将消息和签名返回给A。消息和签名共同构成了A的证书。
 1. A将他的证书发送给B，以便授权他访问他的公钥(在证书中)。
 1. B使用CA的公钥(一般浏览器中已经内置了许多CA的证书/公钥)对证书签名进行验证。如果证明签名是有效的，他就承认证书中的公钥是A的公钥。
-然后进一步A可以要求B证明他的身份(是否拥有对应的私钥)。B则重新进行发一次消息，计算消息的摘要，签名之后发给A，A可以用从证书得到的公钥(此时证书中的公钥已确认为真)检查B的消息摘要，从而判断B的身份。
+然后进一步B可以要求A证明其身份(是否拥有对应的私钥)。A则重新进行发一次消息，计算消息的摘要，签名之后发给B，B可以用从证书得到A的公钥(此时证书中的公钥已确认为真)检查A的消息摘要，从而判断A的身份。
 
 
 ## 注册机构
@@ -343,6 +343,8 @@ openssl x509 -outform der -in all/my-private-root-ca.cert.pem -out client/my-pri
 查看证书内容： `openssl x509 -in cert.pem -noout -text`
 
 curl 发送带客户端证书请求： `curl --cacert ca.crt --cert client.crt --key client.key https://...`
+
+取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443`
 
 # [JWT](https://jwt.io)
 ## 格式
