@@ -37,6 +37,12 @@ export PATH=$PATH:$GOPATH/bin
 交叉编译：
 如在mac上：`GOOS=linux GOARCH=amd64 go build`
 
+[Presentation](https://pkg.go.dev/golang.org/x/tools/present):
+`go install golang.org/x/tools/cmd/present`
+run locally in slides dir: `present -base ~/go/src/golang.org/x/tools/cmd/present`
+host in github: http://go-talks.appspot.com/github.com/davecheney/presentations/performance-without-the-event-loop.slide
+
+
 ### 开发辅助工具
 github.com:
 [godef](https://github.com/rogpeppe/godef)
@@ -270,7 +276,7 @@ rune: alias for int32
 // 枚举（只可以此类型自己或常量匹配）
 type Weekday int
 const (
-    Monday Weekday = iota
+    Monday Weekday = iota // iota 是当前const块中常量的索引。
     Tuesday
     Wednesday
     Thursday
@@ -408,7 +414,14 @@ slice = slice[5:10] // reslice, reuse name
 ```
 
 `append(slice, v1, v2, ...)`: 在slice（可以是nil）结尾添加数据，返回新slice。如果未超出cap限制，会修改原数组，否则会复制并重新分配底层数组，且cap变为原来的2倍。
-`copy(dest, src)`: 复制一个slice到另一个，直到其中一个结尾，返回copy的个数，可正确处理重叠部分。复制到一个数组：`copy(array[:], src)`
+
+扩容策略：
+
+* 如果需求容量大于当前容量的两倍，则用需求容量
+* 如果当前 slice 的长度< 1024 则将容量翻倍
+* 如果当前 slice 的长度>= 1024 则每次增加 25% 的容量，直到新容量大于需求容量
+
+`copy(dest, src)`: 复制一个slice到另一个，直到其中一个长度的结尾，返回copy的个数，可正确处理重叠部分。复制到一个数组：`copy(array[:], src)`
 
 >  a slice argument can be modified by a function, but its header cannot
 
@@ -628,6 +641,20 @@ se(&p)
 > [Accept interfaces, return structs.](https://blog.chewxy.com/2018/03/18/golang-interfaces/)
 
 一个interface是许多method的集合。运行时绑定。接口命名惯以er为后缀，只有签名没有实现，没有数据字段，可以包含其他接口。
+```
+// interface{}
+type eface struct {
+	_type *_type
+	data  unsafe.Pointer
+}
+
+// interface{ ... }
+type iface struct {
+	tab  *itab
+	data unsafe.Pointer
+}
+```
+
 interface变量仅在实际类型和值都为nil时才为nil: `val==nil`。如果只是值为nil，那么也会打印出`<nil>`。
 ```
 func foo() *int {
@@ -943,6 +970,8 @@ for i := 0; i < cap(sem); i++ {
 }
 ```
 
+### Others
+https://talks.golang.org/2013/advconc.slide
 
 # 错误处理
 ## [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
@@ -1330,6 +1359,8 @@ https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 
 # [Std Packages](https://golang.org/pkg/)
 ## [context](http://blog.golang.org/context)
+> [Pass context.Context in as an argument; don't store it in structs.](https://blog.golang.org/context-and-structs)
+
 Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
 Context本身是线程安全的，它携带的参数也必须是线程安全的。
 Context可以有继承关系，当一个Context被取消，它所有的子Context都会被取消（收到通知）。

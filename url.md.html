@@ -24,7 +24,7 @@ URL里只能包含：
 安全字符：不用编码的字符。不同的component安全字符集不一样。
 对于一般component内容里（不包括分隔符，比如query的key和value）安全字符为`unreserved / pct-encoded`，出现时其它字符时必须用%百分号加上两位字符表一个字节的十六进制形式编码（多字节字符一般用UTF8编码）来表示其原有意义（对于安全字符编不编码等价）。
 对于path name(segment), 其安全字符是`unreserved / pct-encoded / sub-delims / ":" / "@"` (pchar)。
-对于`application/x-www-form-urlencoded`这种类型（表单），空格`[SP]`常被替换成`+`而不是`%20`。
+对于`application/x-www-form-urlencoded`这种类型（表单）以及 query 里，空格`[SP]`常（非必要）被替换成`+`而不是`%20`。
 
 ## 语言使用
 ### [JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent)
@@ -45,10 +45,20 @@ function fixedEncodeURIComponent(str) {
 ### [Golang](http://golang.org/pkg/net/url)
 例子：
 ```
-u := url.URL{}
-u.Scheme = "https"
-u.Host = "google.com"
-u.Path = "/hello,world?"
+host := "https://google.com/"
+path := url.PathEscape("foo+bar!")
+query1Val := url.QueryEscape("ab+c")
+query2Val := url.QueryEscape("de$f")
+query := fmt.Sprintf("query=%s&query2=%s", query1Val, query2Val)
+fmt.Printf("%s%s?%s\n", host, path, query) // https://google.com/foo+bar%21?query=ab%2Bc&query2=de%24f
+```
+
+```
+u := url.URL{
+  Scheme: "https",
+  Host: "google.com",
+  Path: "/hello,world?",
+}
 q := u.Query()
 q.Set("q", "go,lang")
 u.RawQuery = q.Encode() // 安全字符：unreserved
@@ -71,6 +81,7 @@ fmt.Println(u.String()) // https://google.com/hello,world%3F?q=go%2Clang
 ## Reference
 http://tools.ietf.org/html/rfc3986
 http://blog.lunatech.com/2009/02/03/what-every-web-developer-must-know-about-url-encoding [CN](http://www.oschina.net/translate/what-every-web-developer-must-know-about-url-encoding)
+controversy: https://www.coder.work/article/1770738
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
