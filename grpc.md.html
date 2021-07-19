@@ -139,6 +139,24 @@ for golang: `GODEBUG=http2debug=2`
 runtime:
 [Channelz](https://grpc.io/blog/a_short_introduction_to_channelz)
 
+# Keepalive
+一般 proxy，LB 等都有 idle 超时，所以应设置心跳来 keepalive. https://www.cncf.io/blog/2018/08/31/grpc-on-http-2-engineering-a-robust-high-performance-protocol/
+
+client 向 server发送设置（server 也向 client 发送，默认发送间隔很长）：
+
+server 设置：
+```
+grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+	MinTime:             5 * time.Second,
+	PermitWithoutStream: true,
+})
+```
+
+client 设置：
+```
+grpc.WithKeepaliveParams(keepalive.ClientParameters{PermitWithoutStream: true})
+```
+
 # API 设计
 https://cloud.google.com/apis/design
 
