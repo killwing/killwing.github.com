@@ -715,6 +715,8 @@ case Stringer:
     ...
 }
 ```
+编译期检查类型的接口实现：`var _ Stringer = (*MyType)(nil)`
+
 Print等利用反射机制("reflect" package)知道其参数类型，也可以用`%v`表示任意类型格式。
 
 接口一般只针对method，如果一般函数要实现接口，则在函数类型上附加方法：
@@ -727,7 +729,6 @@ func (this ToString) String() string {
 var s Stringer = ToString(func() string { return "test" })
 s.String()
 ```
-
 
 # Concurrency
 > [Do not communicate by sharing memory; instead, share memory by communicating.](http://blog.golang.org/share-memory-by-communicating)
@@ -1013,7 +1014,7 @@ func main() {
 // dtor
 ```
 
-`panic`: 类似抛出异常，一直向上传递，并终止程序（不能跨越goroutine的边界）。参数类型为`interface{}`，可接受任何参数。一些运行时错误比如数组越界，引用空指针也会引发panic。
+`panic`: 类似抛出异常，一直向上传递，并终止程序（不能跨越goroutine的边界，只能触发当前goroutine的defer）。参数类型为`interface{}`，可接受任何参数。一些运行时错误比如数组越界，引用空指针也会引发panic。defer函数中可以再次panic。
 `recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。没有捕获到panic则返回nil。
 
 不能被 recover 的情况：
@@ -1363,7 +1364,7 @@ https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 
 Context是一个请求的上下文，一般用于服务端在一系列goroutine里处理请求时带上取消通知，超时通知，相关请求参数（如ID，token等）以便主动超时或取消请求时（或发生异常时）退出所有相关goroutine释放资源。
 Context本身是线程安全的，它携带的参数也必须是线程安全的。
-Context可以有继承关系，当一个Context被取消，它所有的子Context都会被取消（收到通知）。
+Context可以有继承关系，当一个Context被取消，它所有的子Context都会被取消（收到通知）。子Context取消不会影响父Context。
 ```
 // A Context carries a deadline, cancelation signal, and request-scoped values
 // across API boundaries. Its methods are safe for simultaneous use by multiple
@@ -1386,12 +1387,12 @@ type Context interface {
 ```
 
 `func Background() Context` 返回可以作为所有Context的父Context，它永远不会被取消。
-`func TODO() Context` 返回一个待用的Context，不确定的时候用。
+`func TODO() Context` 返回一个待用的Context，不确定的时候用。和 Background 只是语义上不同。
 `func WithCancel(parent Context) (ctx Context, cancel CancelFunc)` 返回子Context和cancel函数。当cancel被调用到时（一般在处理这个请求的handler返回时调用，并取消子Context和其子孙，删除父Context的引用，停止所有相关联的timer），ctx得到通知（`Done()返回`）。
 `func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)` 当超过某段时间时，ctx得到通知。
 `func WithDeadline(parent Context, deadline time.Time) (Context, CancelFunc)` 当某个时间点到达时，ctx得到通知。
-`func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值。
-注意不同包间使用 key 时可能会冲突，一般将 key 定义为自定义类型`type ctxKey int`，这样不同包的 key 类型就肯定不一样，即使值一样也代表不同的 key。
+`func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值，如果找不到也会到父Context中查找。一般用于传递auth信息，请求ID等。
+注意不同包间使用 key 时可能会冲突，一般将 key 定义为自定义类型`type ctxKey struct{}`，这样不同包的 key 类型就肯定不一样，即使值一样也代表不同的 key。
 
 http中使用`Request.WithContext`，net中使用`Dialer.DialContext`
 1.7中使用方法：https://github.com/golang/net/blob/master/context/ctxhttp/ctxhttp.go deprecates `Request.Cancel`/`Transport.CancelRequest`
@@ -1562,7 +1563,7 @@ index, value, ok := reflect.Select(cases) // return from channels[index]
 * channel, complex, function类型不能被encode
 * 循环数据结构不能被encode
 * 指针类型会被encode成其指向的值
-* 只有导出的字段会被encode
+* 只有导出的字段会被encode，其他xml, gob编码类似
 * 数据流使用`NewEncoder`
 
 Go|Json
@@ -1618,6 +1619,7 @@ https://golang.org/pkg/regexp/syntax/
 https://github.com/StefanSchroeder/Golang-Regex-Tutorial
 
 ## sync
+### Cond
 条件变量：有一个关联锁，当条件改变的时候（保护条件检查相关数据），及调用 Wait 的时候必须持有这个锁。
 ```
 type Cond struct {
@@ -1627,7 +1629,7 @@ type Cond struct {
 }
 ```
 
-Wait 自动释放锁，然后暂停此 goroutine 的执行，当被唤醒的时候，获得锁然后才返回。
+Wait 自动释放锁，然后暂停此 goroutine 的执行，当被唤醒的时候，重新获得锁然后才返回。
 因为在等待的时候，是不持有锁的，所有当 Wait 返回后需要重新检查条件是否满足（用循环）：
 ```
 c.L.Lock()
@@ -1639,9 +1641,14 @@ c.L.Unlock()
 ```
 当调用 Signal/Broadcast 的时候，可以但并不要求持有锁。
 
-## misc
-* `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
-* 未导出的结构体的字段将不会被（json、xml、gob等）编码。
+### [扩展](https://pkg.go.dev/golang.org/x/sync)
+
+* WaitGroup 更方便的封装版本 errgroup
+* 带权重的信号量 semaphore
+* 同步重复请求 singleflight
+
+## log
+`log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
 
 # [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
 用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc（alpine 下链接 musl）。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替，但会导致 dns 解析(nsswitch)等行为和标准不一致。
