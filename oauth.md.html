@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>OAuth 2.0</title>
+<xmp theme="readable" style="display:none;">
+# Roles
+Resource Owner (RO): 资源所有者，当是一个人时，通常是指用户自己，可以进行授权资源访问。
+Resource Server (RS): 资源服务器，用户资源存放的服务器，需要 Access Token (AT) 访问。
+Client: 代表用户授权访问资源的应用。
+Authorization Server (AS): 认证服务器，在认证 RO 并取得授权后，可以给 Client 签发 AT。
+
+# Protocol Flow
+```
+     +--------+                               +---------------+
+     |        |--(A)- Authorization Request ->|   Resource    |
+     |        |                               |     Owner     |
+     |        |<-(B)-- Authorization Grant ---|               |
+     |        |                               +---------------+
+     |        |
+     |        |                               +---------------+
+     |        |--(C)-- Authorization Grant -->| Authorization |
+     | Client |                               |     Server    |
+     |        |<-(D)----- Access Token -------|               |
+     |        |                               +---------------+
+     |        |
+     |        |                               +---------------+
+     |        |--(E)----- Access Token ------>|    Resource   |
+     |        |                               |     Server    |
+     |        |<-(F)--- Protected Resource ---|               |
+     +--------+                               +---------------+
+
+```
+
+(B) 是关键，RO 给 Client 授权。
+
+# Authorization Grant
+## Authorization Code
+```
+     +----------+
+     | Resource |
+     |   Owner  |
+     |          |
+     +----------+
+          ^
+          |
+         (B)
+     +----|-----+          Client Identifier      +---------------+
+     |         -+----(A)-- & Redirection URI ---->|               |
+     |  User-   |                                 | Authorization |
+     |  Agent  -+----(B)-- User authenticates --->|     Server    |
+     |          |                                 |               |
+     |         -+----(C)-- Authorization Code ---<|               |
+     +-|----|---+                                 +---------------+
+       |    |                                         ^      v
+      (A)  (C)                                        |      |
+       |    |                                         |      |
+       ^    v                                         |      |
+     +---------+                                      |      |
+     |         |>---(D)-- Authorization Code ---------'      |
+     |  Client |          & Redirection URI                  |
+     |         |                                             |
+     |         |<---(E)----- Access Token -------------------'
+     +---------+       (w/ Optional Refresh Token)
+
+   Note: The lines illustrating steps (A), (B), and (C) are broken into
+   two parts as they pass through the user-agent.
+```
+
+## Implicit
+```
+     +----------+
+     | Resource |
+     |  Owner   |
+     |          |
+     +----------+
+          ^
+          |
+         (B)
+     +----|-----+          Client Identifier     +---------------+
+     |         -+----(A)-- & Redirection URI --->|               |
+     |  User-   |                                | Authorization |
+     |  Agent  -|----(B)-- User authenticates -->|     Server    |
+     |          |                                |               |
+     |          |<---(C)--- Redirection URI ----<|               |
+     |          |          with Access Token     +---------------+
+     |          |            in Fragment
+     |          |                                +---------------+
+     |          |----(D)--- Redirection URI ---->|   Web-Hosted  |
+     |          |          without Fragment      |     Client    |
+     |          |                                |    Resource   |
+     |     (F)  |<---(E)------- Script ---------<|               |
+     |          |                                +---------------+
+     +-|--------+
+       |    |
+      (A)  (G) Access Token
+       |    |
+       ^    v
+     +---------+
+     |         |
+     |  Client |
+     |         |
+     +---------+
+
+   Note: The lines illustrating steps (A) and (B) are broken into two
+   parts as they pass through the user-agent.
+```
+
+## Resource Owner Password Credentials
+```
+     +----------+
+     | Resource |
+     |  Owner   |
+     |          |
+     +----------+
+          v
+          |    Resource Owner
+         (A) Password Credentials
+          |
+          v
+     +---------+                                  +---------------+
+     |         |>--(B)---- Resource Owner ------->|               |
+     |         |         Password Credentials     | Authorization |
+     | Client  |                                  |     Server    |
+     |         |<--(C)---- Access Token ---------<|               |
+     |         |    (w/ Optional Refresh Token)   |               |
+     +---------+                                  +---------------+
+```
+
+## Client Credentials
+```
+     +---------+                                  +---------------+
+     |         |                                  |               |
+     |         |>--(A)- Client Authentication --->| Authorization |
+     | Client  |                                  |     Server    |
+     |         |<--(B)---- Access Token ---------<|               |
+     |         |                                  |               |
+     +---------+                                  +---------------+
+```
+
+## [Device Code](http://www.rfcreader.com/#rfc8628)
+```
+      +----------+                                +----------------+
+      |          |>---(A)-- Client Identifier --->|                |
+      |          |                                |                |
+      |          |<---(B)-- Device Code,      ---<|                |
+      |          |          User Code,            |                |
+      |  Device  |          & Verification URI    |                |
+      |  Client  |                                |                |
+      |          |  [polling]                     |                |
+      |          |>---(E)-- Device Code       --->|                |
+      |          |          & Client Identifier   |                |
+      |          |                                |  Authorization |
+      |          |<---(F)-- Access Token      ---<|     Server     |
+      +----------+   (& Optional Refresh Token)   |                |
+            v                                     |                |
+            :                                     |                |
+           (C) User Code & Verification URI       |                |
+            :                                     |                |
+            v                                     |                |
+      +----------+                                |                |
+      | End User |                                |                |
+      |    at    |<---(D)-- End user reviews  --->|                |
+      |  Browser |          authorization request |                |
+      +----------+                                +----------------+
+```
+
+## [Token Exchange](http://www.rfcreader.com/#rfc8693)
+https://indigo-iam.github.io/docs/v/current/user-guide/api/oauth-token-exchange.html
+
+
+# [JWT](https://jwt.io)
+## 格式
+`Header.Payload.Signature` Header, Payload 部分都是 JSON 内容的 URL Base64 编码。
+
+Header
+
+* alg (algorithm)： "HS256"(HMAC SHA256), "RS256"(RSA SHA256)
+* typ (type)： 固定值 "JWT"
+* kid (key ID): 加密所使用的 key ID
+
+Payload (Claims)
+
+* iss (issuer)：签发人
+* exp (expiration time)：过期时间
+* sub (subject)：主题
+* aud (audience)：受众
+* nbf (not before)：生效时间
+* iat (issued at)：签发时间
+* jti (JWT ID)：编号
+
+可以有私有字段
+
+Signature
+`HMACSHA256(base64UrlEncode(header) + "." + base64UrlEncode(payload), secret)`
+
+## 使用
+`Authorization: Bearer <token>`
+
+# Scope V.S. Claim
+Scope: 由 Client 请求，实际由 AS 决定，可能小于请求 scope。
+Claim: 由 AS 填写的认证过的属性。
+
+
+# Reference
+http://www.rfcreader.com/#rfc6749
+https://www.ruanyifeng.com/blog/2014/05/oauth_2_0.html
+https://curity.io/resources/webinars/course-getting-started-with-oauth-and-openid-connect/
+https://oauth.tools
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
