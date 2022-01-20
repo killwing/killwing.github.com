@@ -3,10 +3,10 @@
 <meta charset="utf-8" />
 <title>Go</title>
 <xmp theme="readable" style="display:none;">
-[http://golang.org](http://golang.org)
+[https://go.dev](https://go.dev)
 
 # 准备
-### [下载安装](http://golang.org/doc/install)
+### [下载安装](https://go.dev/doc/install)
 
 下载安装包，并解压到安装路径(如`$HOME/go`)，最后配置环境变量。
 ```
@@ -974,7 +974,70 @@ for i := 0; i < cap(sem); i++ {
 ### Others
 https://talks.golang.org/2013/advconc.slide
 
-# 错误处理
+# Generics
+## type parameter
+function
+```
+func SumIntsOrFloats[K comparable, V int64 | float64](m map[K]V) V {
+    var s V
+    for _, v := range m {
+        s += v
+    }
+    return s
+}
+
+// 调用
+ints := map[string]int64{ "first": 34, "second": 12 }
+SumIntsOrFloats[string, int64](ints)
+SumIntsOrFloats(ints) // 自动类型推断
+```
+
+struct
+```
+type ModelX[T any] struct {
+    Data []T
+}
+
+// 初始化
+modelInt := ModelX[int]{Data: []int{1, 2, 3}} // constraint 的 type 不能省
+```
+
+## type constraint
+用接口表示一个 type constraint 的集合，可以包含一个 type list，如果接口包含方法，则实参类型必须实现所有这些方法，且泛型参数在使用的时候只能调用这些方法。
+
+如：
+```
+type Number interface {
+    int64 | float64
+}
+```
+
+内置：
+__constraints__ 包:
+```
+type Signed interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64
+}
+```
+`~int` 表示底层类型是 int 就可以满足
+
+__any__
+```
+type any = interface{}
+```
+替换：`gofmt -w -r 'interface{} -> any' .`
+
+__comparable__
+```
+// comparable is an interface that is implemented by all comparable types
+// (booleans, numbers, strings, pointers, channels, interfaces,
+// arrays of comparable types, structs whose fields are all comparable types).
+// The comparable interface may only be used as a type parameter constraint,
+// not as the type of a variable.
+type comparable comparable
+```
+
+# Error Handling
 ## [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
 error的描述一般小写开头，最后不带句号，因为经常被嵌入到其他描述中。
@@ -1055,9 +1118,8 @@ import (
 
 `./...`不会匹配vendor目录。
 
-## [Modules](https://blog.golang.org/using-go-modules) ([zh](https://www.4async.com/2019/03/2019-03-20-using-go-modules/))
+## [Modules](https://blog.golang.org/using-go-modules) ([zh](https://www.4async.com/2019/03/2019-03-20-using-go-modules/) [doc](https://golang.org/doc/#developing-modules))
 https://github.com/golang/go/wiki/Modules
-https://golang.org/doc/#developing-modules
 
 `GO111MODULE=on` 默认auto自动检测是否启用。
 
@@ -1098,7 +1160,7 @@ replace: 只作用于当前 module
 `go mod vendor` 可以把依赖从缓存 copy 到 module 的 vendor 目录下。
 `go mod graph` 显示模块依赖图。
 `go mod why -m` 显示模块依赖顺序。
-`go build` 自动分析下载依赖并更新`go.mod`(require)，然后编译。
+`go build -mod=mod` 自动分析下载依赖并更新`go.mod`(require)，然后编译。
 `go list -m -json all` 显示 build list，编译依赖的所有 module 及实际使用的版本。
 `go list -m -versions github.com/pkg/errors` 显示指定包的所有版本。
 `go clean -modcache` && `go mod tidy` 重新更新缓存。
@@ -1165,6 +1227,9 @@ func TestFoo(t *testing.T) {
 
 ## Benchmark
 `go test -bench=. -benchtime=3s -benchmem`
+`-cpu=1,2,4` 分别指定`GOMAXPROCS`测试。
+`-benchtime=1000x` 指定迭代次数。
+
 测试函数必须形如：`b.N`是本轮测试循环次数，会根据每个测试的要求时间自动调整（默认1s）。
 ```
 func BenchmarkHello(b *testing.B) {
@@ -1174,11 +1239,33 @@ func BenchmarkHello(b *testing.B) {
 }
 ```
 用`b.ResetTimer()`重新计时以忽略准备过程。
-`-cpu=1,2,4` 分别指定`GOMAXPROCS`测试。
-`-benchtime=1000x` 指定迭代次数。
 
 输出如`50000000    24.1 ns/op    8 B/op    1 allocs/op` 表示跑了50000000次循环，每次循环用时24.1 ns, 分配了8 Byte堆内存，有1次堆内存分配。
 用 [benchstat](https://godoc.org/golang.org/x/perf/cmd/benchstat) 比较结果。
+
+## Fuzzing ([doc](https://go.dev/doc/fuzz/) ([zh](https://mp.weixin.qq.com/s/l1jv6G9S_8LrOh94fSHHqw)))
+`go test -fuzz={FuzzTestName} -fuzztime=10s`
+`-fuzztime` 指定运行迭代时间或次数，默认无限
+
+测试函数必须形如：
+```
+func FuzzFoo(f *testing.F) {
+	f.Add(5, "hello") // 可选手动添加case (seed corpus) 作为基础输入
+	f.Fuzz(func(t *testing.T, i int, s string) {
+		out, e := Foo(i, s)
+		if e != nil && out != "" {
+			t.Errorf("%q, %v", out, e)
+		}
+	})
+}
+```
+fuzzing 参数必须是以下类型：string, []byte, int, int8, int16, int32/rune, int64, uint, uint8/byte, uint16, uint32, uint64, float32, float64, bool
+每次 fuzz testing 都会先执行 seed corpus 和 generated corpus。
+失败的 case 都作为 seed corpus 记录在 `testdata/fuzz/{FuzzTestName}` 目录，以后每次 `go test` 都会自动加载执行（作为regression）。
+
+`fuzz: elapsed: 12s, execs: 1386684 (115594/sec), new interesting: 21 (total: 212)`
+execs: 执行的case/input数目
+interesting: 新加入的 generated corpus（一般是导致了覆盖率的增加）, `$GOCACHE/fuzz` 记录了系统维护的 generated corpus，清除`go clean -fuzzcache`
 
 ## [Coverage](https://blog.golang.org/cover) ([cmd](http://golang.org/cmd/cover/))
 生成：`go test -coverprofile=cover.out`
@@ -1210,7 +1297,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 ## 结构化
 [logr](https://github.com/go-logr/logr)
 
-# [Diagnostics](https://golang.org/doc/diagnostics.html)
+# Diagnostics ([doc](https://golang.org/doc/diagnostics.html))
 
 ## Debuging ([pkg](https://golang.org/pkg/runtime/debug/))
 查看运行状态：`GOMAXPROCS=2 GODEBUG="schedtrace=1000, scheddetail=1" ./test.out`

@@ -8,6 +8,7 @@ Resource Owner (RO): 资源所有者，当是一个人时，通常是指用户�
 Resource Server (RS): 资源服务器，用户资源存放的服务器，需要 Access Token (AT) 访问。
 Client: 代表用户授权访问资源的应用。
 Authorization Server (AS): 认证服务器，在认证 RO 并取得授权后，可以给 Client 签发 AT。
+User-Agent: 一般指浏览器
 
 # Protocol Flow
 ```
@@ -33,7 +34,18 @@ Authorization Server (AS): 认证服务器，在认证 RO 并取得授权后，�
 
 (B) 是关键，RO 给 Client 授权。
 
+# Client 注册
+Client 注册必须提供：
+
+* type: confidential - 有后端，有能力保存 client secret，public - 无法保存 client secret，比如前端应用
+* redirection URIs: 回调地址
+* 其它信息
+
 # Authorization Grant
+对于任何请求，AS 必须验证 client-id 和回调地址相匹配，这样保证了返回内容只给此 client 自己。如果内容不是通过回调返回的（无 User-Agent，比如后端 API 直接返回），则必须提供 client-secret 以验证 client 的身份。
+Authorization Code/Implicit 必须有受信任的 User-Agent 参与（比如浏览器），与用户进行交互来授权。
+对于 public client, Authorization Code + PKCE 可以用来代替 Implicit。
+
 ## Authorization Code
 ```
      +----------+
@@ -65,6 +77,51 @@ Authorization Server (AS): 认证服务器，在认证 RO 并取得授权后，�
    Note: The lines illustrating steps (A), (B), and (C) are broken into
    two parts as they pass through the user-agent.
 ```
+
+(A)
+```
+GET https://as.com/oauth/authorize?
+  response_type=code&
+  client_id={CLIENT_ID}&
+  redirect_uri={CALLBACK_URL}&
+  scope=read
+```
+
+(B) 用户根据 AS 展示的 client 信息及 scope 等，决定是否授权。
+
+(C)
+```
+302 {CALLBACK_URL}?code={AUTHORIZATION_CODE}
+```
+
+如果 CALLBACK_URL 不是 HTTPS 或者是移动应用的自定义协议跳转，则跳转的时候 code 可能泄漏。如果又是 public client，AS 并不验证 client 身份而直接颁发 AT，所以只要拿到 code 就能拿到 AT，解决方案：[PKCE](https://datatracker.ietf.org/doc/html/rfc7636), [PKCE Auth Flow](https://auth0.com/docs/authorization/flows/authorization-code-flow-with-proof-key-for-code-exchange-pkce), [More](https://www.nevermoe.com/2019/02/19/oauth2-0-pkce/)
+
+(D)
+```
+POST https://as.com/oauth/token?
+  client_id=CLIENT_ID&
+  client_secret=CLIENT_SECRET&
+  grant_type=authorization_code&
+  code={AUTHORIZATION_CODE}&
+  redirect_uri={CALLBACK_URL}
+```
+
+如果是 public client，则没有 CLIENT_SECRET，只带上 CLIENT_ID。
+如果是 confidential client，则可以直接用 basic auth。
+code 只能使用一次。
+
+(E)
+```
+{
+  "access_token":"2YotnFZFEjr1zCsicMWpAA",
+  "token_type":"example",
+  "expires_in":3600,
+  "refresh_token":"tGzv3JOkF0XG5Qx2TlKWIA",
+  "example_parameter":"example_value"
+}
+```
+
+refresh_token 后续用来重新获取 AT，一般有效期比较长。
 
 ## Implicit
 ```
@@ -105,6 +162,22 @@ Authorization Server (AS): 认证服务器，在认证 RO 并取得授权后，�
    parts as they pass through the user-agent.
 ```
 
+(A)
+```
+GET https://as.com/oauth/authorize?
+  response_type=token&
+  client_id={CLIENT_ID}&
+  redirect_uri={CALLBACK_URL}&
+  scope=read
+```
+
+(C)
+```
+302 {CALLBACK_URL}#access_token={ACCESS_TOKEN}&token_type=example&expires_in=3600
+```
+CALLBACK_URL 不一定是 HTTPS (Step D)，所以 AT 不能在 query 参数里，而是放到 fragment 里，这样跳转时 AT 就不会发到服务器，而只有 User-Agent（Step E 中的 JS）能拿到。
+
+
 ## Resource Owner Password Credentials
 ```
      +----------+
@@ -126,6 +199,8 @@ Authorization Server (AS): 认证服务器，在认证 RO 并取得授权后，�
      +---------+                                  +---------------+
 ```
 
+直接提供 RO 的账号，不常用。
+
 ## Client Credentials
 ```
      +---------+                                  +---------------+
@@ -136,6 +211,8 @@ Authorization Server (AS): 认证服务器，在认证 RO 并取得授权后，�
      |         |                                  |               |
      +---------+                                  +---------------+
 ```
+
+一般用于服务间通信，无需用户介入（无用户身份）
 
 ## [Device Code](http://www.rfcreader.com/#rfc8628)
 ```
@@ -176,14 +253,14 @@ Header
 
 * alg (algorithm)： "HS256"(HMAC SHA256), "RS256"(RSA SHA256)
 * typ (type)： 固定值 "JWT"
-* kid (key ID): 加密所使用的 key ID
+* kid (key ID): 加密所使用的 key ID，用于 key rotation。
 
 Payload (Claims)
 
 * iss (issuer)：签发人
 * exp (expiration time)：过期时间
-* sub (subject)：主题
-* aud (audience)：受众
+* sub (subject)：主体，如 user id
+* aud (audience)：受众, 如 oauth client id
 * nbf (not before)：生效时间
 * iat (issued at)：签发时间
 * jti (JWT ID)：编号
@@ -203,7 +280,8 @@ Claim: 由 AS 填写的认证过的属性。
 
 # Reference
 http://www.rfcreader.com/#rfc6749
-https://www.ruanyifeng.com/blog/2014/05/oauth_2_0.html
+https://www.ruanyifeng.com/blog/2019/04/oauth-grant-types.html
+https://www.chrisyue.com/security-issue-about-oauth-2-0-you-should-know.html
 https://curity.io/resources/webinars/course-getting-started-with-oauth-and-openid-connect/
 https://oauth.tools
 
