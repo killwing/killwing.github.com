@@ -995,7 +995,11 @@ SumIntsOrFloats(ints) // 自动类型推断
 struct
 ```
 type ModelX[T any] struct {
-    Data []T
+    data []T
+}
+
+func (t *Modelx[T]) len() int {
+    return len(t.data)
 }
 
 // 初始化
@@ -1004,6 +1008,7 @@ modelInt := ModelX[int]{Data: []int{1, 2, 3}} // constraint 的 type 不能省
 
 ## type constraint
 用接口表示一个 type constraint 的集合，可以包含一个 type list，如果接口包含方法，则实参类型必须实现所有这些方法，且泛型参数在使用的时候只能调用这些方法。
+含有 type list 的接口不能用于普通参数类型。
 
 如：
 ```
@@ -1305,6 +1310,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 查看go相关环境变量：`go env`
 查看import及依赖：`go list -json`
 竞态检测：`go run/build/test -race`
+产生coredump：`GOTRACEBACK=crash`
 GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`
 
 Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/derekparker/delve)
@@ -1431,12 +1437,46 @@ func grow(p *string, c int, a [1000]int) {
 
 调用`go generate`执行注释后的命令生成文件。
 
+## Embed ([pkg](https://pkg.go.dev/embed))
+`//go:embed`
+
+可以嵌入文件（编译期）到包级别的导出或未导出的字符串, bytes, embed.FS
+```
+import _ "embed"
+
+//go:embed version.txt
+var version string
+
+//go:embed hello.txt
+var b []byte
+
+//go:embed image/* template/*
+//go:embed html/index.html
+var content embed.FS
+// usage
+data, _ := content.ReadFile("html/index.html")
+http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(content))))
+template.ParseFS(content, "*.tmpl")
+```
+嵌入FS时，可以是目录（包括子目录）。
+
 ## Build Constraints([pkg](https://golang.org/pkg/go/build/))
 又称build tag或条件编译。在`go run/build/test`的时候以`-tags`指定。
 指令：在源文件（不一定是go文件）中以`// +build`表示，必须在package之前并以空行隔开。
 条件：`空格：或`，`逗号：与`，`!：非`，多行表示“与”。比如`// +build linux,386 darwin,!cgo`表示`(linux OR darwin) AND 386`
 特殊的tag：操作系统`runtime.GOOS`，架构`runtime.GOARCH`，编译器`gc`/`gccgo`，`cgo`，版本`go1.x`，忽略`ignore`。
 操作系统和架构也可以以文件名的形式说明：`*_GOOS`, `*_GOARCH`, `*_GOOS_GOARCH`，如`source_windows_amd64.go`
+
+新语法 `//go:build`
+```
+BuildLine      = "//go:build" Expr
+Expr           = OrExpr
+OrExpr         = AndExpr   { "||" AndExpr }
+AndExpr        = UnaryExpr { "&&" UnaryExpr }
+UnaryExpr      = "!" UnaryExpr | "(" Expr ")" | tag
+tag            = tag_letter { tag_letter }
+tag_letter     = unicode_letter | unicode_digit | "_" | "."
+```
 
 ## pragmas
 https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
@@ -1446,7 +1486,7 @@ https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 `//go:nosplit`
 `//go:noinline` 禁止内联函数
 
-# [Std Packages](https://golang.org/pkg/)
+# [Std Packages](https://pkg.go.dev/std)
 ## [context](http://blog.golang.org/context)
 > [Pass context.Context in as an argument; don't store it in structs.](https://blog.golang.org/context-and-structs)
 

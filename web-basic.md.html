@@ -179,7 +179,6 @@ DocumentFragment | #document-fragment| null|11
 ## CSS
 https://web.dev/learn/css/
 https://developer.mozilla.org/en-US/docs/Web/CSS
-https://piccalil.li/blog/a-modern-css-reset/
 
 ### 显示优先级
 1. 浏览器缺省设置 (user agent)
@@ -285,10 +284,11 @@ selector|name|description|example
 * 内边距、边框和外边距都是可选的，默认值是零，但浏览器可能提供预定义的样式。
 * width 和 height 指的是 box-sizing 区域的宽度和高度。
  * `box-sizing: content-box;` （默认）计算仅包含元素内容。
- * `box-sizing: border-box;` 计算包含元素内容，border, padding 在内。
-* 控制内容和 box 大小：
-  * `data-sizing: extrinsic;` 由 width 和 height 决定 box 大小。
-  * `data-sizing: intrinsic;` 由内容决定 box 大小, 当 width/height 设为 min-content/max-content 或未设置时。
+ * `box-sizing: border-box;` 计算包含元素内容，border, padding 在内。建议设为此值，但 content box 显示子元素从 margin 开始，如果子元素 margin 不为0，则可能达不到预期效果。
+* 一般原则：一个元素的 width 基于其父元素，而 height 基于其子元素。
+* 控制内容和 box 大小，data-sizing 是元素的属性：
+  * `data-sizing="intrinsic"` 由内容决定 box 大小, 当 width/height 设为 min-content/max-content 或未设置时。
+  * `data-sizing="extrinsic"` 由 width 和 height 决定 box 大小。
 * 内边距、边框和外边距可以应用于一个元素的所有边，也可以应用于单独的边，默认值都是0。
 * 内边距不可以是负值，外边距可以，在很多情况下都要使用负值的外边距来使元素重叠。
 * 内边距和外边距的百分数值是相对于其父元素的width计算的。上下内边距会与左右内边距一致，即上下内边距的百分数会相对于父元素宽度设置，而不是相对于高度。
