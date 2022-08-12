@@ -160,7 +160,7 @@ validate cluster: `KUBECTL_PATH=$(which kubectl) NUM_NODES=1 KUBERNETES_PROVIDER
 https://github.com/heptio/sonobuoy
 https://github.com/bloomberg/powerfulseal
 
-# API
+# CRD
 GroupKindVersion 标识一个资源，Kind 和 resource name 一致
 ApiVersion: group/version
 
@@ -171,8 +171,9 @@ kubectl api-versions
 kubectl explain <resource> --api-version <apiVersion>
 ```
 
-可以同时存在同一个资源的不同 served 版本，但只有一个当前 stored 版本，可以有多个历史 stored 版本，其它版本由 (最后) stored 版本转化而来。
+可以同时存在同一个资源的不同 served 版本，但只有一个当前 stored 版本，可以有多个历史 stored 版本 (`.status.storedVersions`)，其它版本由当前 stored 版本转化而来。
 可以读取任意 served 版本，写入更新的是当前 stored 版本。
+改变 stored 版本不影响已经存在的 object，只影响后续的创建和更新。
 
 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/
 https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
@@ -627,6 +628,9 @@ client-go 库内部组件：
 * Work Queue: 将对象的投递和处理分离开，异步处理，起到了解藕的作用。
 * Object Sync Handler: 从 Work Queue 里取出对象的键值，以从 Indexer 获得实际的对象进行处理。
 
+operator best practices:
+https://github.com/slaise/community-operators/blob/master/docs/best-practices.md
+
 ## [Device Plugin](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/resource-management/device-plugin.md)
 
 ![img](https://raw.githubusercontent.com/kubernetes/community/master/contributors/design-proposals/resource-management/device-plugin-overview.png)
@@ -974,6 +978,34 @@ spec:
   version: v1beta1
   versionPriority: 100
 ```
+
+## Server Side Apply
+client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/
+
+冲突是一种特定的错误状态，发生在执行 Apply 改变一个字段，而恰巧该字段被其他用户声明过主权时 (metadata.managedFields)。
+在冲突发生的时候，只有 apply （内容类型为 application/apply-patch+yaml 的 PATCH 请求，且用 field-manager 参数标识自己）操作失败，而 update（所有修改对象的其他操作）会忽略冲突强制覆盖值。
+
+* 覆盖前值，成为唯一的管理器：设置查询参数 force 为 true，这将改变字段的值，从所有其他管理器的 managedFields 条目中删除指定字段。（如果是controller，不代表用户操作，一般会用force）
+* 不覆盖前值，放弃管理权：从配置文件中删掉字段，这就保持了原值不变，并从 managedFields 的应用者条目中删除该字段。
+* 不覆盖前值，成为共享的管理器：在配置文件中把字段的值改为和服务器对象一样，就实现了字段管理被应用者和所有声明了管理权的其他的字段管理器共享。
+
+apply 时必须字段必须至少有一个 manager (默认字段 manager 为 kube-controller-manager 等系统组件)，不填这个字段相当于放弃自己的管理权。
+apply 改变一个字段的管理权时，可以不提供所有必须字段，只提供需要改变的字段，因为其它必须字段已有其它 manager，也不会导致其它 managed 字段被删除。
+如果一个 apply 导致一个非必须自段没有 manager，则删除这个字段。只能删除自己 managed 的字段。
+如果一个 apply 导致一个必须字段没有 manager，比如放弃自己唯一管理权，则报错。
+
+
+kubectl (-v7):
+
+cmd | manager | op | method | content-type
+-   | -       | -  | -
+apply (server) | kubectl | apply | PATCH | apply-patch+yaml
+apply | kubectl-client-side-apply | update | PATCH | strategic-merge-patch+json
+create | kubectl-create | update | POST | application/json
+replace | kubectl-replace | update | PUT | application/json
+edit | kubectl-edit | update | PATCH| strategic-merge-patch+json
+patch | kubectl-patch | update | PATCH | strategic-merge-patch+json
+
 
 # Utilities
 ## Leader Election

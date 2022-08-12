@@ -190,10 +190,10 @@ Cache-Control
 * only-if-cached 客户端只需要缓存的响应
 
 效验：
-标识匹配：服务器在响应中包含ETag头表示资源ID，后面客户端就可以以此值进行效验
+标识匹配：服务器在响应中包含ETag头表示资源ID，后面客户端就可以以此值进行效验，ETag一般在 GET 和 PUT 中返回。
 
-* If-None-Match 如果没有匹配，服务端返回200和资源，如果匹配返回304(Not Modified)
-* If-Match 如果没有匹配，返回412(Precondition Failed)，如果匹配返回200和资源
+* If-None-Match 如果没有匹配，服务端返回200和资源，如果匹配返回304(Not Modified)，用于 GET，避免重复操作
+* If-Match 如果没有匹配，返回412(Precondition Failed)，如果匹配返回200和资源，用于 PUT/DELETE来 控制 MVCC
 
 修改时间：服务器在响应中包含Last-Modified: GMT
 

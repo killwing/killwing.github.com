@@ -7,41 +7,29 @@
 
 # 准备
 ### [下载安装](https://go.dev/doc/install)
+下载安装包，并解压到安装路径(如`$HOME/golibexec`)，最后配置环境变量。
+`go env -w GOROOT=$HOME/golibexec` 安装路径
+`go env -w GOPATH=$HOME/go` 存放 module 缓存，工具等
 
-下载安装包，并解压到安装路径(如`$HOME/go`)，最后配置环境变量。
 ```
-export GOROOT=$HOME/go
-export PATH=$PATH:$GOROOT/bin
+export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 ```
-
-GOPATH 默认：`$HOME/go`
-GOROOT 默认：自动推导安装的路径
-
-### [环境配置](http://golang.org/doc/code.html)
-工作区：包含src, pkg, bin目录。
-项目一般都是单独git目录在src下，编译`go build`出来的库文件和可执行文件安装`go install`在与src同级别的pkg，bin下。参数`./...`表示所有子目录的包。
-设置工作区环境变量：
-```
-export GOPATH=$HOME/go_ws
-export PATH=$PATH:$GOPATH/bin
-```
-安装一个包或可执行文件都会自动安装其依赖的包。如果有源文件import了一个repo URL，运行`go get`会自动下载编译和安装（git clone最新的，一般用于稳定通用库，不用于普通项目依赖管理）。
-可执行文件和它所依赖的包都是静态链接在一起的。
-
 
 ### [工具集](http://golang.org/doc/cmd)
-编译并直接运行：`go run test.go`
+编译并直接运行：`go run main.go`
 清除src目录下build生成的临时对象文件：`go clean`
 编译链接过程： `go build -x`
 
 交叉编译：
 如在mac上：`GOOS=linux GOARCH=amd64 go build`
 
+AMD64 优化：
+GOAMD64=v1/v2/v3/v4，默认v1，越高兼容性越差性能越好
+
 [Presentation](https://pkg.go.dev/golang.org/x/tools/present):
 `go install golang.org/x/tools/cmd/present`
 run locally in slides dir: `present -base ~/go/src/golang.org/x/tools/cmd/present`
 host in github: http://go-talks.appspot.com/github.com/davecheney/presentations/performance-without-the-event-loop.slide
-
 
 ### 开发辅助工具
 github.com:
@@ -56,7 +44,7 @@ goimports
 oracle
 gorename
 
-用[vim-go](https://github.com/fatih/vim-go)的`:GoInstallBinaries`命令安装或`go get -u -v`安装到workspace的bin下:
+用[vim-go](https://github.com/fatih/vim-go)的`:GoInstallBinaries`命令安装
 github.com/nsf/gocode
 github.com/rogpeppe/godef
 github.com/golang/lint/golint
@@ -82,7 +70,9 @@ golang.org/x/tools/cmd/gorename
 
 * 字面值以UTF-8表示。
 * 默认空串(`""`)。不以0结尾，字符串可以包含任意字节。
-* 可复制但不可修改其中字符，要修改必须先转为`[]byte`, `[]rune`再转回来并会造成复制。下标访问其中的字节/字符（字符可以用`''`表示）。
+* 两个字符串比较时，逐字节比较。
+* 可复制但不可修改其中字符，要修改必须先转为`[]byte`, `[]rune`再转回来并会造成复制(`*(*string)(unsafe.Pointer(&b))`通过指针避免复制)。
+* 下标访问其中的字节/字符（字符可以用`''`表示）。
 * `+`连接字符串。内部是UTF8的字节数组，可以用slice相关的操作。
 * 16进制: `"\xFF"    // 1 byte`
 * Unicode: `"\u2318"  // 1 unicode char, 3 bytes of UTF-8` 亦叫rune。
@@ -271,20 +261,14 @@ rune: alias for int32
 
 
 ## [常量](https://blog.golang.org/constants)
-必须有编译期确定初始化表达式，只可以是数字，字符，布尔类型，类型说明可省。
-```
-// 枚举（只可以此类型自己或常量匹配）
-type Weekday int
-const (
-    Monday Weekday = iota // iota 是当前const块中常量的索引。
-    Tuesday
-    Wednesday
-    Thursday
-    Friday
-    Saturday
-    Sunday
-)
+必须有编译期确定初始化表达式，只可以是数字，字符，布尔类型，类型说明可省(untyped)。
+untyped: 没有指定类型或字面常量，可以赋值给相应适合的类型而不用强转（在类型范围之内，类似隐式转换），遇到`:=`, `interface{}`则使用默认类型。
 
+* 默认类型：整形数值int, 浮点数值float64, 字符rune (int32), 复数complex128。
+* 可以超过uint64的限制表示溢出值`const N = 0xFFFFFFFFFFFFFFFFF`，不能赋值但可参与表达式运算。
+* 表示高精度值`const PI = 3.14159265358979323846264338327950288419716939937510582097494459`，赋值时丢失精度。
+
+```
 const (
     a = "xyz"
     b            // 同上
@@ -298,12 +282,34 @@ const (
 )
 ```
 
-untyped: 没有指定类型或字面常量，可以赋值给相应适合的类型而不用强转（在类型范围之内，类似隐式转换），遇到`:=`, `interface{}`则使用默认类型。
+枚举（只可以此类型自己或常量匹配）, 可以用 [stringer](https://pkg.go.dev/golang.org/x/tools/cmd/stringer) 生成字符串 name:
+```
+type Weekday int
+const (
+    Monday Weekday = iota // iota 是当前const块中常量的索引。
+    Tuesday
+    Wednesday
+    Thursday
+    Friday
+    Saturday
+    Sunday
+)
+```
 
-* 默认类型：整形数值int, 浮点数值float64, 字符rune (int32), 复数complex128。
-* 可以超过uint64的限制表示溢出值`const N = 0xFFFFFFFFFFFFFFFFF`，不能赋值但可参与表达式运算。
-* 表示高精度值`const PI = 3.14159265358979323846264338327950288419716939937510582097494459`，赋值时丢失精度。
+[safer enums](https://npf.io/2022/05/safer-enums/), 但不是常量:
+```
+type FlagID struct {
+    name string
+}
+func (f FlagID) String() { return f.name }
 
+var (
+    FooBar = FlagID{ “FooBar” }
+    FizzBuzz = FlagID{ “FizzBuzz” }
+)
+
+func IsEnabled(id FlagID) bool {
+```
 
 ## 控制结构
 `if`: 可以有一个简单的语句（初始化变量的作用域仅在语句和if/else内，内部是新的作用域可以定义同名变量），也可以什么也没有表示true(switch同)
@@ -331,8 +337,7 @@ for key, value := range m { // m is map, 也可只取key，对于array和slice, 
 range表达式只会在开始前计算一次。
 会复制一份对象出来迭代，循环里引用的也是复制过的item，尽量使用引用或指针类型。
 range迭代数组结束时，index不会递增到下一个。
-迭代引用类型时，对其作修改不影响迭代（复制了头结构，没有复制数据）。
-迭代值的重用：注意[range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
+迭代值的重用：注意 [range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
 
 ```
 list := []int{1, 2, 3}
@@ -390,7 +395,7 @@ Slice是一个引用类型，是对一个Array的部分引用，长度不是类�
 `len()`可以取得长度，而`cap()`则返回slice的容量(默认一直至被引用数组结尾的大小)。基于slice创建的slice不能超过cap大小。
 string也可以被slice。不可修改。
 
-底层结构`reflect.SliceHeader`
+底层结构`reflect.SliceHeader`, slice 值传递实际上是 header。
 ```
 type SliceHeader struct {
     Data uintptr
@@ -460,6 +465,8 @@ for _, x := range a {
 ### [Map](https://blog.golang.org/go-maps-in-action)
 Map是哈希表（key可以为任何定义了等于操作符的类型），引用类型。
 声明: `var m map[string]float32 // key:string, value:float32`, 长度: `len(m)`返回key的个数，cap不可作用于map。(set: `var s map[string]struct{}`)
+底层结构 `runtime.hmap` struct，map 值传递实际上是 *hmap。
+
 初始化，赋值
 ```
 m = map[string]float32 { "1":1, "pi":3.1415 } // 字面定义
@@ -477,7 +484,14 @@ m[x].name = "abc" // 如果没有值则会空指针panic（值必须是指针类
 delete(m, x)   // deletes entry for x，若不存在不会出错
 for key, value := range m { ... } // 迭代，顺序不固定，其中可以有删除操作，删除的元素不会被后续迭代到
 ```
-如果需要有序遍历map，则要维护一个有序的key slice，然后用其来迭代。
+
+迭代 map 时，对其作修改:
+
+* 已经迭代过的元素，可以安全删除
+* 还未迭代到的元素，如果被删了，就不会被迭代到
+* 迭代的时候新加一个元素，可能被迭代到，或者被跳过
+
+如果需要有序遍历 map，则要维护一个有序的 key slice，然后用其来迭代。
 
 ### Struct
 Struct是值类型，声明: `var p struct { x, y float32 }`
@@ -589,7 +603,7 @@ foo(100, append([]int{101}, a...)...) // 复制了a的元素，效率低
 ```
 
 ### method
-可以把方法附加在本包内的任意非指针或接口类型上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针类型）。编译时静态绑定。
+可以把方法附加在本包内的**任意非指针或接口类型**上（不仅仅是struct，对内置类型要type改名一下），只要指明接收者即可（可以是值或指针类型）。编译时静态绑定。
 无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用（编译器会转成接收者对应的类型），但只有用指针接收者的形式才能避免值拷贝传递以及做修改（类似函数参数）。
 用值调用指针接收方法时，值要可以取址。有着非指针类型struct元素值的Map如`m[1]`不可取址（slice却可以），也不能直接赋值`m[1].x=2`，必须使用临时变量。
 只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
@@ -729,6 +743,8 @@ func (this ToString) String() string {
 var s Stringer = ToString(func() string { return "test" })
 s.String()
 ```
+
+接口嵌入：一个接口可以嵌入其它接口，即使这些接口中的方法有交集，结果为这些嵌入接口的并集。有交集的接口不能嵌入 struct，因为调用时有歧义。
 
 # Concurrency
 > [Do not communicate by sharing memory; instead, share memory by communicating.](http://blog.golang.org/share-memory-by-communicating)
@@ -974,9 +990,11 @@ for i := 0; i < cap(sem); i++ {
 ### Others
 https://talks.golang.org/2013/advconc.slide
 
-# Generics
+# [Generics](https://go.dev/blog/intro-generics) ([zh](https://tonybai.com/2022/03/25/intro-generics))
+[when generics](https://go.dev/blog/when-generics) ([zh](https://mp.weixin.qq.com/s/IukarzjVlRyU57r5t33H6w))
+
 ## type parameter
-function
+泛型 function
 ```
 func SumIntsOrFloats[K comparable, V int64 | float64](m map[K]V) V {
     var s V
@@ -991,15 +1009,20 @@ ints := map[string]int64{ "first": 34, "second": 12 }
 SumIntsOrFloats[string, int64](ints)
 SumIntsOrFloats(ints) // 自动类型推断
 ```
+自动类型推断不适用于只在函数返回值中使用的类型形参或只在函数主体中使用的类型形参的情况。
 
-struct
+泛型 struct
 ```
 type ModelX[T any] struct {
     data []T
+    T // error, 不能在接口或结构体里直接嵌入一个类型参数
 }
 
 func (t *Modelx[T]) len() int {
     return len(t.data)
+}
+
+func (t *Modelx[T]) foo(s T) { // 类型的方法中可以使用 struct 本身的类型参数，但不支持其它函数类型参数
 }
 
 // 初始化
@@ -1007,8 +1030,10 @@ modelInt := ModelX[int]{Data: []int{1, 2, 3}} // constraint 的 type 不能省
 ```
 
 ## type constraint
-用接口表示一个 type constraint 的集合，可以包含一个 type list，如果接口包含方法，则实参类型必须实现所有这些方法，且泛型参数在使用的时候只能调用这些方法。
-含有 type list 的接口不能用于普通参数类型。
+一个接口类型可以作为一个值类型使用，也可以作为一个元类型(meta-type)使用。
+元类型接口表示为一个 type constraint 的集合，包含一个 type list，如果接口包含方法，则实参类型必须实现所有这些方法，且泛型参数在使用的时候只能调用这些方法。反之泛型参数如果要调用这些共同方法(共同成员变量无法访问)，必须显式在接口里声明。
+含有 type list 的接口(元类型)不能用于普通参数类型(值类型)。type list 里如果有接口类型，则接口类型不能包含方法。
+字面表示时，最外层的 interface{} 可以省略：`[S interface{~[]E}, E interface{}]` 等价于 `[S ~[]E, E interface{}]`
 
 如：
 ```
@@ -1022,6 +1047,10 @@ __constraints__ 包:
 ```
 type Signed interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64
+}
+
+type Ordered interface {
+	Integer | Float | ~string
 }
 ```
 `~int` 表示底层类型是 int 就可以满足
@@ -1039,8 +1068,13 @@ __comparable__
 // arrays of comparable types, structs whose fields are all comparable types).
 // The comparable interface may only be used as a type parameter constraint,
 // not as the type of a variable.
-type comparable comparable
+type comparable interface { comparable }
 ```
+
+## exp std lib
+golang.org/x/exp/constraints
+golang.org/x/exp/slices
+golang.org/x/exp/maps
 
 # Error Handling
 ## [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
@@ -1182,6 +1216,15 @@ replace: 只作用于当前 module
 * 如果 tag 主版本是 v2 或更高，mod-path 和 import path 都必须包含主版本（后缀）。如果是 v0 或 v1 则不需要包含。
 
 用不同 branch 区分不同主版本进行开发。
+
+## [Workspace](https://go.dev/blog/get-familiar-with-workspaces) ([zh](https://mp.weixin.qq.com/s/QSWf3QKYsVDkPufKB9gzRQ))
+用工作区目录根部的 go.work 文件来控制所有的依赖关系，使多个 module 可以优先本地依赖，而不用 module replace 到本地路径（也不用显式 require 依赖）。
+可以在 go.work 里面统一 replace 其它非本地的 module。
+模块感知的构建命令和一些 go mod 子命令会检查 GOWORK 环境变量，以确定它们是否处于工作区环境中。
+
+go work init [moddir] ... 初始化并生成 go.work 文件
+go work use [moddir] 添加 module
+go work sync 将 go.work 文件中的依赖关系同步到每个工作区模块的 go.mod 文件中
 
 ### [MVS (Minimal Version Selection)](https://www.ardanlabs.com/blog/2019/12/modules-03-minimal-version-selection.html) ([zh](https://tonybai.com/2019/12/21/go-modules-minimal-version-selection/))
 当多个 module 依赖同一个（相同主版本的） target module 时，选择（满足多个 module 需求的）最新而非（target module 的）最大的版本。
@@ -1337,7 +1380,7 @@ go func() {
 
 ### Frame Graphs
 安装：
-go get github.com/uber/go-torch
+go install github.com/uber/go-torch
 git clone https://github.com/brendangregg/FlameGraph (add dir to PATH)
 
 http pprof: `go-torch -t 10`
@@ -1412,7 +1455,7 @@ func grow(p *string, c int, a [1000]int) {
 ```
 
 # Comments
-## Documentation ([cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
+## Documentation ([doc](https://go.dev/doc/comment) [cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
 规范化注释格式，任何直接属于顶层声明的注释都会可被`godoc`提取为文档注释（除了package main）。
 
 * 要和被注释的成员相邻
@@ -1425,10 +1468,15 @@ func grow(p *string, c int, a [1000]int) {
 
 本地运行：`godoc -http=:6060 -play`
 
+godoc 已废弃，使用 [pkgsite](golang.org/x/pkgsite/cmd/pkgsite)
+
 ## [CodingStyle](http://blog.golang.org/go-fmt-your-code) ([cmd](http://golang.org/cmd/gofmt/))
 [Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 [What's in a name?](https://talks.golang.org/2014/names.slide)
 [When in Go, do as Gophers do](https://talks.golang.org/2014/readability.slide)
+[Effective go](https://go.dev/doc/effective_go)
+[Package names](https://go.dev/blog/package-names)
+[Style packages](https://rakyll.org/style-packages/)
 
 ## [Code Generation](https://blog.golang.org/generate)
 指令：在任意go文件中，以注释：
@@ -1727,20 +1775,47 @@ object|map[string]interface{}
 `json:",string"` 数值，布尔类型在json里转为string编码。如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)从而不丢失精度，进而转为数值类型。
 
 ## text/template
-Action: 以`{{...}}`表示，进行求值或组成控制结构。`{{- ...`和`... -}}`可以trim左边和右边的空白。
-data: 模版执行的上下文数据，叫dot用`.`表示。
-Variables: `$var := pipeline`, `range $index, $element := pipeline`，变量作用域为控制结构结束或到模版结束。
-Argument: 字面常量，模版变量`$var`，data成员（成员必须大写导出，或map的key，或成员函数调用）`.Field`，变量成员（或map的key，或成员函数调用）`$x.Field`，函数调用`fun`。
-pipeline: command序列，以`|`隔开，前一个command的结果作为后一个command的最后一个参数。
-command: 一个简单的值或一个（带有参数的）函数调用，结果是一个值或一个值带有一个错误。`Argument`, `.Method [Argument...]`, `fun [Argument...]`。
-function: 预定义的全局函数。
-
-```
+data: 模版执行当前作用域的上下文数据，叫dot用`.`表示。`{{with pipeline}}` 限定作用域。
 `{{.Count}} items are made of {{.Material}}` // "17 items are made of wool"
-`{{23 -}} < {{- 45}}` // "23<45"
-`{{"put" | printf "%s%s" "out" | printf "%q"}}` // "output"
 `{{with "output"}}{{printf "%q" .}}{{end}}` // "output"
+
+Trim: `{{- ...`和`... -}}` 可以trim左边和右边的空白。
+`{{23 -}} < {{- 45}}` // "23<45"
+
+Action: 以`{{...}}`表示，进行求值或组成控制结构。
 ```
+{{/* a comment */}}
+{{- /* a comment with white space trimmed from preceding and following text */ -}}
+{{pipeline}}
+{{if pipeline}} T1 {{end}}
+{{if pipeline}} T1 {{else}} T0 {{end}}
+{{if pipeline}} T1 {{else if pipeline}} T0 {{end}}
+{{range pipeline}} T1 {{end}}
+{{range pipeline}} T1 {{else}} T0 {{end}}
+{{break}}
+{{continue}}
+{{template "name"}}
+{{template "name" pipeline}}
+{{block "name" pipeline}} T1 {{end}}
+{{with pipeline}} T1 {{end}}
+{{with pipeline}} T1 {{else}} T0 {{end}}
+```
+
+Argument: 字面常量，模版变量`$var`，data struct成员（成员必须大写导出，或map的key，或成员函数调用）`.Field`，变量成员（或map的key，或成员函数调用）`$x.Field`，函数调用`fun`。
+
+command: 一个简单的值或一个（带有参数的）函数调用，结果是一个值或一个值带有一个错误。`Argument`, `.Method [Argument...]`, `functionName [Argument...]`。
+
+pipeline: command序列，以`|`隔开，前一个command的结果作为后一个command的最后一个参数。或用括号优先求值。
+`{{"put" | printf "%s%s" "out" | printf "%q"}}` // "output"
+`{{println (len "output")}}`
+
+Variables: `$var := pipeline`, `range $index, $element := pipeline`，变量作用域为控制结构结束`{{end}}`或到模版结束。顶级作用域变量 `$`（Execute 传入的参数）。
+```
+{{$l := (len "output")}}
+{{println $l}}   // 6
+```
+
+function: 预定义的全局函数 `and, call, html, index, slice, js, len, not, or, print, printf, println, urlquery, eq, ne, lt, le, gt, ge`。或自定义函数 `template.New("").Funcs(template.FuncMap{ ... })`。
 
 ## regexp
 https://golang.org/pkg/regexp/syntax/

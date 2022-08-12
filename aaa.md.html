@@ -344,7 +344,8 @@ openssl x509 -outform der -in all/my-private-root-ca.cert.pem -out client/my-pri
 
 curl 发送带客户端证书请求： `curl --cacert ca.crt --cert client.crt --key client.key https://...`
 
-取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443`
+取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443 </dev/null`
+如果 server 使用了 SNI，则需要加上 `-servername www.google.com` 参数。
 
 </xmp>
 <script src="js/strapdown.js"></script>

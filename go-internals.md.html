@@ -674,6 +674,8 @@ G：
 https://www.ardanlabs.com/blog/2018/08/scheduling-in-go-part1.html
 
 # [GC](https://github.com/golang/go/blob/master/src/runtime/mgc.go)
+[GC guide](https://go.dev/doc/gc-guide)
+
 根对象：GC 在标记过程中最先扫描的对象。包括全局对象，执行栈，和寄存器中的变量。
 STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
 
