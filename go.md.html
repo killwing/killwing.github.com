@@ -1354,7 +1354,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 查看import及依赖：`go list -json`
 竞态检测：`go run/build/test -race`
 产生coredump：`GOTRACEBACK=crash`
-GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`
+GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`, 内存上限软限制 GOMEMLIMIT, [GC Guide](https://go.dev/doc/gc-guide)
 
 Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/derekparker/delve)
 [Debugging](https://software.intel.com/en-us/blogs/2014/05/10/debugging-performance-issues-in-go-programs)

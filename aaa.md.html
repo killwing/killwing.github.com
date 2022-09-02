@@ -237,15 +237,17 @@ PKI/CA 的工作原理就是通过发放和维护数字证书来建立一套信�
 CA是证书的签发机构,它是PKI的核心。CA是负责签发证书、认证证书、管理已颁发证书的机关。它要制定政策和具体步骤来验证、识别用户身份，并对用户证书进行签名，以确保证书持有者的身份和公钥的拥有权。CA 也拥有一个证书（内含公钥）和私钥。网上的公众用户通过验证 CA 的签字从而信任 CA ，任何人都可以得到 CA 的证书（含公钥），用以验证它所签发的证书。 
 一个认证中心是以它为信任源，由它维护一定范围的信任体系，在该信任体系中的所有用户、服务器，都被发放一张数字证书来证明其身份已经被鉴定过，并为其发放一张数字证书，每次在进行交易的时候，通过互相检查对方的数字证书即可判别是否是本信任域中的可信体。
 
-使用证书验证Authenticity：
+使用证书验证 Authenticity：
 如果用户想得到一份属于自己的证书，他应先向 CA 提出申请。在 CA 判明申请者的身份后，便为他分配一个公钥，并且 CA 将该公钥与申请者的身份信息绑在一起，并为之签字后，便形成证书发给申请者。 如果一个用户想鉴别另一个证书的真伪，他就用 CA 的公钥对那个证书上的签字进行验证，一旦验证通过，该证书就被认为是有效的。
 具体过程：
 
-1. A将一个签名的证书请求（包含他的名字、公钥、可能还有其他一些信息，私钥自己保留）发送到 CA。
-1. CA使用A的请求创建一个消息。CA使用CA的私钥对消息进行签名，以便创建一个单独的签名。CA 将消息和签名返回给A。消息和签名共同构成了A的证书。
-1. A将他的证书发送给B，以便授权他访问他的公钥(在证书中)。
-1. B使用CA的公钥(一般浏览器中已经内置了许多CA的证书/公钥)对证书签名进行验证。如果证明签名是有效的，他就承认证书中的公钥是A的公钥。
-然后进一步B可以要求A证明其身份(是否拥有对应的私钥)。A则重新进行发一次消息，计算消息的摘要，签名之后发给B，B可以用从证书得到A的公钥(此时证书中的公钥已确认为真)检查A的消息摘要，从而判断A的身份。
+1. S 将一个签名的证书请求（CSR, 包含他的域名、公钥、可能还有其他一些信息，私钥自己保留）发送到 CA。
+1. CA 使用 S 的请求创建一个消息。CA 使用 CA 的私钥对消息进行签名，以便创建一个单独的签名。CA 将消息和签名返回给 S。消息和签名共同构成了 S 的证书。
+1. S 将他的证书发送给 C (TLS 握手)，以便授权他访问他的公钥(在证书中)。
+1. C 使用 CA 的公钥(一般浏览器中已经内置了许多 CA 的证书/公钥) 对证书签名进行验证。如果证明签名是有效的，C 就承认证书中的公钥是 S 的公钥。
+然后进一步 C 可以要求 S 证明其身份(是否拥有对应的私钥)。S 则重新进行发一次消息，计算消息的摘要，签名之后发给 C，C 可以用从证书得到A的公钥(此时证书中的公钥已确认为真)检查 S 的消息摘要，从而判断 S 的身份。
+
+将 CA 证书链放到一个文件中分发，叫 CA bundle。Root CA Cert -sign-> Intermediate CA Cert -sign-> Server Cert (Leaf)
 
 
 ## 注册机构
@@ -262,14 +264,16 @@ CA是证书的签发机构,它是PKI的核心。CA是负责签发证书、认证
 * PEM Privacy Enhanced Mail: 文本格式，以"-----BEGIN..."开头, "-----END..."结尾, 内容是BASE64编码。
 * DER Distinguished Encoding Rules: 二进制格式。
 
-X.509 RDNs:
+X.509 DNs (Distinguished Names):
 
-* CN: CommonName
-* OU: OrganizationalUnit
+* CN: CommonName 单域名，可以有通配符
+* OU: Organization Unit
 * O: Organization
-* L: Locality
-* S: StateOrProvinceName
+* L: Locality / City
+* ST: State / ProvinceName
 * C: CountryName
+
+扩展：SAN(Subject Alternative Name) 多域名
 
 ## 签名验证
 收方在收到信息后用如下的步骤验证签名：
@@ -306,7 +310,7 @@ openssl req \
   -key all/my-private-root-ca.privkey.pem \
   -days 1024 \
   -out all/my-private-root-ca.cert.pem \
-  -subj "/C=US/ST=Utah/L=Provo/O=ACME Signing Authority Inc/CN=example.com"
+  -subj "/C=US/ST=Utah/L=Provo/O=ACME Signing Authority Inc/CN=example.com" # subject DN
 
 # Create a Device Certificate for each domain,
 # such as example.com, *.example.com, awesome.example.com
@@ -319,7 +323,7 @@ openssl genrsa \
 openssl req -new \
   -key all/privkey.pem \
   -out all/csr.pem \
-  -subj "/C=US/ST=Utah/L=Provo/O=ACME Tech Inc/CN=${FQDN}"
+  -subj "/C=US/ST=Utah/L=Provo/O=ACME Tech Inc/CN=${FQDN}" # subject DN, SAN: -addext "subjectAltName = DNS:foobar.mydomain.svc"
 
 # Sign the request from Device with your Root CA
 openssl x509 \
@@ -340,12 +344,92 @@ rsync -a all/my-private-root-ca.cert.pem client/
 openssl x509 -outform der -in all/my-private-root-ca.cert.pem -out client/my-private-root-ca.crt
 ```
 
-查看证书内容： `openssl x509 -in cert.pem -noout -text`
+无 CA 自签名：即只有一对 key pair, CA root 证书就是 server 证书。如果生成的时候没有设置 Subject DN，由于 Subject DN 和 它的 Issuer DN 是一样的，Issuer DN 也为空。而客户端验证会要求 Issuer DN 不为空，导致失败。另：golang 不再使用 CN: https://go.dev/doc/go1.15#commonname
+
+查看证书内容：`openssl x509 -in cert.pem -noout -text`
 
 curl 发送带客户端证书请求： `curl --cacert ca.crt --cert client.crt --key client.key https://...`
 
 取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443 </dev/null`
+直接查看证书：`openssl s_client -showcerts -connect www.google.com:443 </dev/null | openssl x509 -noout -text`
 如果 server 使用了 SNI，则需要加上 `-servername www.google.com` 参数。
+
+## [Cert Manager](https://cert-manager.io/)
+无 CA 自签名：
+```
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: selfsigned-cert
+spec:
+  dnsNames: # SAN
+  - "my-server.default.svc.cluster.local"
+  secretName: tls-secret
+  issuerRef:
+    kind: Issuer
+    name: selfsigned-issuer
+```
+
+使用 CA：即 CA 自签名，server 证书由 CA 签发。
+```
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: my-selfsigned-ca
+spec:
+  isCA: true
+  dnsNames: # SAN
+  - "my-ca.example.com"
+  commonName: mmy-ca.example.com
+  secretName: root-secret
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: my-ca-issuer
+spec:
+  ca:
+    secretName: root-secret
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: my-server
+spec:
+  dnsNames: # SAN
+  - "my-server.default.svc.cluster.local"
+  secretName: my-server-tls
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: my-ca-issuer
+    kind: Issuer
+    group: cert-manager.io
+```
+
+secret type: kubernetes.io/tls: ca.crt, tls.crt, tls.key
 
 </xmp>
 <script src="js/strapdown.js"></script>

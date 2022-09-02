@@ -983,11 +983,13 @@ spec:
 client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/
 
 冲突是一种特定的错误状态，发生在执行 Apply 改变一个字段，而恰巧该字段被其他用户声明过主权时 (metadata.managedFields)。
-在冲突发生的时候，只有 apply （内容类型为 application/apply-patch+yaml 的 PATCH 请求，且用 field-manager 参数标识自己）操作失败，而 update（所有修改对象的其他操作）会忽略冲突强制覆盖值。
+在冲突发生的时候，只有 apply （内容类型为 application/apply-patch+yaml 的 PATCH 请求，且用 field-manager 参数标识自己）操作失败。冲突解决：
 
-* 覆盖前值，成为唯一的管理器：设置查询参数 force 为 true，这将改变字段的值，从所有其他管理器的 managedFields 条目中删除指定字段。（如果是controller，不代表用户操作，一般会用force）
+* 覆盖前值，成为唯一的管理器：当字段值不同时，设置查询参数 force 为 true，这将改变字段的值，从所有其他管理器的 managedFields 条目中删除指定字段。（如果是controller，不代表用户操作，一般会用force）
 * 不覆盖前值，放弃管理权：从配置文件中删掉字段，这就保持了原值不变，并从 managedFields 的应用者条目中删除该字段。
 * 不覆盖前值，成为共享的管理器：在配置文件中把字段的值改为和服务器对象一样，就实现了字段管理被应用者和所有声明了管理权的其他的字段管理器共享。
+
+而 update（所有修改对象的其他操作）会忽略冲突强制覆盖值并更改对应 fields 的 manager，如果此字段值相同，则忽略，并不会成为共享管理器。
 
 apply 时必须字段必须至少有一个 manager (默认字段 manager 为 kube-controller-manager 等系统组件)，不填这个字段相当于放弃自己的管理权。
 apply 改变一个字段的管理权时，可以不提供所有必须字段，只提供需要改变的字段，因为其它必须字段已有其它 manager，也不会导致其它 managed 字段被删除。
