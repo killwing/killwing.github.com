@@ -936,30 +936,6 @@ node: 通过 [node exporter](https://github.com/prometheus/node_exporter)
 核心组件：通过 `/metrics` API
 core metrics: pod, container, node等: 通过 [MetricsServer](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/instrumentation/metrics-server.md) (`/stats/summary` from kubelet cAdvisor)
 
-### ServiceMonitor
-1. 应用暴露指标 `http.Handle("/metrics", promhttp.Handler())`
-1. Service 暴露端口
-1. 创建 `ServiceMonitor`
-
-```
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: myapp
-  namespace: default
-spec:
-  endpoints:
-  - interval: 30s
-    port: http-metrics
-  jobLabel: app
-  namespaceSelector:
-    matchNames:
-    - default
-  selector:
-    matchLabels:
-      app: myapp
-```
-
 ### MetricsServer
 利用 [apiserver aggregation](https://kubernetes.io/docs/tasks/access-kubernetes-api/setup-extension-api-server/)
 将 [prometheus adapter](https://github.com/DirectXMan12/k8s-prometheus-adapter) 作为 MetricsServer
@@ -978,6 +954,36 @@ spec:
   version: v1beta1
   versionPriority: 100
 ```
+
+### Prometheus ServiceMonitor
+1. 应用暴露指标 `http.Handle("/metrics", promhttp.Handler())`
+1. Service 暴露端口，并打上label
+1. 创建 `ServiceMonitor`
+
+```
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: myapp
+  namespace: default
+  labels:
+    release: prometheus # if prometheus set serviceMonitorSelector
+spec:
+  endpoints:
+  - interval: 30s
+    port: http-metrics # service port name
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      app: myapp # service label
+```
+
+### Grafana Dashboard
+通过 configmap 动态加载 dashboard: https://johnharris.io/2019/03/dynamic-configuration-discovery-in-grafana/
+原理：https://github.com/kiwigrid/k8s-sidecar
 
 ## Server Side Apply
 client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/

@@ -55,8 +55,12 @@ Duration: Latency
 
 函数：
 
-* `rate(v range-vector)` 每秒平均速率，只支持 counter 类型，`rate(http_requests_total{job="api-server"}[5m])`
-* `irate(v range-vector)` 每秒瞬时速率，基于最后两个数据点
+* `rate(v range-vector)` 每秒平均速率，只支持 counter 类型，`rate(http_requests_total{job="api-server"}[5m])` (`last - first / 5m`, [如何计算](https://www.kawabangga.com/posts/4408))
+* `irate(v range-vector)` 每秒瞬时速率，基于最后两个数据点。
+* `increase(v range-vector)` 这段时间内的增长，相当于 rate 不除以时间。
+* `delta(v range-vector)` 这段时间内的增量/减量。类似 increase，但可以作用于 gauge。
+* `changes(v range-vector)` 这段时间内变化了多少次（改变频率）。
+* `<aggregation>_over_time()` 在这段时间内的聚合值。
 * `histogram_quantile(φ float, b instant-vector)` 计算 histogram 中 bucket 的 φ-quantile (0 ≤ φ ≤ 1)
 
 ## Example
@@ -66,6 +70,10 @@ Duration: Latency
 * 95% 请求时长 `histogram_quantile(0.95, sum(rate(greeting_seconds_bucket[5m])) by (le))`
 * 平均请求速率 `sum(rate(http_request_duration_seconds_count{}[2m]))`
 * 平均请求错误率 `sum(rate(http_request_duration_seconds_count{code!="200"}[2m]))`
+
+## Reference
+https://yunlzheng.gitbook.io/prometheus-book
+https://songjiayang.gitbooks.io/prometheus
 
 </xmp>
 <script src="js/strapdown.js"></script>

@@ -136,7 +136,7 @@ KiB Swap:   998396 total,   998396 free,        0 used.  3653864 avail Mem
     2 root      20   0       0      0      0 S   0.0  0.0   0:00.11 kthreadd
 ```
 
-* `1` 显示每个 CPU
+* `1` 显示每个 CPU core，`I` CPU 百分比是否按单个 CPU 显示
 * 按 `f` 增减项, `F` 按某项排序，`H` 显示线程信息(此时PID显示的实际上是LWPID，或用ps aux -L)
 * `M` 按memory排序，`P` 按cpu排序，`N` 按PID排序
 
@@ -858,6 +858,7 @@ $ perf probe -x /bin/bash -V readline
 * `-t` 加上绝对时间戳。
 * `-T` 显示系统调用时长。
 * `-e` 指定系统调用名字。
+* `-c` 统计各个系统调用的次数和时长。
 
 ## ltrace
 跟踪调用库函数

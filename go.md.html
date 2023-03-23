@@ -1217,6 +1217,13 @@ replace: 只作用于当前 module
 
 用不同 branch 区分不同主版本进行开发。
 
+### [MVS (Minimal Version Selection)](https://www.ardanlabs.com/blog/2019/12/modules-03-minimal-version-selection.html) ([zh](https://tonybai.com/2019/12/21/go-modules-minimal-version-selection/))
+当多个 module 依赖同一个（相同主版本的） target module 时，选择（满足多个 module 需求的）最新而非（target module 的）最大的版本。
+
+基于 MVS 升级：`go get -t -d -v ./...`
+最新最大版本升级：`go get -u -t -d -v ./...` （会在 go.mod 中增加对最大版本的显式依赖，无论有没有代码使用）
+重置依赖：删除 go.mod/go.sum，重新 init。
+
 ## [Workspace](https://go.dev/blog/get-familiar-with-workspaces) ([zh](https://mp.weixin.qq.com/s/QSWf3QKYsVDkPufKB9gzRQ))
 用工作区目录根部的 go.work 文件来控制所有的依赖关系，使多个 module 可以优先本地依赖，而不用 module replace 到本地路径（也不用显式 require 依赖）。
 可以在 go.work 里面统一 replace 其它非本地的 module。
@@ -1225,13 +1232,6 @@ replace: 只作用于当前 module
 go work init [moddir] ... 初始化并生成 go.work 文件
 go work use [moddir] 添加 module
 go work sync 将 go.work 文件中的依赖关系同步到每个工作区模块的 go.mod 文件中
-
-### [MVS (Minimal Version Selection)](https://www.ardanlabs.com/blog/2019/12/modules-03-minimal-version-selection.html) ([zh](https://tonybai.com/2019/12/21/go-modules-minimal-version-selection/))
-当多个 module 依赖同一个（相同主版本的） target module 时，选择（满足多个 module 需求的）最新而非（target module 的）最大的版本。
-
-基于 MVS 升级：`go get -t -d -v ./...`
-最新最大版本升级：`go get -u -t -d -v ./...` （会在 go.mod 中增加对最大版本的显式依赖，无论有没有代码使用）
-重置依赖：删除 go.mod/go.sum，重新 init。
 
 ## Plugin
 必须是main包（可以没有main函数），用`-buildmode=plugin`或`-buildmode=c-shared`编译，生成动态库文件。
@@ -1942,7 +1942,8 @@ https://golang.org/ref/spec
 https://tip.golang.org/cmd/go/
 https://github.com/golang/go/wiki
 https://github.com/campoy/go-tooling-workshop
-http://go-proverbs.github.io
+https://go-proverbs.github.io
+https://google.github.io/styleguide/go/
 
 </xmp>
 <script src="js/strapdown.js"></script>

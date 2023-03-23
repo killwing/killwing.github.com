@@ -247,7 +247,9 @@ CA是证书的签发机构,它是PKI的核心。CA是负责签发证书、认证
 1. C 使用 CA 的公钥(一般浏览器中已经内置了许多 CA 的证书/公钥) 对证书签名进行验证。如果证明签名是有效的，C 就承认证书中的公钥是 S 的公钥。
 然后进一步 C 可以要求 S 证明其身份(是否拥有对应的私钥)。S 则重新进行发一次消息，计算消息的摘要，签名之后发给 C，C 可以用从证书得到A的公钥(此时证书中的公钥已确认为真)检查 S 的消息摘要，从而判断 S 的身份。
 
-将 CA 证书链放到一个文件中分发，叫 CA bundle。Root CA Cert -sign-> Intermediate CA Cert -sign-> Server Cert (Leaf)
+Root CA Cert -sign-> Intermediate CA Cert -sign-> Server Cert (Leaf)
+将 CA 证书链放到一个文件中分发，叫 CA bundle。顺序：inter3, inter2, inter1, root
+CA bundle 加上 server cert (leaf) 证书组成信任证书链(certificate chain of trust)。
 
 
 ## 注册机构
@@ -350,9 +352,11 @@ openssl x509 -outform der -in all/my-private-root-ca.cert.pem -out client/my-pri
 
 curl 发送带客户端证书请求： `curl --cacert ca.crt --cert client.crt --key client.key https://...`
 
-取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443 </dev/null`
+取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443 </dev/null` [证书链是否包含root证书是可选的](https://security.stackexchange.com/questions/65332/ssl-root-certificate-optional), 加上 `-CAfile` 加载CA证书进行验证
 直接查看证书：`openssl s_client -showcerts -connect www.google.com:443 </dev/null | openssl x509 -noout -text`
 如果 server 使用了 SNI，则需要加上 `-servername www.google.com` 参数。
+查看证书链：`openssl crl2pkcs7 -nocrl -certfile CHAINED.pem | openssl pkcs7 -print_certs -text -noout`
+验证：`openssl verify -verbose -CAfile <(cat Intermediate.pem RootCert.pem) ServerCert.pem`
 
 ## [Cert Manager](https://cert-manager.io/)
 无 CA 自签名：
@@ -394,7 +398,7 @@ spec:
   isCA: true
   dnsNames: # SAN
   - "my-ca.example.com"
-  commonName: mmy-ca.example.com
+  commonName: my-ca.example.com
   secretName: root-secret
   privateKey:
     algorithm: ECDSA
@@ -417,8 +421,13 @@ kind: Certificate
 metadata:
   name: my-server
 spec:
+  subject:
+    organizations:
+    - ACME
   dnsNames: # SAN
   - "my-server.default.svc.cluster.local"
+  ipAddresses: # IP SAN
+  - 192.168.0.5
   secretName: my-server-tls
   privateKey:
     algorithm: ECDSA
@@ -429,7 +438,8 @@ spec:
     group: cert-manager.io
 ```
 
-secret type: kubernetes.io/tls: ca.crt, tls.crt, tls.key
+如果是 clusterissuer, 其引用的 secret 必须在 Cluster Resource Namespace（默认cert-manger）。
+secret type: kubernetes.io/tls: ca.crt, tls.crt, tls.key，ca.crt 是 root 证书，server 及中间 CA 证书在 tls.crt 里。
 
 </xmp>
 <script src="js/strapdown.js"></script>
