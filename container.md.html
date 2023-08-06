@@ -3,7 +3,7 @@
 <meta charset="utf-8" />
 <title>Container</title>
 <xmp theme="readable" style="display:none;">
-## [namespace](http://man7.org/linux/man-pages/man7/namespaces.7.html)
+# [namespace](http://man7.org/linux/man-pages/man7/namespaces.7.html)
 内核级别全局系统资源隔离。
 
 类型|        定义|             内容
@@ -15,30 +15,127 @@ Mount       |CLONE_NEWNS       |挂载点
 PID         |CLONE_NEWPID      |进程ID
 User        |CLONE_NEWUSER     |用户ID和组ID
 UTS         |CLONE_NEWUTS      |主机名和NIS域名
+Time        |CLONE_NEWTIME     |系统时间
 
 `/proc/[pid]/ns/`目录: 如`ipc -> ipc:[4026531839]`
 数字是inode号，如果两个进程某个类型的namespace的inode一样，说明同属一个namespace。
 当一个namespace中的所有进程都退出时，该namespace将会被删除。
 
-### Network
+## Network
 每个 namespace 都有独立的网络设备，协议栈，IP 地址，路由表，iptables 规则，ipvs。
+当 net ns 有进程时 `lsns -t net` 才能列出，且`/run/netns/`下有对应文件，`ip netns list` 可以列出所有创建的 ns。
 
-### Cgroup
+### 实验
+使用虚拟网卡连接（不同 namespace 的）2个容器/进程：
+```
+host> ip netns add netns1
+host> ip netns add netns2
+host> ip netns list
+host> ip netns exec netns1 /bin/bash --rcfile <(echo "PS1=\"container1> \"")
+container1> ip link set dev lo up
+host> ip netns exec netns2 /bin/bash --rcfile <(echo "PS1=\"container2> \"")
+container2> ip link set dev lo up
+host> ip link add veth1 type veth peer name veth2
+host> ip link set veth1 netns netns1
+host> ip link set veth2 netns netns2
+container1> ip addr add 172.17.0.101/24 dev veth1
+container1> ip link set dev veth1 up
+container2> ip addr add 172.17.0.102/24 dev veth2
+container2> ip link set dev veth2 up
+```
+
+使用虚拟交换机（网桥）连接多个容器/进程：
+```
+host> ip netns add netns3
+host> ip netns exec netns3 /bin/bash --rcfile <(echo "PS1=\"container3> \"")
+container3> ip link set dev lo up
+container1> ip link delete veth1 // 只需删除其中一个
+host> ip link add br0 type bridge
+host> ip link set dev br0 up
+host> ip link add veth1 type veth peer name veth1-br
+host> ip link add veth2 type veth peer name veth2-br
+host> ip link add veth3 type veth peer name veth3-br
+host> ip link set dev veth1 netns netns1
+host> ip link set dev veth2 netns netns2
+host> ip link set dev veth3 netns netns3
+host> ip link set dev veth1-br master br0
+host> ip link set dev veth2-br master br0
+host> ip link set dev veth3-br master br0
+host> ip link set dev veth1-br up
+host> ip link set dev veth2-br up
+host> ip link set dev veth3-br up
+container1> ip addr add 172.17.0.101/24 dev veth1
+container1> ip link set dev veth1 up
+container2> ip addr add 172.17.0.102/24 dev veth2
+container2> ip link set dev veth2 up
+container3> ip addr add 172.17.0.103/24 dev veth3
+container3> ip link set dev veth3 up
+```
+
+宿主机访问（不同网段的）容器：Linux 没有提供虚拟路由器设备，但其本身可以充当路由器的功能
+```
+host> ip addr add 172.17.0.1/24 dev br0 // 自动加入目标为 172.17.0.0 到路由表
+```
+
+容器访问（不同网段的）宿主机：
+```
+container1> ip route add default via 172.17.0.1
+```
+
+容器访问外网/其他主机：在 Linux 中，如果发现收到的 IP 数据包是自己的，则会自己进行接收处理，否则会将其丢弃或者转发。还需启用SNAT，否则对方不识容器地址无法响应(SYN_RECV 状态)。
+```
+host> cat /proc/sys/net/ipv4/ip_forward
+host> sysctl net.ipv4.ip_forward = 1
+host> iptables -t nat -A POSTROUTING -s 172.17.0.0/24 ! -o br0 -j MASQUERADE
+host> iptables -t nat -nL
+```
+
+外部访问容器：利用 DNAT，把宿主机上指定端口的流量请求转发到容器中的地址 172.17.0.101:<port> 中
+```
+host> iptables -t nat -A PREROUTING  ! -i br0 -p tcp -m tcp --dport 8000 -j DNAT --to-destination 172.17.0.101:8080
+host> iptables -t nat -nL
+```
+
+### 常用命令
+`lsns -t net/pid` 列出网络/进程命名空间
+`ip netns identify <pid>` 查看进程所属网络命名空间
+`ip netns exec <ns-name> <command>` 在网络命名空间下执行命令
+`nsenter -a -t <pid> <command>` 进入进程的所有命名空间执行命令，因为mount ns，可能会找不到相应的命令。
+`nsenter --net=<file>` file name 同 ns-name，进入网络命名空间，该文件的 inode 即 net ns 的 inode
+`unshare --pid --uts --ipc --mount -f chroot rootfs /bin/sh` 在新的 PID, UTS, IPC, and mount namespaces 运行 sh
+
+## User
+在一个user ns里，进程可以有完全 root 权限（UID 0），而在 ns 之外（从 parent ns 角度）只有有限权限。
+通过 ID 映射，使得一个 user ns 里的进程在 ns 之外有对应 host user 的权限。
+当一个新的user ns被创建，进入这个 ns 的**第一个**进程在这个 ns 内具有全部的 capabilities。
+
+`unshare -U [--map-user=<uid>|<name>] [--map-group=<gid>|<name>] [--map-root-user] [--map-current-user]`: 在一个新的 user ns 中将当前用户映射为特定用户和组
+`/proc/<pid>/uid_map` 查看 uid 映射，格式 `<mapped-uid> <host-uid> <range>`，range为1表示只映射一个用户
+
+capabilities: 只作用在当前 user ns 下
+`capsh --print` 显示此进程 capabilities 状态, e.g. `nsenter --user --preserve-credentials -t <pid> capsh --print`
+`getpcaps <pid>` 显示指定进程 capabilities 状态 `cat /proc/<pid>/status | grep Cap`
+
+capability sets:
+
+* Permitted (P): 允许的
+* Inheritable (I)：会被子进程继承的
+* Effective (E)：有效的
+* Bounding：可用的
+* Ambient
+
+## Cgroup
 使每个容器有独立的 cgroup root 和 cgroup filesytem 视图，隐藏了 host 的 cgroup 信息，更安全；不同 host 间迁移cgroup变得容易。
 
 [CGroup Namespaces](https://lwn.net/Articles/618873)
 
-### syscall
+## syscall
 clone：在新namespace中创建一个新的进程
 setns：设置当前进程的一个namespace为指定的namespace
 unshare：使当前进程退出一个或多个namespace，创建并加入新的namespace
+ioctl: 发现 namespace 相关信息
 
-### tools
-nsenter
-unshare
-lsns (util-linux 2.28+)
-
-## [cgroup](http://man7.org/linux/man-pages/man7/cgroups.7.html)
+# [cgroup](http://man7.org/linux/man-pages/man7/cgroups.7.html)
 对一组进程进行资源的限制和控制。
 
 subsystems(controllers):
@@ -88,7 +185,7 @@ perf_event: 对cgroup进行性能监控
 https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-memory
 http://blog.chinaunix.net/uid-20321537-id-3465943.html
 
-### tools
+## tools
 cgset
 cgget
 cgcreate
@@ -96,7 +193,7 @@ cgdelete
 cgclassify
 cgexec
 
-### systemd
+## systemd
 systemd 通过 cgroup 来管理进程，根据 cgroup 继承关系可以跟踪服务主进程产生的所有子进程，确保停止服务时清理所有子进程。
 
 service: systemd 服务，daemon 进程
@@ -120,20 +217,20 @@ CPUShares=200
 MemoryLimit=100M
 ```
 
-## rootfs
+# rootfs
 一个操作系统所包含的文件和目录，但不包含内核。
 利用 `chroot`/`pivot_root` 切换进程根目录(`/proc/[pid]/root/`)，达到文件系统隔离的效果。
 
 UnionFS: 将不同目录合并挂载到同一目录下。
 
-### AUFS
+## AUFS
 [![img](https://docs.docker.com/storage/storagedriver/images/aufs_layers.jpg)](https://docs.docker.com/storage/storagedriver/aufs-driver/)
 
 只读层（多层，镜像层）：ro+wh 挂载，固定不变内容。
 init 层：ro+wh 挂载，动态内容，不需要保存到镜像，例 `/etc/hosts`。
 读写层（容器层）：rw 挂载，修改：利用 COW 保存修改文件，删除：whiteout，生成 `.wh.foo` 遮挡文件。
 
-### OverlayFS
+## OverlayFS
 [![img](https://docs.docker.com/storage/storagedriver/images/overlay_constructs.jpg)](https://docs.docker.com/storage/storagedriver/overlayfs-driver/)
 
 lowerdir: 镜像层
@@ -225,10 +322,10 @@ workdir=/var/lib/docker/overlay2/772385039e04b1490772892bec516f8878dcc46da79c012
 
 镜像分析工具 [dive](https://github.com/wagoodman/dive)
 
-### DeviceMapper
+## DeviceMapper
 块设备
 
-## Reference
+# Reference
 http://lwn.net/Articles/531114/
 https://segmentfault.com/a/1190000009732550
 

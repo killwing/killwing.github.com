@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Kubernetes Cluster API</title>
+<xmp theme="readable" style="display:none;">
+https://cluster-api.sigs.k8s.io/
+
+# Concepts
+Management cluster: 管理 Workload cluster 的生命周期，也运行着各种 provider，及对应 meta 资源。
+Workload cluster: 应用 k8s cluster。
+
+Provider:
+
+* InfrastructureProvider: 提供 cluster 所需要的 infra 资源。cloud infra provider 如 AWS, Azure, Google 等，bare metal infra provider 如 VMware, MAAS metal3.io 等，及 docker。
+* BootstrapProvider: 将一个 server 变为一个 k8s node，以及初始化工作。通常是 kubeadm (CABPK)，其主要功能是把 KubeadmConfig 转成一个 [cloud-init](https://cloud-init.io/) 的脚本（放在status secret里），这个脚本的作用是使用 kubeadm 将一个 Machine 变为 k8s Node。InfrastructureProvider 就可以利用它来创建 Machine 及进行真正的 bootstrap。
+* ControlPlaneProvider: bootstrap control plane。通常是 kubeadm (KCP)。
+* CoreProvider: cluster api 核心组件。
+
+NAMESPACE                           |NAME                    |TYPE                     |PROVIDER      |VERSION  |Controller                                     |CRD
+-                                   |-                       |-                        |-             |-        |-                                              |-
+capd-system                         |infrastructure-docker   |InfrastructureProvider   |docker        |v1.5.0   |capd-controller-manager                        |infrastructure.cluster.x-k8s.io
+capi-kubeadm-bootstrap-system       |bootstrap-kubeadm       |BootstrapProvider        |kubeadm       |v1.5.0   |capi-kubeadm-bootstrap-controller-manager      |bootstrap.cluster.x-k8s.io
+capi-kubeadm-control-plane-system   |control-plane-kubeadm   |ControlPlaneProvider     |kubeadm       |v1.5.0   |capi-kubeadm-control-plane-controller-manager  |controlplane.cluster.x-k8s.io
+capi-system                         |cluster-api             |CoreProvider             |cluster-api   |v1.5.0   |capi-controller-manager                        |cluster.x-k8s.io
+
+# CRD
+clusterctl.cluster.x-k8s.io:
+Provider
+
+cluster.x-k8s.io:
+MachineDeployment/MachineSet/Machine: 代表 Node，类比 Deployment/ReplicaSet/Pod
+MachinePool
+MachineHealthCheck
+Cluster
+ClusterClass: 创建一个 cluster 的模版，用来创建多个相同配置的 cluster。否则每个 cluster 都需要保存自己的配置，这些配置仅仅名字及相关资源引用不同。
+
+bootstrap.cluster.x-k8s.io:
+KubeadmConfig: 对应 KCP，InitConfiguration, ClusterConfiguration 用于第一个 control plane node，JoinConfiguration 用于后续 control plane node。对于 MachineDeployment，JoinConfiguration 用于 worker node。
+KubeadmConfigTemplate
+
+controlplane.cluster.x-k8s.io:
+KubeadmControlPlane (KCP): 可以认为是专门针对 control plane 的一个 MachineDeployment。如果只有一个 replica，也可以直接用 Machine。
+KubeadmControlPlaneTemplate
+
+ipam.cluster.x-k8s.io:
+IPAddress
+IPAddressClaim
+
+runtime.cluster.x-k8s.io:
+ExtensionConfig
+
+addons.cluster.x-k8s.io:
+ClusterResourceSet (CRS): 当一个 cluster 创建的时候，需要自动 apply 的资源，比如 CNI/CSI。用标签匹配 cluster，和 cluster 是多对多的关系。
+ClusterResourceSetBinding (CRSB): 可以绑定多个 CRS，但一个 CRSB 只对应一个同名的 cluster。
+
+infrastructure.cluster.x-k8s.io:
+DockerCluster
+DockerClusterTemplate
+DockerMachine
+DockerMachineTemplate
+DockerMachinePool
+
+e.g.:
+```
+ClusterClass/quick-start
+└─DockerClusterTemplate/quick-start-cluster (infrastructure)
+└─KubeadmControlPlaneTemplate/quick-start-control-plane (controlPlane)
+└─DockerMachineTemplate/quick-start-control-plane (controlPlane.infrastructure)
+└─KubeadmConfigTemplate/quick-start-default-worker-bootstraptemplate (worker.bootstrap)
+└─DockerMachineTemplate/quick-start-default-worker-machinetemplate (worker.infrastructure)
+
+Cluster/capi-quickstart
+└─DockerCluster/capi-quickstart-f7j6v
+└─DockerMachineTemplate/capi-quickstart-control-plane-khrx5
+└─KubeadmConfigTemplate/capi-quickstart-md-0-bootstrap-hl7kh
+└─DockerMachineTemplate/capi-quickstart-md-0-infra-78ns6
+└─KubeadmControlPlane/capi-quickstart-r5cks
+  └─Machine/capi-quickstart-r5cks-8nkgx (x3 control plane nodes)
+    └─KubeadmConfig/capi-quickstart-r5cks-zt7jl
+    └─DockerMachine/capi-quickstart-control-plane-khrx5-qh8dm
+└─MachineDeployment/capi-quickstart-md-0-4zv7k
+  └─MachineSet/capi-quickstart-md-0-4zv7k-ff79f5cdfx846wz
+    └─Machine/capi-quickstart-md-0-4zv7k-ff79f5cdfx846wz-glwn4 (x3 worker nodes)
+      └─KubeadmConfig/capi-quickstart-md-0-bootstrap-hl7kh-jxslt
+      └─DockerMachine/capi-quickstart-md-0-infra-78ns6-v6xb8
+```
+
+关系图：https://cluster-api.sigs.k8s.io/developer/crd-relationships.html
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>

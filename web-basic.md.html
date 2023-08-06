@@ -431,25 +431,43 @@ h1 {
   * place-self 简写 `<align-self> <justify-self>;`
 
 #### flexbox
-* `display: flex;` 用于单向布局，且项目都变为 flex。默认水平排列，项目具有相同的高度。
+* `display: flex;` 用于单向布局，且项目都变为 flex。默认水平排列，项目具有相同的高度。item 的 width 是基础假设宽度（basis），受限于容器宽度。
+* `display: inline-flex;` does not make flex items display inline. It makes the flex container display inline.
 * 容器属性
   * flex-direction
     * `row` main 轴为 row, cross 轴则为 column
     * `column` main 轴为 column, cross 轴则为 row
     * `row-reverse`
     * `column-reverse`
-  * flex-wrap 控制换行
+  * flex-wrap 控制换行，项目内容不会收缩而改为换行，相当于有多条 main 轴
   * flex-flow 简写 `<flex-direction> <flex-wrap>;`
   * justify-content main 轴对齐
-  * align-content cross 轴对齐，仅当有项目 wrap 时
+    * `flex-start`
+    * `center`
+    * `flex-end`
+    * `space-between` 靠边的 item 边上没有空白
+    * `space-around` item 两边都有空白
+    * `space-evenly` item 中间的空白重叠，使得间距相等
+  * align-content 仅当 flex-wrap 时，多行按 cross 轴对齐，值同 justify-content
   * place-content 同时设置 main 和 cross 轴对齐
   * align-items 所有项目内容 cross 轴基于基线对齐，相当于对所有项目 `align-self`
+    * `flex-start`
+    * `center`
+    * `flex-end`
+    * `stretch`
+    * `baseline`
+  * gap 项目间隔
 * 项目属性
-  * flex-grow 是否可以大于 flex-basis
-  * flex-shrink 是否可以小于 flex-basis
-  * flex-basis
+  * flex-basis 基础宽度，随 direction 改变方向，除了一些例外情况可以认为和 width 等价（ width 不随 direction 改变方向）
+    * `30px` 指定大小
     * `auto` 原有自身大小
     * `0` 忽略自身大小
+  * flex-grow 是否可以大于 flex-basis
+    * `0` 默认
+    * `1` 可以伸展，是个比例值（相对其他item）
+  * flex-shrink 是否可以小于 flex-basis
+    * `0`
+    * `1` 默认，可以收缩，是个比例值（相对其他item），但不能小于最小大小(min-width，默认auto，每种元素有自己的最小大小)
   * flex 简写 `<flex-grow> <flex-shrink> <flex-basis>;`
     * `auto` 1 1 auto
     * `1` 1 1 0%
@@ -457,6 +475,8 @@ h1 {
     * `none` 0 0 auto
   * order 项目的显示顺序
   * align-self 项目内容 cross 轴基于基线对齐
+
+https://www.joshwcomeau.com/css/interactive-guide-to-flexbox
 
 ### 函数
 * `:is()`, `:not()` 伪类

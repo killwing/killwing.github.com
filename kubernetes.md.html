@@ -685,12 +685,14 @@ PluginInfo 返回了插件类型（CSIPlugin, DevicePlugin）和插件实际 end
 
 ## Pod
 ### namesapce
-默认情况下容器共享 sandbox 的 Network/Ipc namespace，共享 host 的 Cgroup/User namespace，创建独立的 PID/Mount/UTS namespace。
+默认情况下容器共享 sandbox(pause) 的 net/ipc/uts namespace，共享 host 的 time/user namespace，创建独立的 pid/mount/cgroup namespace。`lsns -p <pid>`
 
-`spec.hostNetwork` 是否和 host 共享 Network/UTS namespace。
+`spec.hostNetwork` 是否和 host 共享 Network/UTS namespace。此时 Pod IP 为 node IP。
 `spec.hostIPC` 是否和 host 共享 IPC namespace。
 `spec.hostPID` 是否和 host 共享 PID namespace。
-`spec.shareProcessNamespace` 是否和 sandbox 共享 PID namespace。
+`spec.shareProcessNamespace` 是否和 sandbox 共享 PID namespace。此时文件系统可以通过 `/proc/$pid/root` 共享。
+
+pause 容器的作用：作为 Pod 中所有容器的 Linux namespace 共享的基础容器；如果 `spec.shareProcessNamespace` 被设置，作为PID 1进程可以收割僵尸进程（不是其他进程的父进程，只是作为 init 进程收养其他进程）。
 
 ### status
 phase
@@ -790,12 +792,15 @@ CronJob 是定时任务，控制 Job。
 
 ## Service & Endpoints
 每个 Service 有个对应同名 Endpoints，包含被选中的 Pod 地址列表和状态，其中只有 ready 的 Pod 才会被 Service 选中转发。
+如果一个 Service 没有 pod selector，将不会有对应 Endpoints 自动创建，一般用于外部服务，需要手动创建对应 Endpoints。
 Pod 通过 Service 访问到自己需要 kubelet 开启 --hairpin-mode 为 promiscuous-bridge（默认）或 hairpin-veth。
+
+EndpointSlice 是为了解决 pod 数量多时，Endpoints 对象过大及频繁更新的问题，且 Endpoints 具有容量限制(1000个endpoint)。而 EndpointSlice 可以根据 pod 数量（默认100个，`kube-controller-manager: --max-endpoints-per-slice`）来自动分割成多个对象，它们的 OwnerReference 是其 Serivce。
 
 ### ClusterIP
 DNS 服务名解析到 VIP A 记录。
 
-iptables: (VIP: 10.96.0.1, PodIP: 192.168.99.101)
+iptables: (VIP: 10.96.0.1, PodIP: 192.168.99.101)，将 VIP DNAT 到 PodIP，转为 Pod 之间的访问。
 ```bash
 -A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
 -A KUBE-SERVICES -d 10.96.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y
@@ -811,7 +816,7 @@ iptables 规则由 kube-proxy 负责维护，参考 [kube-proxy iptables 模式�
 
 Headless Service: `spec.ClusterIP: None`
 
-* 没有 VIP，DNS 服务名直接解析为选中的 pod IP 的多个 A 记录。（没有 iptables 规则）
+* 没有 VIP，DNS 服务名直接解析为选中的 pod IP 的多个 A 记录。（没有 iptables 规则，需要用 targetPort 访问，而不是 port）
 * 每个选中的 pod 有唯一网络标识：`<pod-name>.<svc-name>.<namespace>.svc.cluster.local`，可以用 Pod 的 hostname, subdomain 自定义。
 
 ### NodePort
@@ -985,7 +990,7 @@ spec:
 通过 configmap 动态加载 dashboard: https://johnharris.io/2019/03/dynamic-configuration-discovery-in-grafana/
 原理：https://github.com/kiwigrid/k8s-sidecar
 
-## Server Side Apply
+## [Server Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply)
 client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/
 
 冲突是一种特定的错误状态，发生在执行 Apply 改变一个字段，而恰巧该字段被其他用户声明过主权时 (metadata.managedFields)。
@@ -1014,6 +1019,63 @@ replace | kubectl-replace | update | PUT | application/json
 edit | kubectl-edit | update | PATCH| strategic-merge-patch+json
 patch | kubectl-patch | update | PATCH | strategic-merge-patch+json
 
+合并策略：
+
+* list: `// +listType=`
+  * atomic: 整个替换（默认）
+  * set: 当作set，值必须是 scalar 类型
+  * map: 当作map，`// +listMapKey=`作为key组合
+  * 如果缺失，如果有 `patchMergeStrategy=merge` 则会被认为是 `listType=map`，`patchMergeKey` 作为 `listMapKey`
+
+* map/struct: `// +mapType=`, `// +structType=`
+  * atomic: 整个替换
+  * granular: 每个字段互相独立（默认）
+
+managedFieds:
+`.` 字段本身
+`f` 字段名字
+`v` 字段值
+`k` map 的 key，包含f,v
+`i` 数组的索引
+
+## [DNS](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/)
+查询 Pod /etc/resolve.conf 配置
+查询 [nodelocaldns](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/) 缓存
+查询 [CoreDNS](https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/) 内部域名
+查询 CoreDNS Node /etc/resolv.conf upstream DNS server
+
+POD /etc/resolve.conf 由 kubelet 挂载，默认值：
+```
+search <namespace>.svc.cluster.local svc.cluster.local cluster.local
+nameserver 10.123.0.10
+options ndots:5
+```
+小于5个点的，加上搜索 domain 后缀查询。
+
+内部域名：
+一般 Service：A/AAAA 记录，解析为 ClusterIP
+Headless Service: A/AAAA 记录，解析为 Pod IP 集合
+Pod: 一般 `pod-ip-address.my-namespace.pod.cluster-domain.example`，如果被 Service 暴露 `pod-ip-address.service-name.my-namespace.svc.cluster-domain.example`, 如果是 Headless Service 且名字为 subdomain `hostname.subdomain.my-namespace.svc.cluster.local` 都解析为 POD IP。
+StatefulSet: `spec.serviceName` 设为 Pod 的 subdomain, Pod name 设为 Pod 的 hostname。这样如果有 serviceName 的 Headless Service，就可以用 `pod-name.service-name.my-namespace.svc.cluster-domain.example` 访问 Pod。
+
+Pod DNS Policy:
+
+* Default: 继承所在 node
+* ClusterFirst: 默认值，先由 cluster-dns/coredns 解析
+* ClusterFirstWithHostNet: Pod 使用 hostnetwork 情况下，先 clusterr-dns，再 upstream，否则 fallback 到 Default，不能解析内部域名
+* None: 使用自定义的 `spec.dnsConfig`
+
+SRV 记录: 对于 Service 的每个 port (endpoint)  `_port-name._port-protocol.my-svc.my-namespace.svc.cluster-domain.example`
+
+* headless service: 对应多个 Pod 的 `hostname.my-svc.my-namespace.svc.cluster-domain.example` pods ip
+* 普通 service: 对应 `my-svc.my-namespace.svc.cluster-domain.example` cluster ip
+
+e.g. `dig +short srv _http._tcp.kuard-svc.default.svc.cluster.local`
+```
+0 33 8080 kuard-0.kuard-svc.default.svc.cluster.local.
+0 33 8080 kuard-1.kuard-svc.default.svc.cluster.local.
+0 33 8080 kuard-2.kuard-svc.default.svc.cluster.local.
+```
 
 # Utilities
 ## Leader Election

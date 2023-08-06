@@ -532,6 +532,8 @@ TX: 发
 
 
 ### ip-route
+`cat /etc/iproute2/rt_tables` 查看所有路由表，local优先于main
+`ip route list table <main/local>`, `ip route/route -n` (查看main)
 指定路由查找 `ip route get 192.168.10.10`
 
 ### ip-link
@@ -554,6 +556,7 @@ type:
 
 ## [iptables](https://wiki.archlinux.org/index.php/iptables)
 [iptables-tutorial](https://www.frozentux.net/iptables-tutorial/chunkyhtml/index.html)
+[iptable_vis](https://github.com/Nudin/iptable_vis)
 
 命令：`iptables [-t table] command chain [rule-num] rule-spec -j target`
 
@@ -668,7 +671,7 @@ DNAT(目标地址转换)：PREROUTING/OUTPUT
 `iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
 场景：端口映射，以让外部访问内网
 
-同一个流上的包只会被iptables NAT判断一次，以后的包自动NAT。
+同一个流上的包只会被iptables NAT判断一次，以后的包根据 conntrack 自动NAT。
 
 TRACE
 在`/var/log/syslog`中查看日志。格式：`TRACE: tablename:chainname:type:rulenum`
@@ -696,6 +699,22 @@ ipv4     2 udp      17 9 src=10.0.2.15 dst=192.168.1.1 sport=60206 dport=53 src=
 ipv4     2 udp      17 159 src=10.0.2.15 dst=192.168.1.1 sport=52215 dport=53 src=192.168.1.1 dst=10.0.2.15 sport=53 dport=52215 [ASSURED] mark=0 use=1
 ipv4     2 udp      17 11 src=10.0.2.15 dst=116.203.151.74 sport=123 dport=123 src=116.203.151.74 dst=10.0.2.15 sport=123 dport=123 mark=0 use=1
 ```
+
+* 如果报文匹配到一个 NAT 规则，例如 IP 地址伪装，相应的映射信息会记录在链接跟踪项的回复方向部分，并自动应用于同一条流的所有后续报文。
+* 即使一条流经过了地址或端口的转换，也可以成功在连接状态表中查找到回复报文的四元组信息。
+
+```
+tcp      6 117 TIME_WAIT src=100.115.93.210 dst=100.115.93.222 sport=38532 dport=8000 src=172.17.0.101 dst=100.115.93.210 sport=8080 dport=38532 [ASSURED] mark=0 use=1
+tcp      6 116 TIME_WAIT src=172.17.0.101 dst=100.115.93.210 sport=59982 dport=8080 src=100.115.93.210 dst=100.115.93.222 sport=8080 dport=59982 [ASSURED] mark=0 use=1
+```
+第一条 DNAT：`-A PREROUTING -p tcp --dport 8000 -j DNAT --to-destination 172.17.0.101:8080`
+第二条 SNAT：`-A POSTROUTING -s 172.17.0.0/24 -j MASQUERADE`
+6 - tcp, 17 - udp
+117,116 - TTL in second
+TIME_WAIT - 连接状态
+第一组四元组：连接发起方（原始方向，不会被修改）
+第二组四元组：连接接收方（回复方向，会被 NAT 修改）
+
 
 ## [ipset](https://www.linuxjournal.com/content/advanced-firewall-configurations-ipset)
 
@@ -772,7 +791,12 @@ listening on enp0s3, link-type EN10MB (Ethernet), capture size 262144 bytes
 22:25:33.298673 IP 10.0.2.15.8000 > 10.0.2.2.61689: Flags [.], ack 80, win 29200, length 0
 22:25:33.298760 IP 10.0.2.2.61689 > 10.0.2.15.8000: Flags [F.], seq 79, ack 2072, win 65535, length 0
 ```
-开始传输数据后，序号显示为数据流的偏移（-S可以显示原始序号），`seq 1:156` 表示发送第[1, 156)字节的数据，`ack 156` 表示确认了 156-1 字节的数据。
+开始传输数据后，序号显示为数据流的偏移（-S可以显示原始序号），`seq 1:156` 表示发送第[1, 156)字节的数据，`ack 156` 表示确认了 156-1 字节的数据。双方不断确认收到的数据，所以 flags 都为 ACK 或 PUSH+ACK。
+
+wireshark:
+Statistics -> Conversations 根据协议层查看
+Statistics -> Flow Graph 显示时序图
+Right Click -> Follow TCP Stream 根据 steam （连接）过滤
 
 ## hping3
 ```

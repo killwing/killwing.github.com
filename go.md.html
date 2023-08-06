@@ -26,6 +26,10 @@ export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 AMD64 优化：
 GOAMD64=v1/v2/v3/v4，默认v1，越高兼容性越差性能越好
 
+Build info:
+`runtime/debug.ReadBuildInfo` 读取 build 信息
+`go version -m ./app`
+
 [Presentation](https://pkg.go.dev/golang.org/x/tools/present):
 `go install golang.org/x/tools/cmd/present`
 run locally in slides dir: `present -base ~/go/src/golang.org/x/tools/cmd/present`
@@ -1158,6 +1162,7 @@ import (
 `./...`不会匹配vendor目录。
 
 ## [Modules](https://blog.golang.org/using-go-modules) ([zh](https://www.4async.com/2019/03/2019-03-20-using-go-modules/) [doc](https://golang.org/doc/#developing-modules))
+https://go.dev/ref/mod
 https://github.com/golang/go/wiki/Modules
 
 `GO111MODULE=on` 默认auto自动检测是否启用。
@@ -1171,6 +1176,8 @@ module 定义文件，位于 module 根目录。
 
 ```
 module github.com/my/module/v3
+
+go 1.20
 
 require (
     github.com/some/dependency v1.2.3
@@ -1190,7 +1197,7 @@ require: 依赖包
 exclude: 只作用于当前 module
 replace: 只作用于当前 module
 
-`// indirect`: 表示这个项目当前与 module 机制不兼容：任何tag版本或master最新版本都没有 go.mod 文件。
+当一个 module 依赖 package A 时，它就直接依赖 A 所在的 module B，间接依赖 A 所依赖的其他 module。但不依赖 A 中 test 所依赖的 module，也不依赖 module B 其他未使用 package 所依赖的 module。go.mod 文件中就是所有直接依赖和间接依赖的 module 所有列表。
 
 ### command
 相关命令从当前目录开始向上找`go.mod`，第一个找到的 module 作为 main module（命令运行目录）。
@@ -1204,6 +1211,15 @@ replace: 只作用于当前 module
 `go list -m -versions github.com/pkg/errors` 显示指定包的所有版本。
 `go clean -modcache` && `go mod tidy` 重新更新缓存。
 
+以上命令会显示完整的依赖 module（go.sum 也会包括test依赖，用于 MVS 的版本等），使用 `go tool nm` / `go version -m` 查找实际编译到 binray 的 module (对应 go.mod 依赖)。
+[使用 go list 查找](https://stackoverflow.com/questions/64371466/with-go-list-how-to-list-only-go-modules-used-in-the-binary)
+```
+go list -deps -f '{{define "M"}}{{.Path}}@{{.Version}}{{end}}{{with .Module}}{{if not .Main}}{{if .Replace}}{{template "M" .Replace}}{{else}}{{template "M" .}}{{end}}{{end}}{{end}}' | sort -u
+go list -deps -f '{{define "mod"}}{{.Path}}@{{.Version}}{{end}}{{if .Module}}{{if not .Module.Main}}{{if .Module.Replace}}{{template "mod" .Module.Replace}}{{else}}{{template "mod" .Module}}{{end}}{{"\t"}}{{.ImportPath}}{{end}}{{end}}' | sort
+go list -deps -json | jq -r 'select(.Module and (.Module.Main | not)) | .Module.Path + "@" + .Module.Version + "\t" + .ImportPath' | sort
+```
+https://github.com/golang/go/issues/27900
+
 ### 依赖管理
 `go get -u` to use the latest minor or patch releases
 `go get -u=patch` to use the latest patch releases
@@ -1216,13 +1232,16 @@ replace: 只作用于当前 module
 * 如果 tag 主版本是 v2 或更高，mod-path 和 import path 都必须包含主版本（后缀）。如果是 v0 或 v1 则不需要包含。
 
 用不同 branch 区分不同主版本进行开发。
+主版本不同，则认为是不同的 module。
 
 ### [MVS (Minimal Version Selection)](https://www.ardanlabs.com/blog/2019/12/modules-03-minimal-version-selection.html) ([zh](https://tonybai.com/2019/12/21/go-modules-minimal-version-selection/))
-当多个 module 依赖同一个（相同主版本的） target module 时，选择（满足多个 module 需求的）最新而非（target module 的）最大的版本。
+当多个 module 依赖同一个（相同主版本的） target module 时，选择（满足多个 module 需求的 target module 的）最小而非最大版本。
 
 基于 MVS 升级：`go get -t -d -v ./...`
 最新最大版本升级：`go get -u -t -d -v ./...` （会在 go.mod 中增加对最大版本的显式依赖，无论有没有代码使用）
 重置依赖：删除 go.mod/go.sum，重新 init。
+
+没有 go.mod 的 legacy go 包（版本有 incompatible 后缀）不适用此规则（认为是同一个module，无视大版本，选择同时满足的最小版本）。
 
 ## [Workspace](https://go.dev/blog/get-familiar-with-workspaces) ([zh](https://mp.weixin.qq.com/s/QSWf3QKYsVDkPufKB9gzRQ))
 用工作区目录根部的 go.work 文件来控制所有的依赖关系，使多个 module 可以优先本地依赖，而不用 module replace 到本地路径（也不用显式 require 依赖）。
@@ -1344,6 +1363,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 
 ## 结构化
 [logr](https://github.com/go-logr/logr)
+[slog](https://pkg.go.dev/golang.org/x/exp/slog)
 
 # Diagnostics ([doc](https://golang.org/doc/diagnostics.html))
 
@@ -1665,6 +1685,9 @@ func (t *TimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 ```
 
+### [tracing](https://go.dev/blog/http-tracing)
+跟踪 http client 请求过程中的事件，比如连接重用。
+使用例子：https://github.com/davecheney/httpstat
 
 ## [reflection](http://blog.golang.org/laws-of-reflection)
 通过reflection可以取得接口里面的类型和值的信息。
@@ -1775,6 +1798,8 @@ object|map[string]interface{}
 `json:",string"` 数值，布尔类型在json里转为string编码。如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)从而不丢失精度，进而转为数值类型。
 
 ## text/template
+[playground](https://repeatit.io/)
+
 data: 模版执行当前作用域的上下文数据，叫dot用`.`表示。`{{with pipeline}}` 限定作用域。
 `{{.Count}} items are made of {{.Material}}` // "17 items are made of wool"
 `{{with "output"}}{{printf "%q" .}}{{end}}` // "output"
@@ -1817,6 +1842,16 @@ Variables: `$var := pipeline`, `range $index, $element := pipeline`，变量作�
 
 function: 预定义的全局函数 `and, call, html, index, slice, js, len, not, or, print, printf, println, urlquery, eq, ne, lt, le, gt, ge`。或自定义函数 `template.New("").Funcs(template.FuncMap{ ... })`。
 
+一个列出k8s deploy cpu的例子（trim不必要的空行）：
+```
+{{- range .items -}}
+    {{ $name := .metadata.name }}
+    {{- range .spec.template.spec.containers -}}
+        {{$name}} {{": "}} {{ .resources.limits.cpu }} {{"\n"}}
+    {{- end -}}
+{{- end -}}
+```
+
 ## regexp
 https://golang.org/pkg/regexp/syntax/
 https://github.com/StefanSchroeder/Golang-Regex-Tutorial
@@ -1854,7 +1889,7 @@ c.L.Unlock()
 `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
 
 # [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
-用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc（alpine 下链接 musl）。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替，但会导致 dns 解析(nsswitch)等行为和标准不一致。
+用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc（alpine 下链接 musl）。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替（会禁用cgo），但会导致[dns 解析(nsswitch)，user ID 查询](https://stackoverflow.com/a/64531740/797539)等行为和标准不一致。
 
 [glibc](https://lwn.net/Articles/117972/) 禁止静态链接，[musl](http://dominik.honnef.co/posts/2015/06/statically_compiled_go_programs__always__even_with_cgo__using_musl/) 可以。
 
@@ -1943,6 +1978,7 @@ https://tip.golang.org/cmd/go/
 https://github.com/golang/go/wiki
 https://github.com/campoy/go-tooling-workshop
 https://go-proverbs.github.io
+https://the-zen-of-go.netlify.com/
 https://google.github.io/styleguide/go/
 
 </xmp>
