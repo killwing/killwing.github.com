@@ -1075,10 +1075,42 @@ __comparable__
 type comparable interface { comparable }
 ```
 
-## exp std lib
-golang.org/x/exp/constraints
-golang.org/x/exp/slices
-golang.org/x/exp/maps
+## Misc
+泛形函数赋值，类型自动推导
+```
+func IsZero[T comparable](a T) bool {
+	return a == *new(T)
+}
+
+var is0 func(int) bool = IsZero
+var isEmpty func(string) bool = IsZero
+var isNilStr func(*string) bool = IsZero
+slices.IndexFunc([]int{1, 2, 3}, IsZero)
+```
+
+泛形接口赋值
+```
+type RandomElementer[T any] interface {
+	RandomElement() (T, bool)
+}
+
+func MustRandom[R RandomElementer[T], T any](collection R) T {
+	val, ok := collection.RandomElement()
+	if !ok {
+		panic("collection is empty")
+	}
+	return val
+}
+
+type MyList[T any] []T
+func (l MyList[T]) RandomElement() (T, bool) { }
+
+type IPSet map[netip.Addr]bool
+func (s IPSet) RandomElement() (netip.Addr, bool) { }
+
+randomInt := MustRandom(MyList[int]{})
+randomIP := MustRandom(IPSet{})
+```
 
 # Error Handling
 ## [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
@@ -1363,7 +1395,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 
 ## 结构化
 [logr](https://github.com/go-logr/logr)
-[slog](https://pkg.go.dev/golang.org/x/exp/slog)
+[slog](https://go.dev/blog/slog)
 
 # Diagnostics ([doc](https://golang.org/doc/diagnostics.html))
 
@@ -1799,6 +1831,8 @@ object|map[string]interface{}
 
 ## text/template
 [playground](https://repeatit.io/)
+
+`template.Parse()` 可以重复执行，但会覆盖当前模版定义，而不是返回新的模版定义。
 
 data: 模版执行当前作用域的上下文数据，叫dot用`.`表示。`{{with pipeline}}` 限定作用域。
 `{{.Count}} items are made of {{.Material}}` // "17 items are made of wool"

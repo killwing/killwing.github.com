@@ -244,6 +244,12 @@ CALLBACK_URL 不一定是 HTTPS (Step D)，所以 AT 不能在 query 参数里�
 ## [Token Exchange](http://www.rfcreader.com/#rfc8693)
 https://indigo-iam.github.io/docs/v/current/user-guide/api/oauth-token-exchange.html
 
+# [OpenID Connect](https://openid.net/specs/openid-connect-core-1_0.html)
+OIDC 是 OAuth 2.0 的扩展，OAuth 2.0 签发 Access Token 来访问资源，OIDC 签发 ID token 来验证用户身份。
+[流程](https://darutk.medium.com/diagrams-of-all-the-openid-connect-flows-6968e3990660)和 OAuth 2.0 一样，可以是 Authorization Code 或 Implicit flow，`scope` 包含 `openid`，`response_type` 包含 `id_token` 或+ code/token。
+
+IDP 能力发现: `https://${OIDC_PROVIDER}/.well-known/openid-configuration`
+
 
 # [JWT](https://jwt.io)
 ## 格式

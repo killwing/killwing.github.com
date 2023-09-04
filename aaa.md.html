@@ -352,7 +352,7 @@ openssl x509 -outform der -in all/my-private-root-ca.cert.pem -out client/my-pri
 
 curl 发送带客户端证书请求： `curl --cacert ca.crt --cert client.crt --key client.key https://...`
 
-取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443 </dev/null` [证书链是否包含root证书是可选的](https://security.stackexchange.com/questions/65332/ssl-root-certificate-optional), 加上 `-CAfile` 加载CA证书进行验证
+取得服务端证书链：`openssl s_client -showcerts -connect www.google.com:443 </dev/null` [证书链是否包含root证书是可选的](https://security.stackexchange.com/questions/65332/ssl-root-certificate-optional), 加上 `-CAfile` 加载CA证书进行验证。因为客户端验证只会用也只需要用本地信任的root证书，而不会用服务端发送的，以此来验证证书链（服务端证书及中间CA证书）。
 直接查看证书：`openssl s_client -showcerts -connect www.google.com:443 </dev/null | openssl x509 -noout -text`
 如果 server 使用了 SNI，则需要加上 `-servername www.google.com` 参数。
 查看证书链：`openssl crl2pkcs7 -nocrl -certfile CHAINED.pem | openssl pkcs7 -print_certs -text -noout`
