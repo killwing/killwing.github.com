@@ -212,6 +212,10 @@ L: 有页锁在内存
 
 RSS (Resident Set Size): 常驻内存集，包括共享内存, in KiB。
 
+`-o` 指定 column:
+`ps H -o user,pid,lwp,nlwp,%cpu,%mem,vsz,rss,stat,start,time,command,comm,wchan -p <pid>`
+`ps -ax -n -o pid,netns,utsns,ipcns,mntns,pidns,cmd`
+
 ## sar
 ```
 $ sar -n DEV 1

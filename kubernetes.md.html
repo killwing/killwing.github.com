@@ -161,18 +161,18 @@ https://github.com/heptio/sonobuoy
 https://github.com/bloomberg/powerfulseal
 
 # CRD
-GroupKindVersion 标识一个资源，Kind 和 resource name 一致
+GroupKindVersion 标识一个资源类型，Kind 和 resource name 一致。group + kind + name/namespace 唯一标识一个资源对象，和 version 无关。
 ApiVersion: group/version
 
 ```
-kubectl get <resource>.<version>.<group>
+kubectl get <resource>.<version>.<group> // e.g. kubectl get issuers.v1beta1.cert-manager.io
 kubectl api-resources
 kubectl api-versions
 kubectl explain <resource> --api-version <apiVersion>
 ```
 
 可以同时存在同一个资源的不同 served 版本，但只有一个当前 stored 版本，可以有多个历史 stored 版本 (`.status.storedVersions`)，其它版本由当前 stored 版本转化而来。
-可以读取任意 served 版本，写入更新的是当前 stored 版本。
+可以读取任意 served 版本，写入更新的是当前 stored 版本。即使用别的版本 API 创建，写入的还是 stored 版本。
 改变 stored 版本不影响已经存在的 object，只影响后续的创建和更新。
 
 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/

@@ -6,7 +6,7 @@
 [https://go.dev](https://go.dev)
 
 # 准备
-### [下载安装](https://go.dev/doc/install)
+## [下载安装](https://go.dev/doc/install)
 下载安装包，并解压到安装路径(如`$HOME/golibexec`)，最后配置环境变量。
 `go env -w GOROOT=$HOME/golibexec` 安装路径
 `go env -w GOPATH=$HOME/go` 存放 module 缓存，工具等
@@ -15,7 +15,8 @@
 export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 ```
 
-### [工具集](http://golang.org/doc/cmd)
+## [工具集](http://golang.org/doc/cmd)
+建议的 [Project layout](https://go.dev/doc/modules/layout)
 编译并直接运行：`go run main.go`
 清除src目录下build生成的临时对象文件：`go clean`
 编译链接过程： `go build -x`
@@ -35,7 +36,7 @@ Build info:
 run locally in slides dir: `present -base ~/go/src/golang.org/x/tools/cmd/present`
 host in github: http://go-talks.appspot.com/github.com/davecheney/presentations/performance-without-the-event-loop.slide
 
-### 开发辅助工具
+## 开发辅助工具
 github.com:
 [godef](https://github.com/rogpeppe/godef)
 [gotags](https://github.com/jstemmer/gotags)
@@ -341,7 +342,7 @@ for key, value := range m { // m is map, 也可只取key，对于array和slice, 
 range表达式只会在开始前计算一次。
 会复制一份对象出来迭代，循环里引用的也是复制过的item，尽量使用引用或指针类型。
 range迭代数组结束时，index不会递增到下一个。
-迭代值的重用：注意 [range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。
+迭代值的重用：注意 [range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。[FIX](https://go.dev/blog/loopvar-preview): 1.22 之后不再重用。
 
 ```
 list := []int{1, 2, 3}
@@ -1366,9 +1367,18 @@ fuzzing 参数必须是以下类型：string, []byte, int, int8, int16, int32/ru
 execs: 执行的case/input数目
 interesting: 新加入的 generated corpus（一般是导致了覆盖率的增加）, `$GOCACHE/fuzz` 记录了系统维护的 generated corpus，清除`go clean -fuzzcache`
 
-## [Coverage](https://blog.golang.org/cover) ([cmd](http://golang.org/cmd/cover/))
+## [Coverage](https://go.dev/blog/cover) ([cmd](http://golang.org/cmd/cover/))
+单元测试：
 生成：`go test -coverprofile=cover.out`
-查看：`go tool cover -html=cover.out`
+查看html：`go tool cover -html=cover.out`, `-o cover.html` 生成html
+查看func：`go tool cover -func=cover.out`
+
+[集成测试](https://go.dev/testing/coverage/)：
+生成：`go build -cover -o myprogram`，`-coverpkg` 指定需要包含的包路径(`go list -m`)
+运行：`GOCOVERDIR=mydata ./myprogram` 可以运行多次（产生多个 covcounters 文件）
+查看：`go tool covdata percent -i=mydata`
+转成 profile 格式：`go tool covdata textfmt -i=mydata -o cover.out`
+查看html：`go tool cover -html=cover.out`
 
 ## [Examples](https://blog.golang.org/examples)
 示例函数命名(suffix可选)：
