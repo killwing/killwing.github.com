@@ -1077,6 +1077,9 @@ type comparable interface { comparable }
 ```
 
 ## Misc
+https://go.dev/blog/deconstructing-type-parameters
+https://go.dev/blog/type-inference
+
 泛形函数赋值，类型自动推导
 ```
 func IsZero[T comparable](a T) bool {
@@ -1415,7 +1418,7 @@ https://github.com/stretchr/testify : 辅助测试工具
 查看go相关环境变量：`go env`
 查看import及依赖：`go list -json`
 竞态检测：`go run/build/test -race`
-产生coredump：`GOTRACEBACK=crash`
+产生coredump：`GOTRACEBACK=crash` （none 不显示堆栈，single 为默认值显示当前堆栈，all 显示 user 堆栈，system 显示 user+runtime 堆栈，crash 生成 coredump）
 GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`, 内存上限软限制 GOMEMLIMIT, [GC Guide](https://go.dev/doc/gc-guide)
 
 Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/derekparker/delve)
@@ -1931,6 +1934,19 @@ c.L.Unlock()
 
 ## log
 `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
+
+## unsafe
+### Pointer
+`*T <--> unsafe.Pointer <--> uintptr`
+`uintptr` 没有指针语义，对于 GC，无法保留引用。用 `-gcflags=all=-d=checkptr` 检查。
+
+### String / Slice
+使用 `unsafe.String`, `unsafe.StringData` 代替 `StringHeader`
+使用 `unsafe.Slice`, `unsafe.SliceData` 代替 `SliceHeader`
+
+无 copy 转换：
+`mySlice := unsafe.Slice(unsafe.StringData(myString), len(myString))`
+`myString := unsafe.String(unsafe.SliceData(myBytes), len(myBytes))`
 
 # [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
 用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc（alpine 下链接 musl）。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替（会禁用cgo），但会导致[dns 解析(nsswitch)，user ID 查询](https://stackoverflow.com/a/64531740/797539)等行为和标准不一致。

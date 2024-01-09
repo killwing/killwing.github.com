@@ -457,6 +457,7 @@ kubelet/resgistrar 通过 hostpath `/var/lib/kubelet/plugins/[SanitizedCSIDriver
 使用：创建一个 `spec.dataSource` 指定为对应快照的 PVC，csi 插件将快照内容复制到对应 PV 上 `CreateVolume`。
 `VolumeSnapshot` 的 `status.ReadyToUse` 为 true 时，说明快照已完成，源 PVC 可以删除。
 
+## [COSI](https://container-object-storage-interface.github.io/)
 
 # Runtime
 ## [CRI](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-node/container-runtime-interface.md)
@@ -1128,6 +1129,10 @@ kubefed 控制组件安装在其中一个集群（host cluster），其他集群
 * Templates: 资源内容表示
 * Placement: 需同步的集群
 * Overrides: 根据不同集群 Templates 里字段覆盖
+
+## [Cluster API](kubernetes-cluster-api.md.html)
+
+## [Gateway API](https://gateway-api.sigs.k8s.io/)
 
 # Reference
 https://kubernetes.io/docs/home/

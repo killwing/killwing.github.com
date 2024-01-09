@@ -10,9 +10,14 @@ GB 2312(DBCS)/GBK(DBCS)/GB 18030(MBCS)/Big5(DBCS): 简体/繁体中文字符集�
 Unicode(UCS): [ISO 10646](https://tools.ietf.org/html/rfc3629)，包含所有字符的字符集。
 
 ### Unicode
-每个字符唯一对应一个码点(code point，即编号)，一般用`U+16进制值`表示。[根据码点查询对应字符信息](http://www.fileformat.info/info/unicode/char/search.htm)。
+每个字符唯一对应一个码位(code point，即编号)，一般用`U+16进制值`表示。[根据码位查询对应字符信息](http://www.fileformat.info/info/unicode/char/search.htm)。
 分为17个层面(plane)，每个层面的大小是16bit，即可表示65536个码点/字符。
 第0个层面叫基本面(BMP)，包含几乎所有常见字符，其它的叫补充面(SMP)。
+
+字位（grapheme）是在特定书写系统的上下文中最小的可区分的书写单位，被视为一个单独的、不可分割的字符。在 Unicode 中，一些字位使用多个码位进行编码。
+比如`é`（一个单独的字位）被编码为 `e（U+0065）`+`´（U+0301）`。
+
+Unicode 是基于区域设置的，不同区域设置下的同一个码位的字形（渲染）可能都不一样。
 
 
 ## 代码页
@@ -55,7 +60,7 @@ Locale分为12大类，可以分别设置（环境变量或系统设置`/etc/def
 
 ## 编码（存储表示）
 非Unicode: 字符集规定了字符对应的编码字节，字节数以及字节序（和endian无关）。使用查表的方式进行编解码。
-Unicode:
+Unicode: （UTF-8 已广泛使用，其他基本不再使用）
 
 * UCS-2: 双字节编码，只能表示BMP内的字符。（逐渐被UTF-16取代，UCS-4类似被UTF-32取代）
 * UTF-16: BMP内用双字节编码和UCS-2兼容，SMP字符需要用四个字节编码。
@@ -75,6 +80,7 @@ UTF-16/UCS-2: big`FE FF`, little`FF FE`。
 
 ## Reference
 [The Absolute Minimum Every Software Developer Absolutely, Positively Must Know About Unicode and Character Sets (No Excuses!)](http://www.joelonsoftware.com/articles/Unicode.html)
+[The Absolute Minimum Every Software Developer Must Know About Unicode in 2023 (Still No Excuses!)](https://tonsky.me/blog/unicode/)
 [charsets man](http://man7.org/linux/man-pages/man7/charsets.7.html)
 [ubuntu wiki](http://wiki.ubuntu.org.cn/Locale) [help](https://help.ubuntu.com/community/Locale)
 [关于字符编码，你所需要知道的](http://www.cnblogs.com/KevinYang/archive/2010/06/18/1760597.html)
