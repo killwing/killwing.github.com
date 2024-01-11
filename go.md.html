@@ -1484,6 +1484,9 @@ https://www.ardanlabs.com/blog/2018/01/escape-analysis-flaws.html
 * 函数返回内部创建变量的指针，或被超出函数 scope 的指针所引用。
 * make 时不能在编译时确定大小，或者太大超出栈的限制。
 * 当创建的变量赋值给一个接口，并接口调用了其方法时。
+* 发送指针或带有指针的值到 channel 中。
+* 在一个切片上存储指针或带指针的值，这些值分配在堆上。
+* slice 的背后数组被重新分配了，因为 append 时可能会超出其容量。
 
 如果变量分配在栈上，其指针可能随着栈的扩张或收缩而变化。
 ```
@@ -1542,6 +1545,7 @@ godoc 已废弃，使用 [pkgsite](golang.org/x/pkgsite/cmd/pkgsite)
 [Effective go](https://go.dev/doc/effective_go)
 [Package names](https://go.dev/blog/package-names)
 [Style packages](https://rakyll.org/style-packages/)
+[Pacakge names](https://blog.golang.org/package-names)
 
 ## [Code Generation](https://blog.golang.org/generate)
 指令：在任意go文件中，以注释：
