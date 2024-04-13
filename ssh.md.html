@@ -128,14 +128,16 @@ Host myhost
     ProxyCommand ssh -q -W %h:%p 192.168.1.1
     #ProxyCommand ssh 192.168.1.1 nc %h:%p
     #ProxyCommand ssh kelvin@192.168.1.1 "/usr/bin/bash -c 'exec 3<>/dev/tcp/%h/%p; cat <&3 & cat >&3;kill $!'"
-    # 使用http代理
-    ProxyCommand corkscrew proxy.example.org 8080 %h %p
 
 Host github.com
     HostName github.com
     User git
     # sock5 proxy
     ProxyCommand nc -v -x 127.0.0.1:1080 %h %p
+    # http proxy
+    ProxyCommand socat - PROXY:127.0.0.1:%h:%p,proxyport=3128
+    # http proxy
+    ProxyCommand corkscrew 127.0.0.1 3128 %h %p
 
 # 通配
 Host www* mail intranet

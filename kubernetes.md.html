@@ -175,6 +175,8 @@ kubectl explain <resource> --api-version <apiVersion>
 可以读取任意 served 版本，写入更新的是当前 stored 版本。即使用别的版本 API 创建，写入的还是 stored 版本。
 改变 stored 版本不影响已经存在的 object，只影响后续的创建和更新。
 
+perferred version: 指按优先级排序后的[最新 version](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#version-priority)
+
 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/
 https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
 

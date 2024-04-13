@@ -342,7 +342,7 @@ for key, value := range m { // m is map, 也可只取key，对于array和slice, 
 range表达式只会在开始前计算一次。
 会复制一份对象出来迭代，循环里引用的也是复制过的item，尽量使用引用或指针类型。
 range迭代数组结束时，index不会递增到下一个。
-迭代值的重用：注意 [range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。[FIX](https://go.dev/blog/loopvar-preview): 1.22 之后不再重用。
+迭代值的重用：注意 [range和goroutine结合使用的问题](http://stackoverflow.com/questions/30577212/go-for-range-slice-and-goroutine-method-invocation-the-logic-behind), [common mistakes](https://github.com/golang/go/wiki/CommonMistakes)。[FIX](https://go.dev/wiki/LoopvarExperiment): [1.22](https://go.dev/blog/loopvar-preview) 之后不再重用。
 
 ```
 list := []int{1, 2, 3}
@@ -1192,6 +1192,7 @@ import (
 一个包在被不同的包导入后，里面的全局变量只有一个实例, `init()`也只会运行一次。
 一般来说，一个目录一个包，作为一个单元一起编译，忽略测试文件。
 按照惯例，包名使用小写，且为一个单词的名字；不要使用下划线或者混合大小写。
+包并没有层级之分，父目录的包可以导入子目录的包，反之亦可，只要没有循环依赖，例如 [img](https://github.com/golang/go/tree/master/src/image)。
 
 ## Vendoring ([cmd](https://github.com/golang/dep))
 在src下如果有形如`d/vendor`的目录（一般vendor不直接放在src下），那么在`d`及其子目录下面build的时候import路径也会在`d/vendor`下面查找。如果有同名冲突，则选择路径长的。
@@ -1377,7 +1378,7 @@ interesting: 新加入的 generated corpus（一般是导致了覆盖率的增�
 查看html：`go tool cover -html=cover.out`, `-o cover.html` 生成html
 查看func：`go tool cover -func=cover.out`
 
-[集成测试](https://go.dev/testing/coverage/)：
+[集成测试](https://go.dev/blog/integration-test-coverage) [doc](https://go.dev/doc/build-cover)：
 生成：`go build -cover -o myprogram`，`-coverpkg` 指定需要包含的包路径(`go list -m`)
 运行：`GOCOVERDIR=mydata ./myprogram` 可以运行多次（产生多个 covcounters 文件）
 查看：`go tool covdata percent -i=mydata`
@@ -1401,7 +1402,7 @@ examples也是测试，通过stdout输出和`Output:`注释比较来判断测试
 `testing/quick`: 产生随机数做黒盒测试，[详解](http://blog.matttproud.com/2015/06/testingquick-blackbox-testing-in-go-for.html)
 https://github.com/dvyukov/go-fuzz : 随机数据测试
 https://github.com/stretchr/testify : 辅助测试工具
-
+https://github.com/vektra/mockery: mock 生成工具
 
 # Logging
 ## 非结构化
@@ -1605,6 +1606,47 @@ https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 `//go:noinline` 禁止内联函数
 
 # [Std Packages](https://pkg.go.dev/std)
+## errors
+`errors.As(err error, target any) bool`: `target` 必须是非空指针，`*target` 必须是一个 interface 或者实现了 error 接口。返回 `*target = err` 赋值是否可行，或者 err 实现了 As(target)。
+
+check by error pointer:
+```
+type MyError struct {
+	Message string
+}
+
+func (e *MyError) Error() string {
+	return e.Message
+}
+
+func IsMyError(e error) bool {
+	me := &MyError{}
+	return errors.As(e, &me)
+}
+```
+
+check by error concrete type:
+```
+type MyError struct {
+	Message string
+}
+
+func (e MyError) Error() string {
+	return e.Message
+}
+
+func IsMyError(e error) bool {
+	me := &MyError{}
+	return errors.As(e, me)
+}
+```
+
+## sort
+都是二分查找，要求有序：
+`Search(n int, f func(int) bool) int`: f 定义了查找条件，返回满足条件的第一个索引（插入位置），不能直接判断一个元素存不存在。
+`Find(n int, cmp func(int) int) (i int, found bool)`: cmp 返回一个整数，目标值小于当前元素时返回-1，大于返回1，等于返回0。返回满足`cmp(i) <= 0`的第一个索引，及存不存在标识。
+如果是slice，直接用`slices.BinarySearch`或`slices.BinarySearchFunc`
+
 ## [context](http://blog.golang.org/context)
 > [Pass context.Context in as an argument; don't store it in structs.](https://blog.golang.org/context-and-structs)
 
