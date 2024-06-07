@@ -1250,6 +1250,7 @@ replace: 只作用于当前 module
 `go clean -modcache` && `go mod tidy` 重新更新缓存。
 
 以上命令会显示完整的依赖 module（go.sum 也会包括test依赖，用于 MVS 的版本等），使用 `go tool nm` / `go version -m` 查找实际编译到 binray 的 module (对应 go.mod 依赖)。
+生成调用依赖：`go build -ldflags='-dumpdep' -gcflags='-N -l'`
 [使用 go list 查找](https://stackoverflow.com/questions/64371466/with-go-list-how-to-list-only-go-modules-used-in-the-binary)
 ```
 go list -deps -f '{{define "M"}}{{.Path}}@{{.Version}}{{end}}{{with .Module}}{{if not .Main}}{{if .Replace}}{{template "M" .Replace}}{{else}}{{template "M" .}}{{end}}{{end}}{{end}}' | sort -u
