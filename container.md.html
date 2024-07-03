@@ -74,7 +74,7 @@ container3> ip link set dev veth3 up
 
 宿主机访问（不同网段的）容器：Linux 没有提供虚拟路由器设备，但其本身可以充当路由器的功能
 ```
-host> ip addr add 172.17.0.1/24 dev br0 // 自动加入目标为 172.17.0.0 到路由表
+host> ip addr add 172.17.0.1/24 dev br0 // 如果带上mask，则自动加入目标为 172.17.0.0/24 的 direct link 到路由表
 ```
 
 容器访问（不同网段的）宿主机：
@@ -85,15 +85,26 @@ container1> ip route add default via 172.17.0.1
 容器访问外网/其他主机：在 Linux 中，如果发现收到的 IP 数据包是自己的，则会自己进行接收处理，否则会将其丢弃或者转发。还需启用SNAT，否则对方不识容器地址无法响应(SYN_RECV 状态)。
 ```
 host> cat /proc/sys/net/ipv4/ip_forward
-host> sysctl net.ipv4.ip_forward = 1
+host> sysctl -w net.ipv4.ip_forward=1
 host> iptables -t nat -A POSTROUTING -s 172.17.0.0/24 ! -o br0 -j MASQUERADE
 host> iptables -t nat -nL
 ```
 
-外部访问容器：利用 DNAT，把宿主机上指定端口的流量请求转发到容器中的地址 172.17.0.101:<port> 中
+外部访问容器：利用 DNAT，把宿主机上指定端口的流量请求转发到容器中的地址 `172.17.0.101:<port>` 中（port publishing/mapping）：
 ```
-host> iptables -t nat -A PREROUTING  ! -i br0 -p tcp -m tcp --dport 8000 -j DNAT --to-destination 172.17.0.101:8080
-host> iptables -t nat -nL
+host> iptables -t nat -A PREROUTING ! -i br0 -p tcp -m tcp --dport 8000 -j DNAT --to-destination 172.17.0.101:8080
+```
+
+内部访问容器（不走 PREROUTING）：
+```
+host> iptables -t nat -A OUTPUT ! -o br0 -p tcp -m tcp --dport 8000 -j DNAT --to-destination 172.17.0.101:8080
+```
+
+使 iptables 能够作用于 bridge 网络：
+```
+modprobe br_netfilter
+sysctl -w net.bridge.bridge-nf-call-arptables=1
+sysctl -w net.bridge.bridge-nf-call-iptables=1
 ```
 
 ### 常用命令

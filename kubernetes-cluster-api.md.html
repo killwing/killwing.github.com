@@ -60,7 +60,10 @@ DockerMachine
 DockerMachineTemplate
 DockerMachinePool
 
-e.g.:
+关系图：https://cluster-api.sigs.k8s.io/developer/crd-relationships.html
+
+# Provider
+## [capd](https://github.com/kubernetes-retired/cluster-api-provider-docker)
 ```
 ClusterClass/quick-start
 └─DockerClusterTemplate/quick-start-cluster (infrastructure)
@@ -72,8 +75,8 @@ ClusterClass/quick-start
 Cluster/capi-quickstart
 └─DockerCluster/capi-quickstart-f7j6v
 └─DockerMachineTemplate/capi-quickstart-control-plane-khrx5
-└─KubeadmConfigTemplate/capi-quickstart-md-0-bootstrap-hl7kh
 └─DockerMachineTemplate/capi-quickstart-md-0-infra-78ns6
+└─KubeadmConfigTemplate/capi-quickstart-md-0-bootstrap-hl7kh
 └─KubeadmControlPlane/capi-quickstart-r5cks
   └─Machine/capi-quickstart-r5cks-8nkgx (x3 control plane nodes)
     └─KubeadmConfig/capi-quickstart-r5cks-zt7jl
@@ -85,7 +88,30 @@ Cluster/capi-quickstart
       └─DockerMachine/capi-quickstart-md-0-infra-78ns6-v6xb8
 ```
 
-关系图：https://cluster-api.sigs.k8s.io/developer/crd-relationships.html
+## [capv](https://github.com/kubernetes-sigs/cluster-api-provider-vsphere)
+```
+Cluster/vsphere-quickstart
+└─VSphereCluster/vsphere-quickstart
+└─VSphereMachineTemplate/vsphere-quickstart
+└─VSphereMachineTemplate/vsphere-quickstart-worker
+└─KubeadmConfigTemplate/vsphere-quickstart-md-0
+└─KubeadmControlPlane/vsphere-quickstart
+  └─Machine/vsphere-quickstart-24txw
+    └─KubeadmConfig/vsphere-quickstart-24txw
+    └─VSphereMachine/vsphere-quickstart-24txw
+      └─VSphereVM/vsphere-quickstart-24txw
+        └─IPAddressClaim/vsphere-quickstart-24txw
+          └─IPAddress/vsphere-quickstart-24txw
+└─MachineDeployment/vsphere-quickstart-md-0
+  └─MachineSet/vsphere-quickstart-md-0-qx5q9
+    └─Machine/vsphere-quickstart-md-0-qx5q9-kpqmg
+      └─KubeadmConfig/vsphere-quickstart-md-0-qx5q9-kpqmg
+      └─VSphereMachine/vsphere-quickstart-md-0-qx5q9-kpqmg
+        └─VSphereVM/vsphere-quickstart-md-0-qx5q9-kpqmg
+          └─IPAddressClaim/vsphere-quickstart-md-0-qx5q9-kpqmg
+            └─IPAddress/vsphere-quickstart-md-0-qx5q9-kpqmg
+```
+
 
 </xmp>
 <script src="js/strapdown.js"></script>

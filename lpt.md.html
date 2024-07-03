@@ -572,6 +572,7 @@ chains: 规则链
 * FORWARD (转发管道)
 * OUTPUT(数据包出口)
 * POSTROUTING（路由后）
+* User-Defined （自定义）
 
 ```bash
                                XXXXXXXXXXXXXXXXXX
@@ -617,6 +618,7 @@ tables:
 * filter: 规定允许还是不允许（默认），应用于INPUT/FORWARD/OUTPUT
 * nat: 定义地址转换，应用于PREROUTING/OUTPUT/POSTROUTING
 * mangle: 修改报文数据，五个链都可以
+* raw
 
 commands:
 
@@ -625,8 +627,8 @@ commands:
 * D: delete, 删除规则
 * R: replace, 替换规则
 * I: insert, 插入规则
-* L: list, 列出规则或链
-* S: 打印规则或链的命令列表
+* L: list, 列出各个链的内容
+* S: 打印规则列表
 * F: flush, 清空规则或链
 * P: policy, 设置链的默认策略（不符合条件时）
 * Z: 重置链中默认规则的命中计数器
@@ -665,14 +667,14 @@ rule-specs:
     * conntrack: --ctstate NEW/ESTABLISHED/RELATED/INVALID
 
 SNAT(源地址的转换)/MASQUERADE(伪装)：POSTROUTING
-把内网某个网段的地址在经过时转为外网地址（源端口不变，若有数据发回时从外网地址映射回内网地址UN-SNAT）：
+把内网某个网段的地址在经过时转为外网地址（源端口不变，若有数据发回时根据 conntrack 从外网地址映射回内网地址UN-SNAT）：
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j SNAT --to-source 142.10.0.1`
 如果外网地址不固定，使用MASQUERADE可以自动从网卡获取外网地址：
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE`
 场景：局域网共享一个公网IP上网
 
 DNAT(目标地址转换)：PREROUTING/OUTPUT
-访问外网IP时转向内网主机（同一连接上有数据返回时，从内网地址映射回外网地址UN-DNAT, 在类似 POSTROUTING 阶段进行，但不经过 POSTROUTING 处理，SNAT 同理）：
+访问外网IP时转向内网主机（同一连接上有数据返回时，根据 conntrack 从内网地址映射回外网地址UN-DNAT, 在类似 POSTROUTING 阶段进行，但不经过 POSTROUTING 处理，SNAT 同理）：
 `iptables -t nat -A PREROUTING -d 142.10.0.1 -p tcp --dport 80 -j DNAT --to-destination 192.168.0.2:80`
 场景：端口映射，以让外部访问内网
 
@@ -706,7 +708,7 @@ ipv4     2 udp      17 11 src=10.0.2.15 dst=116.203.151.74 sport=123 dport=123 s
 ```
 
 * 如果报文匹配到一个 NAT 规则，例如 IP 地址伪装，相应的映射信息会记录在链接跟踪项的回复方向部分，并自动应用于同一条流的所有后续报文。
-* 即使一条流经过了地址或端口的转换，也可以成功在连接状态表中查找到回复报文的四元组信息。
+* 即使一条流经过了地址或端口的转换，也可以成功在连接状态表中查找到回复报文的五元组信息。
 
 ```
 tcp      6 117 TIME_WAIT src=100.115.93.210 dst=100.115.93.222 sport=38532 dport=8000 src=172.17.0.101 dst=100.115.93.210 sport=8080 dport=38532 [ASSURED] mark=0 use=1

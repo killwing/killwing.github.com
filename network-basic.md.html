@@ -3,6 +3,7 @@
 <meta charset="utf-8" />
 <title>Network Basic</title>
 <xmp theme="readable" style="display:none;">
+# Network Layers
 |协议数据单元（PDU）|层次|标识|设备|
 |-|-|-|-|
 |数据（Data）|应用层|||
@@ -11,24 +12,30 @@
 |帧（Frame）|数据链路层|MAC地址|交换机|
 |比特（Bits）|物理层||集线器|
 
-如果目标(IP)地址和自己不在一个网络，则发往默认网关。
-如果在同一网络，则必须知道对方的物理地址才能发送报文，接收方网卡根据报文中的目标物理地址匹配接收。
-从域名到IP地址，使用DNS解析。从IP地址到MAC地址，使用ARP协议。
-ARP：ARP请求（二层广播），只有符合请求中IP地址的设备才会响应，并在响应中包含自己的MAC地址。
+## L1 Segment
+物理设备：集线器（Hub），中继器（Repeater）。共享式，每个端口接收到的数据都转发给其他所有的端口，即一个 L1 冲突域。直接物理连接通信，不需要寻址。
 
-物理设备：
-集线器（Hub）：共享式，每个端口接收到的数据都转发给其他所有的端口。
-交换机（Switch）：也叫交换式集线器，主要对终端设备进行接入。它维护一张动态更新的MAC地址表（MAC－物理端口），根据表中信息转发数据，如果表中找不到则发往其它所有端口(flooding，仅限同一广播域内)。隔离冲突域（每个端口都是一个独立的冲突域），所有端口共享一个广播（二层）域（没有配置VLAN的情况下）。
-路由器（Router）：主要进行IP路由，在网络间转发数据。也可以隔离冲突域和广播域。
+## L2 Segment
+物理设备：交换机（Switch），也叫交换式集线器或网桥（Bridge）。主要对终端设备进行接入。它维护一张动态更新的MAC地址表（MAC－物理端口），根据表中信息转发数据，如果表中找不到则发往其它所有端口(flooding，仅限同一广播域内)。隔离冲突域（每个端口和其连接的设备都是一个独立的 L1 冲突域），所有端口共享一个 L2 广播域（没有配置VLAN的情况下）。
 
-二层广播：目标地址FF-FF-FF-FF-FF-FF，交换机转发给所有端口。
-三层广播：目标地址255.255.255.255，三层广播也必是二层广播。
+L2 Ethernet frame: `| Dest MAC | Src MAC | Ether Type (IPv4, ARP etc) | Payload | Check Seq |`
+二层广播：目标 MAC 地址 `FF-FF-FF-FF-FF-FF`，交换机转发给所有端口。
 
-VLAN: 虚拟局域网，同一个网段，同属一个广播域，不同VLAN互相隔离，通信必须通过路由器。
-比如同一个VLAN的终端可以分别在两个连通的交换机下，可以互相访问，同属一个广播域。而一个交换机下的两个VLAN，不能互相访问，属于不同的广播域。
+### VLAN
+VLAN: 虚拟局域网，通过 VID 分割标识，最多分成4096个。同一个 VLAN 网段，同属一个广播域，不同 VLAN 互相隔离，通信必须通过路由器。
+比如同一个 VLAN 的终端可以分别在两个连通的交换机下，可以互相访问，同属一个广播域。而一个交换机下的两个 VLAN，不能互相访问，属于不同的广播域。
+VLAN 可以看作是桥接的相反过程：桥接把多个 L2 segment 连成一个大 L2 segment；VLAN 把一个 L2 segment 分割成多个 L2 segment。
 
-IPv4地址
+L2 Ethernet frame with VLAN tagging: `| Dest MAC | Src MAC | 802.1Q (0x8100 | flags | VID) | Ether Type (IPv4, ARP etc) | Payload | Check Seq |`
 
+## L3 Segment
+物理设备：路由器（Router）。主要进行 IP 路由，在网络间转发数据。也可以隔离冲突域和广播域。
+子网(Subnet)是对 L3 Segment 的再划分，一般来说通常和 L2 segment VLAN 划分保持 1:1 对应。但多个子网也可以对应一个 L2 segment 同属一个广播域，一个子网也可以在通过 router (Proxy ARP) 连接的多个 L2 segment 之上。
+
+IP Packet: `| Header (length, protocol, flags) | Src Addr | Dest Addr | Options | Payload |`
+三层广播：目标 IP 地址 `255.255.255.255`，三层广播也必是二层广播。
+
+### IPv4 地址
 网络|第一字节|缺省掩码|私有地址
 -|-|-|-
 A类|0～127|255.0.0.0 (8)|10.0.0.0～10.255.255.255
@@ -41,13 +48,29 @@ D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有�
 
 [保留地址](https://en.wikipedia.org/wiki/Reserved_IP_addresses)
 
-## TCP
-### 三次握手和四次挥手
+### ARP
+如目标在同一 L3 segment，则必须知道对方的物理 MAC 地址才能发送报文，接收方网卡根据报文中的目标物理地址匹配接收。
+ARP 进行从 IP 地址到 MAC 地址的转换。
+ARP 请求是二层广播，只有符合请求中 IP 地址的设备才会响应，并在响应中包含自己的 MAC 地址。
+
+### Routing
+如果目标地址和自己不在一个 L3 segment，则发往默认网关路由器（同属一个 L2 Segment）进行路由。路由时保持 L3 packet 不变，重新组装 L2 frame，因为需要更新 MAC 地址以到达目标地址（目标路由器）。相邻路由器必然在同一个 L2 segment 上，各路由器将不同 L2 segment 连接起来，或者说隔离了不同 L2 segment。
+
+### VXLAN
+overlay networking，要求 VXLAN 节点之间具有 L3 连通性。
+VXLAN node 将 L2 frame 封装成一个 UDP 包，再通过 L3 网络发送: `| UDP Header | VXLAN Header | VXLAN Payload (Orgin Ether Frame) |`
+隧道（tunneling）: 在 VXLAN node 之间创建了一层虚拟 L2 segment，同属一个 L2 广播域。VXLAN node 也会广播来自封装 L2 frame ARP 的广播到其他 VXLAN node。
+特殊情况下，所有 VXLAN node 就在一个 L2/3 segment 内，这就达到了 VLAN 同样的作用，而且没有最大 4096 分割数量的限制。
+从另一个角度看，VLAN 把一个 L2 segment 分割成多个，在此之上再组成多个 L3 segment; 而 VXLAN 把多个 L3 segment 再组装成一个虚拟的 L2 segment。
+
+
+# TCP
+## 三次握手和四次挥手
 ACK 机制：ACK 是确认对方收到自己发出的消息，单向（发送）是连通的。三次握手加上了 ACK 的 ACK，这就说明对方发送也没问题，是双向连通的。
 第三次握手：是为了防止失效的连接请求到达服务器，让服务器错误打开连接。
 四次挥手：TCP连接是全双工的，即一端接收到FIN报时，对端虽然不再能发送数据，但是可以接收数据，所以需要两边都关闭连接才算完全关闭了这条TCP连接。
 
-### listen
+## listen
 内核为任何一个给定的监听套接字维护两个队列：
 
 未完成连接队列 (SYNs queue)：收到SYN分节，并发送SYNACK，还未收到 ACK，处于SYN_RCVD状态。由 `/proc/sys/net/ipv4/tcp_max_syn_backlog` 决定。
@@ -62,7 +85,7 @@ accept queue 由 backlog 参数和 `net.core.somaxconn` 的最小值决定。
 
 为了防止 sync flood 攻击，可以设置 `net.ipv4.tcp_syncookies = 1`（默认启用），这样就不会放入 sync queue，而是计算一个隐藏信息在响应 SYNACK 中，等最后 ACK 回来验证。
 
-### TIME_WAIT 状态
+## TIME_WAIT 状态
 MSL: 任何 IP 数据报能够在因特网中存活的最长时间。
 TIME_WAIT 状态的持续时间是 MSL 的2倍，然后变为 CLOSED。
 执行主动关闭的那一端是处于 TIME_WAIT 状态的那一端，在收到对端发出的 FIN 报之后。
@@ -77,7 +100,7 @@ TIME_WAIT 状态存在的两个理由:
 `net.ipv4.tcp_tw_recycle=1` 表示开启 TIME-WAIT sockets 的快速回收。
 `net.ipv4.tcp_max_tw_buckets=10000` 表示系统同时保持 TIME_WAIT sockets 的最大数量。
 
-### SO_REUSEADDR / SO_REUSEPORT
+## SO_REUSEADDR / SO_REUSEPORT
 SO_REUSEADDR:
 
 * 允许启动一个监听服务器并绑定其端口，即使以前建立的相同本地地址和端口的连接仍然存在（但先前监听的socket已关闭）。通常用在服务端，当其重启时虽然可能存在很多链接处在 TIME_WAIT 状态，但仍可重新绑定并监听。
@@ -90,7 +113,7 @@ SO_REUSEPORT:
 https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ/
 https://blog.csdn.net/Yaokai_AssultMaster/article/details/68951150
 
-### buffer
+## buffer
 相关内核参数
 SO_RCVBUF/SO_SNDBUF用来设置或获取一个套接字的最大缓冲区大小，内核会翻倍所设进的值，获取时返回实际翻倍的值。
 
@@ -103,7 +126,7 @@ SO_RCVBUF/SO_SNDBUF用来设置或获取一个套接字的最大缓冲区大小�
 对于TCP，`net.ipv4.tcp_mem`（页大小为单位）/ `net.ipv4.tcp_rmem` / `net.ipv4.tcp_wmem` 和 SO_RCVBUF/SO_SNDBUF 的可设置范围无关，被由内核用来根据这些值来自动调整收发缓冲区大小。
 对于接收缓冲区可以用参数 `net.ipv4.tcp_moderate_rcvbuf` 设置（默认开启），对于发送缓冲区不可设置总是开启。但如果应用自己设置了SO_RCVBUF/SO_SNDBUF的值，自动调整功能就失效。
 
-### [epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)
+## [epoll](http://man7.org/linux/man-pages/man7/epoll.7.html)
 epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的所有描述符，不用再像select或poll那样每次一个个检查比对所有描述符，epoll_wait返回时已经确定了哪些描述符上发生了就绪事件。
 
 事件触发的两种行为：
@@ -114,14 +137,14 @@ epoll效率较高：epoll内部维护（红黑树）了通过epoll_ctrl加入的
 事件类型：EPOLLIN/EPOLLOUT/EPOLLRDHUP/EPOLLPRI/EPOLLERR/EPOLLHUP/EPOLLET/EPOLLONESHOT
 相关操作：epoll_create/epoll_ctl/epoll_wait, 事件使用epoll_event结构。
 
-### 拥塞控制
+## 拥塞控制
 一个发送方中未被确认的数据量不会超过cwnd（拥塞窗口）与rwnd（滑动窗口）中的最小值。
 
 慢启动：刚建立的连接，根据对端的应答情况慢慢提速，不要一下子发送大量的数据。cwnd初始为1，表示可以传一个MSS大小的数据，指数增长。
 拥塞避免算法：当cwnd>=ssthresh，进入拥塞避免阶段，此时cwnd的增长不再像之前那样是指数增长，而是线性增长。
 快速重传/快速恢复：发送丢包（超时重传或收到三个冗余ACK）时，cwnd = cwnd / 2；ssthresh设置为缩小后的cwnd大小。
 
-### TCP_QUICKACK and TCP_NODELAY
+## TCP_QUICKACK and TCP_NODELAY
 TCP_NODELAY 禁止Nagle算法，默认开启
 Nagle 算法：如果某个给定的连接上有待确认数据，由写操作而发送小分组（小于MSS）的行为不会发生，直到现有数据被确认为止。但写操作积累到 MSS 大小（或超时）时仍会发送。
 目的在于减少广域网上小分组的数目，防止一个连接在任何时刻有多个小分组待确认。
@@ -129,13 +152,13 @@ Nagle 算法：如果某个给定的连接上有待确认数据，由写操作�
 TCP_QUICKACK 禁止 ACK 延滞算法，默认开启 40ms
 ACK 延滞算法：ACK 尽量与可能的数据一起发回，从而省掉一个TCP分节。
 
-### 粘包
+## 粘包
 粘包是指应用层消息在一起无法区分。
 TCP 基于字节流，会根据 MSS 分包，头无长度信息，应用层无法分辨消息边界，所以要加入结束标志来处理，内容也可能包含特殊标志，需要再加入 CRC 校验。如果消息长度已知，也可用长度信息区分。发送和接收次数不对应。
 UDP 基于数据报，不会分包，头有长度信息，应用层无需处理粘包。一次发送对于一次接收，大于最大长度无法发送。
 IP 层基于 MTU 分包组装，头有长度信息，不管内容。
 
-## UDP
+# UDP
 [大多数Unix实现上，对于Unix域数据报套接字，是可靠的且不会乱序。](http://man7.org/linux/man-pages/man7/unix.7.html)
 意味着发送数据报时，如果对端接收缓冲区已满，对于阻塞套接字则会阻塞；对于非阻塞套接字则会返回EWOULDBLOCK错误。
 

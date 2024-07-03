@@ -1895,7 +1895,7 @@ object|map[string]interface{}
 
 `template.Parse()` 可以重复执行，但会覆盖当前模版定义，而不是返回新的模版定义。
 
-data: 模版执行当前作用域的上下文数据，叫dot用`.`表示。`{{with pipeline}}` 限定作用域。
+data: 模版执行当前作用域的上下文数据，叫dot用`.`表示。`{{with pipeline}}` or `{{ range pipeline}}` 限定作用域。
 `{{.Count}} items are made of {{.Material}}` // "17 items are made of wool"
 `{{with "output"}}{{printf "%q" .}}{{end}}` // "output"
 

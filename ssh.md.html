@@ -111,7 +111,7 @@ ControlPersist 4h
 ForwardAgent yes
 
 Host *
-    # 保持连接
+    # 保持连接，可能还需修改 server timeout: `/etc/profile.d/tmout.sh`
     ServerAliveInterval 240
     # 减少延迟
     GSSAPIAuthentication no
