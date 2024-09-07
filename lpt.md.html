@@ -669,7 +669,7 @@ rule-specs:
 SNAT(源地址的转换)/MASQUERADE(伪装)：POSTROUTING
 把内网某个网段的地址在经过时转为外网地址（源端口不变，若有数据发回时根据 conntrack 从外网地址映射回内网地址UN-SNAT）：
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j SNAT --to-source 142.10.0.1`
-如果外网地址不固定，使用MASQUERADE可以自动从网卡获取外网地址：
+如果外网地址不固定，使用MASQUERADE可以自动从出口网卡(outgoing interface)获取外网地址：
 `iptables -t nat -A POSTROUTING -s 192.168.0.0/24 -j MASQUERADE`
 场景：局域网共享一个公网IP上网
 
@@ -693,6 +693,8 @@ sysctl net.netfilter.nf_log.2=nf_log_ipv4
 ```
 sysctl net.ipv4.ip_forward = 1
 ```
+
+查看 nat 表的 OUTPUT 链：`iptables -t nat -nvL OUTPUT`
 
 ## conntrack
 ```

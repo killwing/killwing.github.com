@@ -1116,6 +1116,19 @@ randomInt := MustRandom(MyList[int]{})
 randomIP := MustRandom(IPSet{})
 ```
 
+泛形函数使用接口完成通用功能，具体实现委派具体类型给其他函数：
+collect 调用接口搜集基本信息
+f 自定义函数使用具体类型搜集详细信息 (e.g.: `func(m map[string]string, v *appsv1.Deployment)`)
+```
+func collect[T client.Object](v T, f func(d map[string]string, o T)) map[string]string {
+	ret := map[string]string{}
+	ret["name"] = v.GetName()
+	ret["namespace"] = v.GetNamespace()
+	f(ret, v)
+	return ret
+}
+```
+
 # Error Handling
 ## [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
 内置的error接口（还有`errors`包），当用`fmt`包的多种不同的打印函数输出一个`error`时，会自动的调用`Error`方法。
@@ -1423,6 +1436,8 @@ https://github.com/vektra/mockery: mock 生成工具
 竞态检测：`go run/build/test -race`
 产生coredump：`GOTRACEBACK=crash` （none 不显示堆栈，single 为默认值显示当前堆栈，all 显示 user 堆栈，system 显示 user+runtime 堆栈，crash 生成 coredump）
 GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`, 内存上限软限制 GOMEMLIMIT, [GC Guide](https://go.dev/doc/gc-guide)
+
+容器环境自动设置：[automaxprocs](https://github.com/uber-go/automaxprocs), [automemlimit](https://github.com/KimMachineGun/automemlimit)，或手动设置为 limits.cpu, limits.memory (k8s)
 
 Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/derekparker/delve)
 [Debugging](https://software.intel.com/en-us/blogs/2014/05/10/debugging-performance-issues-in-go-programs)

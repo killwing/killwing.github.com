@@ -53,6 +53,12 @@ D类地址(224.0.0.0-239.255.255.255)不分网络地址和主机地址，专有�
 ARP 进行从 IP 地址到 MAC 地址的转换。
 ARP 请求是二层广播，只有符合请求中 IP 地址的设备才会响应，并在响应中包含自己的 MAC 地址。
 
+Gratutious ARP: 请求包含自己的 IP 和 MAC (Sender 和 Target 一样)，主要用于告知全网，不期望收到回应。
+
+* 用于检测 IP 冲突，若有回应，则说明有冲突。
+* 双活高可用，使用 VIP 映射后端 MAC，failover 到另一个主机时重新广播改变 MAC 映射。例如：[kube-vip](https://github.com/kube-vip/kube-vip)
+* 网关定期刷新，网内主机可以重置 ARP 缓存过期时间。
+
 ### Routing
 如果目标地址和自己不在一个 L3 segment，则发往默认网关路由器（同属一个 L2 Segment）进行路由。路由时保持 L3 packet 不变，重新组装 L2 frame，因为需要更新 MAC 地址以到达目标地址（目标路由器）。相邻路由器必然在同一个 L2 segment 上，各路由器将不同 L2 segment 连接起来，或者说隔离了不同 L2 segment。
 

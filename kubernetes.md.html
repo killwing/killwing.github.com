@@ -181,6 +181,8 @@ https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/
 https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
 
 # Networking
+https://www.tkng.io/
+
 Networking Model:
 
 * all containers can communicate with all other containers without NAT
@@ -734,6 +736,42 @@ PodSync PodLifeCycleEventType = "PodSync"
 ContainerChanged PodLifeCycleEventType = "ContainerChanged"
 ```
 
+### [QoS](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/)
+`status.qosClass`
+
+* Guaranteed: Pod 里每个容器 CPU/Memory 的 request 和 limit 都必须设置且值一样。
+* Burstable: Pod 里至少有一个容器设置了 CPU/Memory 的 request。
+* BestEffort: Pod 里所有容器都没有设置 CPU/Memory 的 request 和 limit。
+（如果设置 limit，而没有设置对应的 request，默认和 limit 一样）
+当发生 Pod Eviction 的时候按照 BestEffort, Burstable, Guaranteed 的优先级别进行删除。
+
+cgroup 设置
+```
+[cpu/memory]/kubepods/[besteffort/burstable]/pod{uid}/containersxxx/
+                     /pod{uid}/containersxxx/   # guaranteed
+```
+cpu limit: cpu.cfs_quota_us, cpu_period_us
+cpu request: cpu.shares
+memory limit: memory.limit_in_bytes
+memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/burstable] cgroup 进行预留控制
+
+cpuset
+`--cpu-manager-policy` 设为 static（默认none）后，如果 Guaranteed 且是数量是整数，则会使用 cpuset cgroup 绑定到固定的核数上。
+
+### Eviction
+自愿：受 PDB 保护，遵守 terminationGracePeriodSeconds
+
+* User: API / kubectl drain / Autoscaling / 更新 deployment/statefulset pod template 
+* Scheduler: 优先级和抢占 (根据 PriorityClasses)
+* Controller-Manager: Taint based / NodeNotReady
+
+非自愿：不受 PDB 保护
+by kubelet:
+
+* Node pressure: MemoryPressure / DiskPressure / PIDPressure (根据 PriorityClasses + QoS)
+* Pod limit: 内存超限，临时存储超限
+
+
 ## Deployment
 部署策略
 
@@ -803,17 +841,18 @@ EndpointSlice 是为了解决 pod 数量多时，Endpoints 对象过大及频繁
 ### ClusterIP
 DNS 服务名解析到 VIP A 记录。
 
-iptables: (VIP: 10.96.0.1, PodIP: 192.168.99.101)，将 VIP DNAT 到 PodIP，转为 Pod 之间的访问。
+iptables: (VIP: 10.96.0.1, PodIP: 192.168.99.101)，将 VIP DNAT 到 PodIP，转为 Pod 之间的访问（由 CNI 实现，不需要 NAT）。
+`PREROUTING --> KUBE-SERVICE --> KUBE-SVC-XXX --> KUBE-SEP-XXX`
 ```bash
 -A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
--A KUBE-SERVICES -d 10.96.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y
+-A KUBE-SERVICES -d 10.96.0.1/32 -p tcp -m comment --comment "default/kubernetes:https cluster IP" -m tcp --dport 443 -j KUBE-SVC-NPX46M4PTMTKRN6Y # 匹配目标 VIP
 -A KUBE-SVC-NPX46M4PTMTKRN6Y -j KUBE-SEP-6QO3ZMTIB4FPXHNT # 如果有多个 endpoints，用 –mode random 负载均衡
--A KUBE-SEP-6QO3ZMTIB4FPXHNT -s 192.168.99.101/32 -j KUBE-MARK-MASQ # 没有匹配，不 SNAT
+-A KUBE-SEP-6QO3ZMTIB4FPXHNT -s 192.168.99.101/32 -j KUBE-MARK-MASQ # 用于 hairping NAT
 -A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
 -A KUBE-SEP-6QO3ZMTIB4FPXHNT -p tcp -m tcp -j DNAT --to-destination 192.168.99.101:6443 # 返回包自动 un-dnat
 ```
 
-iptables 规则由 kube-proxy 负责维护，参考 [kube-proxy iptables 模式源码分析](https://blog.tianfeiyu.com/2019/11/06/kube_proxy_iptables/)。
+iptables 规则由 kube-proxy 负责维护，参考 [kube-proxy iptables 模式源码分析](https://blog.tianfeiyu.com/2019/11/06/kube_proxy_iptables/), [workflow](https://docs.google.com/drawings/d/1MtWL8qRTs6PlnJrW4dh8135_S9e2SaawT410bJuoBPk/edit)。
 
 当服务多了之后，iptables 做负载均衡有性能问题，可以使用 [IPVS 负载均衡](https://github.com/kubernetes/kubernetes/blob/master/pkg/proxy/ipvs/README.md)。
 
@@ -824,23 +863,25 @@ Headless Service: `spec.ClusterIP: None`
 
 ### NodePort
 iptables: 不匹配 ClusterIP 的都转到 KUBE-NODEPORTS 再转到对应 svc
+非本机或本机POD：`PREROUTING --> KUBE-SERVICE --> KUBE-NODEPORTS --> KUBE-SVC-XXX --> KUBE-SEP-XXX`
+本机进程：`OUTPUT --> KUBE-SERVICE --> KUBE-NODEPORTS --> KUBE-SVC-XXX --> KUBE-SEP-XXX`
 ```
 ...
--A KUBE-SERVICES -m comment --comment "kubernetes service nodeports; NOTE: this must be the last rule in this chain" -m addrtype --dst-type LOCAL -j KUBE-NODEPORTS
--A KUBE-NODEPORTS -p tcp -m comment --comment "default/mongo:" -m tcp --dport 31958 -j KUBE-MARK-MASQ
+-A KUBE-SERVICES -m comment --comment "kubernetes service nodeports; NOTE: this must be the last rule in this chain" -m addrtype --dst-type LOCAL -j KUBE-NODEPORTS # 目标是 local node 上的ip
+-A KUBE-NODEPORTS -p tcp -m comment --comment "default/mongo:" -m tcp --dport 31958 -j KUBE-MARK-MASQ # 标记需要 SNAT
 -A KUBE-NODEPORTS -p tcp -m comment --comment "default/mongo:" -m tcp --dport 31958 -j KUBE-SVC-G2OJTDIWIJ7HQ7MY
 
 -A POSTROUTING -m comment --comment "kubernetes postrouting rules" -j KUBE-POSTROUTING
 -A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -m mark --mark 0x4000/0x4000 -j MASQUERADE # 如果被 LB 到别的 node 上要 SNAT，否则响应不过来直接发回 client
 ```
 
-kube-proxy 会在 node 上预留占用所有地址对应的端口（不走流量）。
+为了避免和其他应用冲突，kube-proxy 会在 node 上预留占用所有地址对应的 nodeport 端口（kube-proxy 自己不走流量）。
 
 ### [Source IP 问题](https://kubernetes.io/docs/tutorials/services/source-ip/)
 kube-proxy 使用 iptable 的情况，通过下面方式访问
 
 * ClusterIP: 不做 SNAT (除了 ExternalIP)
-* NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地 node 上的 endpoint 来避免（要求 node 上有对应 endpoint，否则 drop），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
+* NodePort: SNAT 成对应 node 的地址，可以将`service.spec.externalTrafficPolicy`设为`Local`（默认`Cluster`）只发本地 node 上的 endpoint 来避免（不再全部标记 SNAT，要求 node 上有对应 endpoint，否则 drop），但因为不像`Cluster`那样对所有endpoint全局轮发，可能导致负载不均衡。
 * LoadBalancer: 情况和 NodePort 类似，如果`service.spec.externalTrafficPolicy`设为`Local`，LB只会转发流量到有对应 endpoint 的 node 上（通过 health check `service.spec.healthCheckNodePort`）。
 
 ### ExtenalName
@@ -899,26 +940,6 @@ podSelector: 被选中的处于 Deny All，在 ingress, egress 设置白名单�
 直接属于 ingress, ingress.from, egress, egress.to 的规则属于或的关系（数组形式），每个规则内的选择则为与的关系（对象形式）。
 
 # Misc.
-## [QoS](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/node/pod-resource-management.md)
-* Guaranteed: Pod 里每个容器 CPU/Memory 的 request 和 limit 都必须设置且值一样。
-* Burstable: Pod 里至少有一个容器设置了 CPU/Memory 的 request。
-* BestEffort: Pod 里所有容器都没有设置 CPU/Memory 的 request 和 limit。
-（如果设置 limit，而没有设置对应的 request，默认和 limit 一样）
-当发生 Pod Eviction 的时候按照 BestEffort, Burstable, Guaranteed 的优先级别进行删除。
-
-cgroup 设置
-```
-[cpu/memory]/kubepods/[besteffort/burstable]/pod{uid}/containersxxx/
-                     /pod{uid}/containersxxx/   # guaranteed
-```
-cpu limit: cpu.cfs_quota_us, cpu_period_us
-cpu request: cpu.shares
-memory limit: memory.limit_in_bytes
-memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/burstable] cgroup 进行预留控制
-
-cpuset
-`--cpu-manager-policy` 设为 static（默认none）后，如果 Guaranteed 且是数量是整数，则会使用 cpuset cgroup 绑定到固定的核数上。
-
 ## Initializer
 1. `InitializerConfiguration` 配置所用 Initializer 的名字及需匹配的资源。
 1. 资源的 `metadata.initializers.pending` 中增加 Initializer 名字，并不被创建等待初始化。
@@ -1135,6 +1156,39 @@ kubefed 控制组件安装在其中一个集群（host cluster），其他集群
 ## [Cluster API](kubernetes-cluster-api.md.html)
 
 ## [Gateway API](https://gateway-api.sigs.k8s.io/)
+
+# Cloud Provider
+## [CPI](https://github.com/kubernetes/cloud-provider/blob/master/cloud.go#L43)
+```
+// Interface is an abstract, pluggable interface for cloud providers.
+type Interface interface {
+	// Initialize provides the cloud with a kubernetes client builder and may spawn goroutines
+	// to perform housekeeping or run custom controllers specific to the cloud provider.
+	// Any tasks started here should be cleaned up when the stop channel closes.
+	Initialize(clientBuilder ControllerClientBuilder, stop <-chan struct{})
+	// LoadBalancer returns a balancer interface. Also returns true if the interface is supported, false otherwise.
+	LoadBalancer() (LoadBalancer, bool)
+	// Instances returns an instances interface. Also returns true if the interface is supported, false otherwise.
+	Instances() (Instances, bool)
+	// InstancesV2 is an implementation for instances and should only be implemented by external cloud providers.
+	// Implementing InstancesV2 is behaviorally identical to Instances but is optimized to significantly reduce
+	// API calls to the cloud provider when registering and syncing nodes. Implementation of this interface will
+	// disable calls to the Zones interface. Also returns true if the interface is supported, false otherwise.
+	InstancesV2() (InstancesV2, bool)
+	// Zones returns a zones interface. Also returns true if the interface is supported, false otherwise.
+	// DEPRECATED: Zones is deprecated in favor of retrieving zone/region information from InstancesV2.
+	// This interface will not be called if InstancesV2 is enabled.
+	Zones() (Zones, bool)
+	// Clusters returns a clusters interface.  Also returns true if the interface is supported, false otherwise.
+	Clusters() (Clusters, bool)
+	// Routes returns a routes interface along with whether the interface is supported.
+	Routes() (Routes, bool)
+	// ProviderName returns the cloud provider ID.
+	ProviderName() string
+	// HasClusterID returns true if a ClusterID is required and set
+	HasClusterID() bool
+}
+```
 
 # Reference
 https://kubernetes.io/docs/home/

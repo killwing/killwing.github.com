@@ -149,6 +149,8 @@ Host api
 ```
 [更多选项](http://man7.org/linux/man-pages/man5/ssh_config.5.html)
 
+跳转还可以直接：（jumper上设置启用 AllowTcpForwarding & AllowAgentForwarding）
+`ssh -J jumper target`
 
 ## Trouble Shooting
 加上参数`ssh -vvv user@server`可以输出更多debug信息。
@@ -169,6 +171,7 @@ Host api
 
 另可用scp直接访问远程文件：`vim scp://user@host/path/to/file`
 
+## [sshuttle](https://github.com/sshuttle/sshuttle)
 
 ## Reference
 [SSH, The Secure Shell: The Definitive Guide](http://docstore.mik.ua/orelly/networking_2ndEd/ssh/index.htm)
