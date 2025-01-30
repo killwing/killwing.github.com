@@ -59,6 +59,13 @@ golang.org/x/tools/cmd/goimports
 golang.org/x/tools/cmd/oracle
 golang.org/x/tools/cmd/gorename
 
+## Script
+以脚本方式运行：chmod +x main.go
+```
+//usr/bin/env go run $0 $@; exit
+package main
+```
+
 # Basics
 源文件以UTF-8编码。
 语句以分号结尾，一个语句时通常省略，全局域中以及括号后边也不需要。
@@ -1117,8 +1124,10 @@ randomIP := MustRandom(IPSet{})
 ```
 
 泛形函数使用接口完成通用功能，具体实现委派具体类型给其他函数：
-collect 调用接口搜集基本信息
-f 自定义函数使用具体类型搜集详细信息 (e.g.: `func(m map[string]string, v *appsv1.Deployment)`)
+
+ * collect 调用接口搜集基本信息
+ * f 自定义函数使用具体类型搜集详细信息 (e.g.: `func(m map[string]string, v *appsv1.Deployment)`)
+
 ```
 func collect[T client.Object](v T, f func(d map[string]string, o T)) map[string]string {
 	ret := map[string]string{}
@@ -1128,6 +1137,11 @@ func collect[T client.Object](v T, f func(d map[string]string, o T)) map[string]
 	return ret
 }
 ```
+
+通用类型实例构造 TypeFor
+
+* 对于非接口类型，等价于 TypeOf，返回底层类型对象
+* 对于接口类型，返回接口类型对象 （如果 TypeOf 一个接口类型，返回底层类型对象）
 
 # Error Handling
 ## [errors](http://blog.golang.org/error-handling-and-go) ([pkg](https://golang.org/pkg/errors/))
@@ -1435,9 +1449,9 @@ https://github.com/vektra/mockery: mock 生成工具
 查看import及依赖：`go list -json`
 竞态检测：`go run/build/test -race`
 产生coredump：`GOTRACEBACK=crash` （none 不显示堆栈，single 为默认值显示当前堆栈，all 显示 user 堆栈，system 显示 user+runtime 堆栈，crash 生成 coredump）
-GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`, 内存上限软限制 GOMEMLIMIT, [GC Guide](https://go.dev/doc/gc-guide)
+GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`, 内存上限软限制 GOMEMLIMIT, 设置 GOMEMLIMIT 并不能阻止 OOM，但可以避免没来得及 GC 而导致的 OOM。[GC Guide](https://go.dev/doc/gc-guide)
 
-容器环境自动设置：[automaxprocs](https://github.com/uber-go/automaxprocs), [automemlimit](https://github.com/KimMachineGun/automemlimit)，或手动设置为 limits.cpu, limits.memory (k8s)
+容器环境自动设置：[automaxprocs](https://github.com/uber-go/automaxprocs), [automemlimit](https://github.com/KimMachineGun/automemlimit)，或手动设置为 limits.cpu, limits.memory (k8s，最好预留5%-10%)
 
 Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/derekparker/delve)
 [Debugging](https://software.intel.com/en-us/blogs/2014/05/10/debugging-performance-issues-in-go-programs)
@@ -1539,6 +1553,10 @@ func grow(p *string, c int, a [1000]int) {
 8 0xc0000c7f40 test
 9 0xc0000c7f40 test
 ```
+
+## Other Optimization
+* false sharing (cache line size (byte) /sys/devices/system/cpu/cpu1/cache/index0/coherency_line_size)
+* [field alignment](golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment)
 
 # Comments
 ## Documentation ([doc](https://go.dev/doc/comment) [cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
@@ -2012,15 +2030,15 @@ c.L.Unlock()
 `myString := unsafe.String(unsafe.SliceData(myBytes), len(myBytes))`
 
 # [cgo](http://blog.golang.org/c-go-cgo) ([cmd](https://golang.org/cmd/cgo/) [eg](https://golang.org/misc/cgo/))
-用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc（alpine 下链接 musl）。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替（会禁用cgo），但会导致[dns 解析(nsswitch)，user ID 查询](https://stackoverflow.com/a/64531740/797539)等行为和标准不一致。
+用`CGO_ENABLED`环境变量启用／禁用调用 C 实现。默认启用时，`net`, `os/user` 包用到 libc 实现，Linux 下会导致动态链接 glibc（alpine 下链接 musl）。可以用 go 内部实现(`-tags netgo -tags osusergo`)代替，但会导致[dns 解析(nsswitch)，user ID 查询](https://stackoverflow.com/a/64531740/797539)等行为和标准不一致。
 
 [glibc](https://lwn.net/Articles/117972/) 禁止静态链接，[musl](http://dominik.honnef.co/posts/2015/06/statically_compiled_go_programs__always__even_with_cgo__using_musl/) 可以。
 
-查看哪里用到了 cgo：
-```
-dep=$(go list -f "{{.ImportPath}}{{range .Deps}} {{.}}{{end}}")
-go list -f "{{if .CgoFiles}}{{.ImportPath}} {{.CgoFiles}}{{end}}" $dep
-```
+交叉编译时会默认禁用 CGO，导致静态链接：比如在 mac 上 `GOOS=linux GOARCH=amd64 go build -o app .` 无法链接 glibc，产生静态链接 binary。
+
+Linux 查看链接方式：`file` or `ldd`, 查看符号表`nm` or `go tool nm`
+
+查看哪里用到了 cgo：`go list -deps -f '{{.ImportPath}}: {{.CgoFiles}}' ./... | grep -v '\[\]'`
 
 ## preamble
 preamble以注释的形式在`import "C"`前面，会在编译这个包的时候一起编译。

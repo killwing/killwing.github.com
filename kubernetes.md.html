@@ -160,26 +160,6 @@ validate cluster: `KUBECTL_PATH=$(which kubectl) NUM_NODES=1 KUBERNETES_PROVIDER
 https://github.com/heptio/sonobuoy
 https://github.com/bloomberg/powerfulseal
 
-# CRD
-GroupKindVersion 标识一个资源类型，Kind 和 resource name 一致。group + kind + name/namespace 唯一标识一个资源对象，和 version 无关。
-ApiVersion: group/version
-
-```
-kubectl get <resource>.<version>.<group> // e.g. kubectl get issuers.v1beta1.cert-manager.io
-kubectl api-resources
-kubectl api-versions
-kubectl explain <resource> --api-version <apiVersion>
-```
-
-可以同时存在同一个资源的不同 served 版本，但只有一个当前 stored 版本，可以有多个历史 stored 版本 (`.status.storedVersions`)，其它版本由当前 stored 版本转化而来。
-可以读取任意 served 版本，写入更新的是当前 stored 版本。即使用别的版本 API 创建，写入的还是 stored 版本。
-改变 stored 版本不影响已经存在的 object，只影响后续的创建和更新。
-
-perferred version: 指按优先级排序后的[最新 version](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#version-priority)
-
-https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.23/
-https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
-
 # Networking
 https://www.tkng.io/
 
@@ -537,6 +517,39 @@ type Runtime interface {
 * 每个容器都被一个独立的 conmon 进程监控，监控进程还持有容器进程(PID1)的 pty 终端，处理日志和记录容器进程的退出码。
 * Pod 的网络由 CNI 设置，CRI-O 可以使用任何 CNI 插件。
 
+# Cloud Provider
+## [CPI](https://github.com/kubernetes/cloud-provider/blob/master/cloud.go#L43)
+```
+// Interface is an abstract, pluggable interface for cloud providers.
+type Interface interface {
+	// Initialize provides the cloud with a kubernetes client builder and may spawn goroutines
+	// to perform housekeeping or run custom controllers specific to the cloud provider.
+	// Any tasks started here should be cleaned up when the stop channel closes.
+	Initialize(clientBuilder ControllerClientBuilder, stop <-chan struct{})
+	// LoadBalancer returns a balancer interface. Also returns true if the interface is supported, false otherwise.
+	LoadBalancer() (LoadBalancer, bool)
+	// Instances returns an instances interface. Also returns true if the interface is supported, false otherwise.
+	Instances() (Instances, bool)
+	// InstancesV2 is an implementation for instances and should only be implemented by external cloud providers.
+	// Implementing InstancesV2 is behaviorally identical to Instances but is optimized to significantly reduce
+	// API calls to the cloud provider when registering and syncing nodes. Implementation of this interface will
+	// disable calls to the Zones interface. Also returns true if the interface is supported, false otherwise.
+	InstancesV2() (InstancesV2, bool)
+	// Zones returns a zones interface. Also returns true if the interface is supported, false otherwise.
+	// DEPRECATED: Zones is deprecated in favor of retrieving zone/region information from InstancesV2.
+	// This interface will not be called if InstancesV2 is enabled.
+	Zones() (Zones, bool)
+	// Clusters returns a clusters interface.  Also returns true if the interface is supported, false otherwise.
+	Clusters() (Clusters, bool)
+	// Routes returns a routes interface along with whether the interface is supported.
+	Routes() (Routes, bool)
+	// ProviderName returns the cloud provider ID.
+	ProviderName() string
+	// HasClusterID returns true if a ClusterID is required and set
+	HasClusterID() bool
+}
+```
+
 # Components
 ## APIServer
 
@@ -616,25 +629,6 @@ func main() {
 }
 ```
 同一个插件可以注册在不同扩展点（同一实例）。不同调度周期，通过插件内部状态共享信息，同一个调度周期内，（不同插件）通过 `CycleState` 共享信息。
-
-## [Controller](https://git.k8s.io/community/contributors/devel/sig-api-machinery/controllers.md)
-### [client-go](https://github.com/kubernetes/client-go/)
-[![img](https://raw.githubusercontent.com/kubernetes/sample-controller/master/docs/images/client-go-controller-interaction.jpeg)](https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md)
-
-client-go 库内部组件：
-
-* Reflector: 从 Kubernetes API 监听 (watch) 特定的资源类型 (kind)，可以是内置资源，也可以是自定义资源。当它收到新增资源对象的通知时，会把新的资源对象从 APIServer 取出 (list) 并放入 Delta Fifo 队列。
-* Informer: 从 Delta Fifo 队列中取出对象放入本地 Indexer 缓存，然后调用自定义控制器注册的事件处理函数。定期同步功能(resync)，将 Indexer 中已知的对象(knownObjects，就是 Indexer 的引用)重新放入 Delta Fifo 中，以重新通知 Event Handler 处理。
-* Indexer: 提供对象的索引功能，可以根据对象的标签创建索引提高对象查询效率。它使用一个线程安全的数据存储作为后端缓存存储对象和其键值（一般为`<namespace>/<name>`）。
-
-自定义控制器组件：
-
-* Resource Event Handlers: 注册在 Informer 里的针对特定资源的事件处理回调函数，通常作法是将对象的键值放入 Work Queue 以供后续处理。之所以只存键值，是因为 Indexer 里的缓存的对象可能被更新，这样处理时可以取得最新的对象。
-* Work Queue: 将对象的投递和处理分离开，异步处理，起到了解藕的作用。
-* Object Sync Handler: 从 Work Queue 里取出对象的键值，以从 Indexer 获得实际的对象进行处理。
-
-operator best practices:
-https://github.com/slaise/community-operators/blob/master/docs/best-practices.md
 
 ## [Device Plugin](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/resource-management/device-plugin.md)
 
@@ -771,6 +765,7 @@ by kubelet:
 * Node pressure: MemoryPressure / DiskPressure / PIDPressure (根据 PriorityClasses + QoS)
 * Pod limit: 内存超限，临时存储超限
 
+Evict (自愿) 受 PDB 限制，也是相比 delete 的主要区别。
 
 ## Deployment
 部署策略
@@ -1014,54 +1009,6 @@ spec:
 通过 configmap 动态加载 dashboard: https://johnharris.io/2019/03/dynamic-configuration-discovery-in-grafana/
 原理：https://github.com/kiwigrid/k8s-sidecar
 
-## [Server Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply)
-client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/
-
-冲突是一种特定的错误状态，发生在执行 Apply 改变一个字段，而恰巧该字段被其他用户声明过主权时 (metadata.managedFields)。
-在冲突发生的时候，只有 apply （内容类型为 application/apply-patch+yaml 的 PATCH 请求，且用 field-manager 参数标识自己）操作失败。冲突解决：
-
-* 覆盖前值，成为唯一的管理器：当字段值不同时，设置查询参数 force 为 true，这将改变字段的值，从所有其他管理器的 managedFields 条目中删除指定字段。（如果是controller，不代表用户操作，一般会用force）
-* 不覆盖前值，放弃管理权：从配置文件中删掉字段，这就保持了原值不变，并从 managedFields 的应用者条目中删除该字段。
-* 不覆盖前值，成为共享的管理器：在配置文件中把字段的值改为和服务器对象一样，就实现了字段管理被应用者和所有声明了管理权的其他的字段管理器共享。
-
-而 update（所有修改对象的其他操作）会忽略冲突强制覆盖值并更改对应 fields 的 manager，如果此字段值相同，则忽略，并不会成为共享管理器。
-
-apply 时必须字段必须至少有一个 manager (默认字段 manager 为 kube-controller-manager 等系统组件)，不填这个字段相当于放弃自己的管理权。
-apply 改变一个字段的管理权时，可以不提供所有必须字段，只提供需要改变的字段，因为其它必须字段已有其它 manager，也不会导致其它 managed 字段被删除。
-如果一个 apply 导致一个非必须自段没有 manager，则删除这个字段。只能删除自己 managed 的字段。
-如果一个 apply 导致一个必须字段没有 manager，比如放弃自己唯一管理权，则报错。
-
-
-kubectl (-v7):
-
-cmd | manager | op | method | content-type
--   | -       | -  | -
-apply (server) | kubectl | apply | PATCH | apply-patch+yaml
-apply | kubectl-client-side-apply | update | PATCH | strategic-merge-patch+json
-create | kubectl-create | update | POST | application/json
-replace | kubectl-replace | update | PUT | application/json
-edit | kubectl-edit | update | PATCH| strategic-merge-patch+json
-patch | kubectl-patch | update | PATCH | strategic-merge-patch+json
-
-合并策略：
-
-* list: `// +listType=`
-  * atomic: 整个替换（默认）
-  * set: 当作set，值必须是 scalar 类型
-  * map: 当作map，`// +listMapKey=`作为key组合
-  * 如果缺失，如果有 `patchMergeStrategy=merge` 则会被认为是 `listType=map`，`patchMergeKey` 作为 `listMapKey`
-
-* map/struct: `// +mapType=`, `// +structType=`
-  * atomic: 整个替换
-  * granular: 每个字段互相独立（默认）
-
-managedFieds:
-`.` 字段本身
-`f` 字段名字
-`v` 字段值
-`k` map 的 key，包含f,v
-`i` 数组的索引
-
 ## [DNS](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/)
 查询 Pod /etc/resolve.conf 配置
 查询 [nodelocaldns](https://kubernetes.io/docs/tasks/administer-cluster/nodelocaldns/) 缓存
@@ -1157,38 +1104,7 @@ kubefed 控制组件安装在其中一个集群（host cluster），其他集群
 
 ## [Gateway API](https://gateway-api.sigs.k8s.io/)
 
-# Cloud Provider
-## [CPI](https://github.com/kubernetes/cloud-provider/blob/master/cloud.go#L43)
-```
-// Interface is an abstract, pluggable interface for cloud providers.
-type Interface interface {
-	// Initialize provides the cloud with a kubernetes client builder and may spawn goroutines
-	// to perform housekeeping or run custom controllers specific to the cloud provider.
-	// Any tasks started here should be cleaned up when the stop channel closes.
-	Initialize(clientBuilder ControllerClientBuilder, stop <-chan struct{})
-	// LoadBalancer returns a balancer interface. Also returns true if the interface is supported, false otherwise.
-	LoadBalancer() (LoadBalancer, bool)
-	// Instances returns an instances interface. Also returns true if the interface is supported, false otherwise.
-	Instances() (Instances, bool)
-	// InstancesV2 is an implementation for instances and should only be implemented by external cloud providers.
-	// Implementing InstancesV2 is behaviorally identical to Instances but is optimized to significantly reduce
-	// API calls to the cloud provider when registering and syncing nodes. Implementation of this interface will
-	// disable calls to the Zones interface. Also returns true if the interface is supported, false otherwise.
-	InstancesV2() (InstancesV2, bool)
-	// Zones returns a zones interface. Also returns true if the interface is supported, false otherwise.
-	// DEPRECATED: Zones is deprecated in favor of retrieving zone/region information from InstancesV2.
-	// This interface will not be called if InstancesV2 is enabled.
-	Zones() (Zones, bool)
-	// Clusters returns a clusters interface.  Also returns true if the interface is supported, false otherwise.
-	Clusters() (Clusters, bool)
-	// Routes returns a routes interface along with whether the interface is supported.
-	Routes() (Routes, bool)
-	// ProviderName returns the cloud provider ID.
-	ProviderName() string
-	// HasClusterID returns true if a ClusterID is required and set
-	HasClusterID() bool
-}
-```
+# [Operator](kubernetes-operator.md.html)
 
 # Reference
 https://kubernetes.io/docs/home/

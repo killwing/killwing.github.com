@@ -537,9 +537,9 @@ TX: 发
 
 
 ### ip-route
-`cat /etc/iproute2/rt_tables` 查看所有路由表，local优先于main
+`cat /etc/iproute2/rt_tables` or `ip rule list` 查看所有路由表，local优先于main
 `ip route list table <main/local>`, `ip route/route -n` (查看main)
-指定路由查找 `ip route get 192.168.10.10`
+指定路由查找 `ip route get 192.168.10.10` 可以看到查了哪张表
 
 ### ip-link
 type:

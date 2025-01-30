@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Kubernetes Operator</title>
+<xmp theme="readable" style="display:none;">
+https://kubernetes.io/docs/concepts/extend-kubernetes/operator/
+
+# [CRD](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/)
+GroupKindVersion 标识一个资源类型，Kind 和 resource name 一致。group + kind + name/namespace 唯一标识一个资源对象，和 version 无关。
+ApiVersion: group/version
+
+```
+kubectl get <resource>.<version>.<group> // e.g. kubectl get issuers.v1beta1.cert-manager.io
+kubectl api-resources
+kubectl api-versions
+kubectl explain <resource> --api-version <apiVersion>
+```
+
+可以同时存在同一个资源的不同 served 版本，但只有一个当前 stored 版本，可以有多个历史 stored 版本 (`.status.storedVersions`)，其它版本由当前 stored 版本转化而来。
+可以读取任意 served 版本，写入更新的是当前 stored 版本。即使用别的版本 API 创建，写入的还是 stored 版本。
+改变 stored 版本不影响已经存在的 object，只影响后续的创建和更新。
+
+perferred version: 指按优先级排序后的[最新 version](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#version-priority)
+
+https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
+https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api_changes.md
+
+## Generation
+- 每个字段上显式标注 `+optional` 或 `+required`
+- `+required` 一般还需加上 `+kubebuilder:validation:MinLength=1` 或 `+kubebuilder:validation:Minimum=1` 表示非空
+- 如果一个 struct 字段是 `+optional`，那么缺省时它的子字段就不会被 validate/default，可以加上 `//+kubebuilder:default:={}`
+
+https://github.com/openshift/crd-schema-checker
+
+- [ConditionsMustHaveProperSSATags] conditions must match metav1.Conditions with proper SSA tags
+- [ListsMustHaveSSATags] all lists must have SSA tags
+- [NoFloats] don't use floats
+- [NoUints] don't use unsigned ints
+- [NoBools] booleans cannot be defaulted
+- no durations (for kube, openshift configuration API allowed)
+- enumerated values should use CamelCase
+- optional should be pointers (for kube, openshift configuration API allowed)
+- defaulted values have to be optional to pass CR validation
+- stable versions cannot coexist with unstable versions
+- no uses of corev1.ObjectReference
+- no uses of corev1.LocalObjectReference
+- [NoMaps]
+- [MustHaveStatus]
+- [MustNotExceedCostBudget]
+
+compatibility:
+
+- don't change field types
+- don't tighten validation rules
+- don't loosen validation rules (warning)
+- [NoNewRequiredFields] no new fields can be required
+- no new enumerated values (warning)
+- [NoEnumRemoval] no removed enumerated values (error)
+- [NoFieldRemoval]
+- no replace in list (warning)
+
+# [Controller](https://kubernetes.io/docs/concepts/architecture/controller/)
+## [client-go](https://github.com/kubernetes/client-go/)
+[![img](https://raw.githubusercontent.com/kubernetes/sample-controller/master/docs/images/client-go-controller-interaction.jpeg)](https://github.com/kubernetes/sample-controller/blob/master/docs/controller-client-go.md)
+
+client-go 库内部组件：
+
+* Reflector: 从 Kubernetes API 监听 (watch) 特定的资源类型 (kind)，可以是内置资源，也可以是自定义资源。当它收到新增资源对象的通知时，会把新的资源对象从 APIServer 取出 (list/watch) 并放入 Delta Fifo 队列。Delta Fifo 会根据 key 对相邻 delta 进行去重。
+* Informer: 从 Delta Fifo 队列中取出对象放入本地 Indexer 缓存，然后调用自定义控制器注册的事件处理函数。定期同步功能(resync)，将 Indexer 中已知的对象(knownObjects，就是 Indexer 的引用)重新放入 Delta Fifo 中，以重新通知 Event Handler 处理。
+* Indexer: 提供对象的索引功能，可以根据对象的标签创建索引提高对象查询效率。它使用一个线程安全的数据存储作为后端缓存存储对象和其键值（一般为`<namespace>/<name>`）。
+
+自定义控制器组件：
+
+* Resource Event Handlers: 注册在 Informer 里的针对特定资源的事件处理回调函数，通常作法是将对象的键值放入 Work Queue 以供后续处理。之所以只存键值，是因为 Indexer 里的缓存的对象可能被更新，这样处理时可以取得最新的对象。
+* Work Queue: 将对象的投递和处理分离开，异步处理，起到了解藕的作用。
+* Object Handler (Reconciler): 从 Work Queue 里取出对象的键值，以从 Indexer 获得实际的对象进行处理。
+
+More about informer:
+
+* 每个 Informer 都有一个 Reflector 和一个 Indexer，只支持一个 Event Handler。如需多个 handler，要使用 Shared Informer，以“共享” Reflector 和 Indexer。
+* resync / requeueAfter 用来定期 reconcile 不能 watch 的外部资源。
+* HasSynced 表示 Indexer 里面已经有通过 full list 的全量数据。对于 Shared Informer，不能保证注册的 Event Handler 对每个对象都调用过一遍，可以用 Event Handler 自己的 HasSynced 检查。（普通的 Informer 可以保证）
+
+## [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime)
+[![img](https://miro.medium.com/v2/resize:fit:1400/format:webp/1*yFz1zQiUweDtm6s8_2bnIw.png)](https://nakamasato.medium.com/kubernetes-operator-series-1-controller-runtime-aa50d1d93c5c)
+
+### Error Back-Off
+informer: watch events 不受 rate limit 限制，调用 `workqueue.add`
+reconcile: 返回 error 或 `result.Requeue: true` 是 exp backoff, 调用 `workqueue.addRateLimited`, per request object
+
+设置: [RateLimiter](https://github.com/kubernetes-sigs/controller-runtime/blob/91e102ffc63c9b415b177eee448316556fa8d315/pkg/controller/controller.go#L69)
+
+### Concurrent Reconciles
+[workerqueue 原理](https://openkruise.io/blog/learning-concurrent-reconciling/)：
+
+- 不会并发处理同一个 object
+- 处理顺序不一定是 object 到达的顺序，即使并发为1
+- 并发为1可能造成处理延迟：先到达的最后才处理
+- 重复的 object 会被丢弃
+
+设置：[MaxConcurrentReconciles](https://github.com/kubernetes-sigs/controller-runtime/blob/91e102ffc63c9b415b177eee448316556fa8d315/pkg/controller/controller.go#L48)
+
+### [Priority Queue](https://github.com/kubernetes-sigs/controller-runtime/blob/main/designs/priorityqueue.md)
+
+### [Selectors At Cache](https://github.com/kubernetes-sigs/controller-runtime/blob/main/designs/use-selectors-at-cache.md)
+当 watch 的资源量可能巨大时(比如Secret, ConfigMap, CRD)，减少内存占用
+```
+mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+    Scheme: scheme,
+    NewCache: cache.BuilderWithOptions(cache.Options{
+        SelectorsByObject: cache.SelectorsByObject{
+            &core.Pod{}: {
+                Label: labels.SelectorFromSet(labels.Set{
+                    myLabelKey,
+                    myLabelVal,
+                }),
+            },
+            &grpv1alpha1.Mykind{}: {},
+        },
+    }),
+})
+```
+
+# [API Methods](https://kubernetes.io/docs/reference/using-api/api-concepts/)
+## Update
+`Update` 不能更新 status，不报错，会忽略。注意：update会覆盖传入的object（包括**status**,**resourceversion**）为当前 object，和create，get类似。
+
+`status.Update` 不能更新非status，且generation不会增加 (generation只有更新spec或~~annotations~~才会增加)
+
+## Delete
+DeletionPropagation: 不管是哪个选项，DELETE API 都不会阻塞。
+
+- Foreground: 添加 forgroundDeletion finalizer，等子资源(blockOwnerDeletion=true)删完之后再删除。
+- Background: 直接删除，子资源由 GC 删除。
+- Orphan: 先添加 orphan finalizer，由 GC 删除，保留子资源并移除 ownerreference。
+
+CRD 删除时必须所有 CR 都已删除。没有 finalizers 的CR都会自动删除。
+
+## [Server Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply)
+client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/
+
+冲突是一种特定的错误状态，发生在执行 Apply 改变一个字段，而恰巧该字段被其他用户声明过主权时 (metadata.managedFields)。
+在冲突发生的时候，只有 apply （内容类型为 application/apply-patch+yaml 的 PATCH 请求，且用 field-manager 参数标识自己）操作失败。冲突解决：
+
+* 覆盖前值，成为唯一的管理器：当字段值不同时，设置查询参数 force 为 true，这将改变字段的值，从所有其他管理器的 managedFields 条目中删除指定字段。（如果是controller，不代表用户操作，一般会用force）
+* 不覆盖前值，放弃管理权：从配置文件中删掉字段，这就保持了原值不变，并从 managedFields 的应用者条目中删除该字段。
+* 不覆盖前值，成为共享的管理器：在配置文件中把字段的值改为和服务器对象一样，就实现了字段管理被应用者和所有声明了管理权的其他的字段管理器共享。
+
+而 update（所有修改对象的其他操作）会忽略冲突强制覆盖值并更改对应 fields 的 manager，如果此字段值相同，则忽略，并不会成为共享管理器。
+
+apply 时必须字段必须至少有一个 manager (默认字段 manager 为 kube-controller-manager 等系统组件)，不填这个字段相当于放弃自己的管理权。
+apply 改变一个字段的管理权时，可以不提供所有必须字段，只提供需要改变的字段，因为其它必须字段已有其它 manager，也不会导致其它 managed 字段被删除。
+如果一个 apply 导致一个非必须自段没有 manager，则删除这个字段。只能删除自己 managed 的字段。
+如果一个 apply 导致一个必须字段没有 manager，比如放弃自己唯一管理权，则报错。
+
+
+kubectl (-v7):
+
+cmd | manager | op | method | content-type
+-   | -       | -  | -
+apply (server) | kubectl | apply | PATCH | apply-patch+yaml
+apply | kubectl-client-side-apply | update | PATCH | strategic-merge-patch+json
+create | kubectl-create | update | POST | application/json
+replace | kubectl-replace | update | PUT | application/json
+edit | kubectl-edit | update | PATCH| strategic-merge-patch+json
+patch | kubectl-patch | update | PATCH | strategic-merge-patch+json
+
+合并策略：
+
+* list: `// +listType=`
+  * atomic: 整个替换（默认）
+  * set: 当作set，值必须是 scalar 类型
+  * map: 当作map，`// +listMapKey=`作为key组合
+  * 如果缺失，如果有 `patchMergeStrategy=merge` 则会被认为是 `listType=map`，`patchMergeKey` 作为 `listMapKey`
+
+* map/struct: `// +mapType=`, `// +structType=`
+  * atomic: 整个替换
+  * granular: 每个字段互相独立（默认）
+
+managedFieds:
+`.` 字段本身
+`f` 字段名字
+`v` 字段值
+`k` map 的 key，包含f,v
+`i` 数组的索引
+
+# API Design
+https://github.com/kubernetes/design-proposals-archive/blob/main/architecture/principles.md
+
+- object status 可以完全由 observed state 重新构造。status 里面存的历史数据只能用来优化操作，而不是正确操作所必须。
+- 以开放世界为前提：不断检查假设，并从容应对外部事件和/或行为主体的变化。
+- 不要为具有与状态转换和/或“假定”状态相关行为的对象定义复杂的状态机，而这些状态无法通过 obeservation 确定。
+- 组件是可以自我修复的。
+
+https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md
+
+- 在 API 中显式地表达默认值，而不是假定“未定义的字段会采用默认行为”。
+
+# Practice
+## [Watching Resources](https://book.kubebuilder.io/reference/watching-resources)
+When to reconcile:
+
+- spec change (generation increased) `predicate.GenerationChangedPredicate`, some resources do not have generation, needs fallback to `predicate.ResourceVersionChangedPredicate`
+- annotation change `predicate.AnnotationChangedPredicate`
+- dependent object change (owns)
+- reference object change (not own, may be shared with others)
+- self healing (for resources not watched)
+
+Predicates: 只要有一个（对应事件）返回false，就skip，可以用 Predicate.And/Or。
+
+opt to skip:
+
+- status.observedGeneration == metadata.generation
+
+## Error Handling
+所有错误必须:
+
+- important ops, set to status
+- other ops, use [event](https://kubernetes.io/blog/2018/01/reporting-errors-using-kubernetes-events/) to record
+- unlikely happen error, api read (get/list) error, timeout error, just return error to retry
+
+可重试错误(even some 404/401)：return error to retry
+
+- 系统配置错误，资源临时不可用，可以被其他系统组件随后修复
+
+不可重试错误：return nil
+
+- 必须等 user 重新更新 spec，或相关(watched)资源才能恢复
+
+错误类型：
+
+- 具体类型要先注册（AddToScheme），否则会报 notRegisteredErr，注册了没安装是 NoKindMatchError
+- unstructured 类型不用注册，没安装是NoKindMatchError
+- 如果安装crd之后再卸载(卸载crd会删除所有object)，list/watch则不会再报错，而是返回空。
+
+## Expectations
+用来记录操作并等缓存更新到期望状态，以避免过期缓存带来的副作用，比如重复创建/删除资源。
+不需要：当操作是幂等或没有副作用时（失败）：创建同名/已存在资源，更新 MVC 冲突，删除不存在的资源。
+
+https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/controller_utils.go#L119-L132
+https://github.com/elastic/cloud-on-k8s/blob/main/pkg/controller/common/expectations/expectations.go
+
+# Projects
+samples:
+https://github.com/kubernetes/sample-controller
+https://github.com/iximiuz/client-go-examples
+
+utils:
+https://github.com/operator-framework/operator-lib
+https://github.com/redhat-cop/operator-utils
+https://github.com/reconcilerio/runtime
+
+provisioning:
+https://olm.operatorframework.io
+https://github.com/kubernetes-sigs/kubebuilder-declarative-pattern
+https://kudo.dev
+https://github.com/fluxcd/pkg/ssa
+
+# Reference
+https://git.k8s.io/community/contributors/devel/sig-api-machinery/controllers.md
+https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/
+https://sdk.operatorframework.io/docs/best-practices
+https://book.kubebuilder.io/reference/good-practices
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
