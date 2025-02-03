@@ -6,6 +6,24 @@
 https://kubernetes.io/docs/concepts/extend-kubernetes/operator/
 
 # [CRD](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/)
+## General
+Metadata:
+
+- user specify: name, namespace
+- system populate: creationTimestamp, deletionTimestamp, generation, resourceVersion, uid
+- operator populate: finalizers
+
+Spec: desired world
+
+- user specify or other coop controllers update (e.g. replicas)
+- read-only for operator
+- absent for operator (usually by mutating webhook) filled defaults
+
+Status: observed world
+
+- write-only for operator, can be repopulated if it is deleted
+
+## [Versioning](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning)
 GroupKindVersion 标识一个资源类型，Kind 和 resource name 一致。group + kind + name/namespace 唯一标识一个资源对象，和 version 无关。
 ApiVersion: group/version
 
@@ -22,8 +40,14 @@ kubectl explain <resource> --api-version <apiVersion>
 
 perferred version: 指按优先级排序后的[最新 version](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#version-priority)
 
-https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
 https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api_changes.md
+
+## Types
+`unstructured.Unstructured` 一个 k8s 对象，实现了 `metav1.Object`, `metav1.ListInterface` 接口，方便操作查询字段。
+[`runtime.RawExtension`](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#rawextension) 保存一个完整的 k8s 对象（原始数据），需要手动反序列化。
+`apiextensionsv1.JSON` 一个 json 对象
+
+related marker `+kubebuilder:validation:EmbeddedResource`, `+kubebuilder:pruning:PreserveUnknownFields`
 
 ## Generation
 - 每个字段上显式标注 `+optional` 或 `+required`
@@ -58,6 +82,74 @@ compatibility:
 - [NoEnumRemoval] no removed enumerated values (error)
 - [NoFieldRemoval]
 - no replace in list (warning)
+
+## Validation
+https://book.kubebuilder.io/reference/markers/crd-validation
+
+### [CEL](https://cel.dev)
+https://kubernetes.io/docs/reference/using-api/cel
+https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation-rules
+marker: `+kubebuilder:validation:XValidation`
+
+**rule**
+
+- field 是 root object，通过 self 可以访问所有定义在 openapi schema 里面的 field。也包括 apiVersion, kind, metadata.name and metadata.generateName。
+- field 是 object，通过 `self.field` 可以访问其属性。`has(self.field)` 检查存在性。如果被 `x-kubernetes-embedded-resource` 标记，则可以访问 apiVersion, kind, metadata.name and metadata.generateName，其他 metadata 则不能访问。被 `x-kubernetes-preserve-unknown-fields` 标记的 unknown field 不能访问。
+- field 是 object with additionalProperties (map)，访问 `self[mapKey]`，`mapKey in self` 检查 key 存在，`self.all(...)` 访问所有 entry。
+- field 是 array，访问 `self[i]`。被 `x-kubernetes-list-type` (set|map) 标记，等同比较忽略顺序。
+- field 是 scalar，`self` 就是其 value。
+
+functions:
+
+- CEL standard functions, defined in the [list of standard definitions](https://github.com/google/cel-spec/blob/v0.7.0/doc/langdef.md#list-of-standard-definitions)
+- CEL standard [macros](https://github.com/google/cel-spec/blob/v0.7.0/doc/langdef.md#macros)
+- CEL [extended string function library](https://pkg.go.dev/github.com/google/cel-go@v0.11.2/ext#Strings)
+- Kubernetes [CEL extension library](https://pkg.go.dev/k8s.io/apiextensions-apiserver@v0.24.0/pkg/apiserver/schema/cel/library#pkg-functions)
+
+transition:
+
+- 如果 rule 中包含 `oldSelf` 就是一个 transition rule。
+- 应用条件：更新已有的 object，新旧 value 都必须存在，及新旧 object 需要 validate 的 path 可以比较。
+
+Immutability	`self.foo == oldSelf.foo`
+Prevent modification/removal once assigned	`oldSelf != 'bar' || self == 'bar' or !has(oldSelf.field) || has(self.field)`
+Append-only set	`oldSelf.all(element, element in self)`
+If previous value was X, new value can only be A or B, not Y or Z	`oldSelf != 'X' || self in ['A', 'B']`
+Monotonic (non-decreasing) counters	`self >= oldSelf`
+Once set, field must not be deleted `!has(oldSelf.value) || has(self.value)`
+Map with append-only keys, immutable values `oldSelf.all(key, key in self && self[key] == oldSelf[key])`
+[more about immutability](https://kubernetes.io/blog/2022/09/29/enforce-immutability-using-cel/)
+
+cost estimation: 通过 `+kubebuilder:validation:MaxItems`(array)、`+kubebuilder:validation:MaxProperties`(map) 和 `+kubebuilder:validation:MaxLength`(string) 为所有将在 rule 中处理的项设置限制，以避免在成本估算时发生验证错误。
+
+**message**
+
+- 固定错误信息字符串。
+
+**messageExpression** 
+                
+- 可以使用 CEL 表达式构造 message。
+- 可以使用 rule 里面相同的变量。
+- 结果必须是string。用 `+` 连接字符串，用`string`转型。
+- 优先于 message，但如果表达式出错或非法(为空或有换行)，则会使用 message。如果 message 也没有定义，则使用默认的错误信息。
+
+**fieldPath**
+
+- 使用 [jsonpath](https://kubernetes.io/docs/reference/kubectl/jsonpath/) 表明出错的具体 field。
+- 必须用相对路径。
+- 必须是 schema 里面定义的 field，包括 map key。不支持 array index。
+
+**reason**
+
+- 机读错误码。
+- 返回的 HTTP status 会符合第一个失败的 rule 的 reason。
+- 支持 "FieldValueInvalid(422)", "FieldValueForbidden(403)", "FieldValueRequired", "FieldValueDuplicate(419)"。默认"FieldValueInvalid"
+
+**optionalOldSelf**
+
+- 如果设为 true，则`oldSelf` 变为 CEL Optional 类型。适用 `oldSelf` 不能确定的场合。
+
+[playground](https://playcel.undistro.io)
 
 # [Controller](https://kubernetes.io/docs/concepts/architecture/controller/)
 ## [client-go](https://github.com/kubernetes/client-go/)
@@ -135,6 +227,15 @@ DeletionPropagation: 不管是哪个选项，DELETE API 都不会阻塞。
 - Orphan: 先添加 orphan finalizer，由 GC 删除，保留子资源并移除 ownerreference。
 
 CRD 删除时必须所有 CR 都已删除。没有 finalizers 的CR都会自动删除。
+
+## Watch
+watchlist:
+https://kubernetes.io/blog/2024/12/17/kube-apiserver-api-streaming/
+https://kubernetes.io/docs/reference/using-api/api-concepts/#streaming-lists
+
+bookmark: 
+https://kubernetes.io/docs/reference/using-api/api-concepts/#watch-bookmarks
+https://stackoverflow.com/questions/66080942/what-k8s-bookmark-solves
 
 ## [Server Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply)
 client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/
@@ -261,6 +362,7 @@ https://git.k8s.io/community/contributors/devel/sig-api-machinery/controllers.md
 https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/
 https://sdk.operatorframework.io/docs/best-practices
 https://book.kubebuilder.io/reference/good-practices
+https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#best-practices-and-warnings
 
 </xmp>
 <script src="js/strapdown.js"></script>
