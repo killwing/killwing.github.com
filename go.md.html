@@ -1640,6 +1640,20 @@ https://dave.cheney.net/2018/01/08/gos-hidden-pragmas
 `//go:noinline` 禁止内联函数
 
 # [Std Packages](https://pkg.go.dev/std)
+## io/fs
+```
+type FS interface {
+	Open(name string) (File, error)
+}
+```
+扩展接口：`GlobFS`, `ReadDirFS`, `ReadFileFS`, `StatFS`, `SubFS`
+
+实现：
+
+- `os.DirFS` 表示本地文件系统的一个目录。也实现了 `ReadDirFS`, `ReadFileFS`, `StatFS`
+- `testing/fstest.MapFS` 用于测试的内存文件系统。也实现了全部五种扩展接口。
+- `embed.FS` 嵌入式文件系统。也实现了 `ReadDirFS`, `ReadFileFS`
+	
 ## errors
 `errors.As(err error, target any) bool`: `target` 必须是非空指针，`*target` 必须是一个 interface 或者实现了 error 接口。返回 `*target = err` 赋值是否可行，或者 err 实现了 As(target)。
 
@@ -2114,6 +2128,7 @@ extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 
 # Reference
 https://go.dev
+https://go.dev/doc/faq
 https://golang.org/ref/spec
 https://tip.golang.org/cmd/go/
 https://github.com/golang/go/wiki

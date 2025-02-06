@@ -176,7 +176,7 @@ https://deepu.tech/memory-management-in-golang / [zh](https://tonybai.com/2020/0
 
 # [Scheduler](https://github.com/golang/go/blob/master/src/runtime/proc.go)
 逻辑处理器 (P): 用来处理调度 G 的运行，P 运行时和 M 绑定
-系统线程 (M)
+系统线程 (M): 最大创建10000个线程
 Goroutine (G)
 
 Runnable Queue:
@@ -193,6 +193,131 @@ Runnable Queue:
   * 同步：G1 导致 M1 阻塞，调度器将 M1 和 P1 分离，G1 留在 M1 上，将 P1 分配到新的 M 上处理。调用完成后移回 GRQ。
 * 同步机制
 * 抢占：执行超过 10ms，在函数入口处调度，放到 GRQ 上。
+
+## schedt
+```
+type schedt struct {
+	goidgen   atomic.Uint64
+	lastpoll  atomic.Int64 // time of last network poll, 0 if currently polling
+	pollUntil atomic.Int64 // time to which current poll is sleeping
+
+	lock mutex
+
+	// When increasing nmidle, nmidlelocked, nmsys, or nmfreed, be
+	// sure to call checkdead().
+
+	midle        muintptr // idle m's waiting for work
+	nmidle       int32    // number of idle m's waiting for work
+	nmidlelocked int32    // number of locked m's waiting for work
+	mnext        int64    // number of m's that have been created and next M ID
+	maxmcount    int32    // maximum number of m's allowed (or die)
+	nmsys        int32    // number of system m's not counted for deadlock
+	nmfreed      int64    // cumulative number of freed m's
+
+	ngsys atomic.Int32 // number of system goroutines
+
+	pidle        puintptr // idle p's
+	npidle       atomic.Int32
+	nmspinning   atomic.Int32  // See "Worker thread parking/unparking" comment in proc.go.
+	needspinning atomic.Uint32 // See "Delicate dance" comment in proc.go. Boolean. Must hold sched.lock to set to 1.
+
+	// Global runnable queue.
+	runq     gQueue
+	runqsize int32
+
+	// disable controls selective disabling of the scheduler.
+	//
+	// Use schedEnableUser to control this.
+	//
+	// disable is protected by sched.lock.
+	disable struct {
+		// user disables scheduling of user goroutines.
+		user     bool
+		runnable gQueue // pending runnable Gs
+		n        int32  // length of runnable
+	}
+
+	// Global cache of dead G's.
+	gFree struct {
+		lock    mutex
+		stack   gList // Gs with stacks
+		noStack gList // Gs without stacks
+		n       int32
+	}
+
+	// Central cache of sudog structs.
+	sudoglock  mutex
+	sudogcache *sudog
+
+	// Central pool of available defer structs.
+	deferlock mutex
+	deferpool *_defer
+
+	// freem is the list of m's waiting to be freed when their
+	// m.exited is set. Linked through m.freelink.
+	freem *m
+
+	gcwaiting  atomic.Bool // gc is waiting to run
+	stopwait   int32
+	stopnote   note
+	sysmonwait atomic.Bool
+	sysmonnote note
+
+	// safePointFn should be called on each P at the next GC
+	// safepoint if p.runSafePointFn is set.
+	safePointFn   func(*p)
+	safePointWait int32
+	safePointNote note
+
+	profilehz int32 // cpu profiling rate
+
+	procresizetime int64 // nanotime() of last change to gomaxprocs
+	totaltime      int64 // ∫gomaxprocs dt up to procresizetime
+
+	// sysmonlock protects sysmon's actions on the runtime.
+	//
+	// Acquire and hold this mutex to block sysmon from interacting
+	// with the rest of the runtime.
+	sysmonlock mutex
+
+	// timeToRun is a distribution of scheduling latencies, defined
+	// as the sum of time a G spends in the _Grunnable state before
+	// it transitions to _Grunning.
+	timeToRun timeHistogram
+
+	// idleTime is the total CPU time Ps have "spent" idle.
+	//
+	// Reset on each GC cycle.
+	idleTime atomic.Int64
+
+	// totalMutexWaitTime is the sum of time goroutines have spent in _Gwaiting
+	// with a waitreason of the form waitReasonSync{RW,}Mutex{R,}Lock.
+	totalMutexWaitTime atomic.Int64
+
+	// stwStoppingTimeGC/Other are distributions of stop-the-world stopping
+	// latencies, defined as the time taken by stopTheWorldWithSema to get
+	// all Ps to stop. stwStoppingTimeGC covers all GC-related STWs,
+	// stwStoppingTimeOther covers the others.
+	stwStoppingTimeGC    timeHistogram
+	stwStoppingTimeOther timeHistogram
+
+	// stwTotalTimeGC/Other are distributions of stop-the-world total
+	// latencies, defined as the total time from stopTheWorldWithSema to
+	// startTheWorldWithSema. This is a superset of
+	// stwStoppingTimeGC/Other. stwTotalTimeGC covers all GC-related STWs,
+	// stwTotalTimeOther covers the others.
+	stwTotalTimeGC    timeHistogram
+	stwTotalTimeOther timeHistogram
+
+	// totalRuntimeLockWaitTime (plus the value of lockWaitTime on each M in
+	// allm) is the sum of time goroutines have spent in _Grunnable and with an
+	// M, but waiting for locks within the runtime. This field stores the value
+	// for Ms that have exited.
+	totalRuntimeLockWaitTime atomic.Int64
+}
+```
+
+sched: 一个全局的调度器 schedt，包含全局的 GRQ，回收的 dead G 列表等。
 
 ## M
 ```
@@ -289,7 +414,7 @@ g0 的其他作用：
 1. 获取一个空闲的 M，没有则创建一个，创建一个内核线程，并将其执行入口设为 `mstart`。如果有则唤醒它。
 1. `mstart`: 如果设置了 `mstartfn` 则先执行，然后执行调度循环。
 
-调度：`schedule` 并不是一个循环，大都时候由其他条件（比如 G 执行结束）再次触发调度，如果 P 之前已经释放，必须重新获得一个 P 才能进行调度
+调度：`schedule` 并不是一个循环，大都时候由其他条件（比如 G 执行结束，`schedule->execute->gogo->schedule`）再次触发调度，永不返回。如果 P 之前已经释放，必须重新获得一个 P 才能进行调度。
 
 1. 每处理61个 G，就先去 GRQ 里面取，确保公平。
 1. 从 LRQ 里面取。
@@ -311,10 +436,17 @@ M.g0 上调用：`mcall(fn func(*g))`
 
 1. 调用 `netpoll(false)` 把 epoll ready 的 G 放入 GRQ。
 2. 定期扫描所有的 P：
-  * 对于正在 running 的，如果 G 占有时长超过 10 ms，在 G 上设置抢占标记 `stackPreempt`。等到栈扩张（`newstack` 发生函数调用）的时候，实施抢占（G 状态变为 runnable，被放回 GRQ）。
+  * 协作式抢占：对于正在 running 的，如果 G 占有时长超过 10 ms，在 G 上设置抢占标记 `stackPreempt`。等到栈扩张（`newstack` 发生函数调用）的时候，实施抢占（G 状态变为 runnable，被放回 GRQ）。
   * 对于正在 syscall 的，如果超过 10 ms，使 P 变为 idle 状态，转换 `handoffp` 到一个新的 M 上执行，或放回 P 空闲队列。
 
-信号抢占(1.14)： `runtime.doSigPreempt`
+非协作式抢占（信号抢占）： 只会在垃圾回收扫描任务时触发。
+
+1. 程序启动时，注册 SIGURG 信号的处理函数 `doSigPreempt`
+1. 在触发垃圾回收的栈扫描时会调用 `suspendG` 挂起 G，将 running 状态的 G 标记成可以被抢占(`preemptStop`为true)并调用 `preemptM` 触发抢占
+1. `preemptM` 调用 `signalM` 向线程发送信号 SIGURG, 中断线程执行 `doSigPreempt`
+1. `doSigPreempt` 获取当前的 SP 和 PC 寄存器并调用 `sigctxt.pushCall`
+1. `sigctxt.pushCall` 修改寄存器并在程序回到用户态时执行 `asyncPreempt -> asyncPreempt2 -> preemptPark`
+1. `preemptPark` 修改当前 G 的状态到 preempted 并调用 `schedule` 选择其它 G 执行
 
 网络轮询：`netpoll`
 
@@ -524,6 +656,7 @@ type g struct {
 * 6 dead: 刚初始化或刚退出在空闲列表中，不在执行用户代码，可能分配了栈。
 * 7 enqueue_unused: 未使用。
 * 8 copystack: 其栈正在被移动，不在执行用户代码，不在运行队列中。
+* 9 preempted: 由于抢占而被阻塞，不在执行用户代码，不在运行队列中，等待唤醒。
 * 0x1000 scan: 和其他状态（除了 running）联合表示 GC 正在扫描栈，不在执行用户代码。
 
 获取：
@@ -537,7 +670,7 @@ type g struct {
 关联 g 和当前 M，将状态从 runnable 变为 running，传入函数栈信息给 `gogo` 执行。永不返回。
 
 正常退出：`goexit`
-调用 `goexit1`，然后在当前 M 的 g0 中调用 `goexit0`，状态从 running 变为 dead，将其放回本地 free 列表，并执行下一轮调度。
+调用 `goexit1`，然后在当前 M 的 g0 中调用 `goexit0`，状态从 running 变为 dead，将其放回 P 本地 free 列表，并调用 `schedule` 执行下一轮调度。
 
 主动让出：`gopark`
 在 g0 中调用 `park_m`，状态从 running 变为 waiting（一般由调用者唤醒），并和当前 M 解绑，如果不需要等待解锁，则变为 runnable 继续执行，否则进行下一轮调度。
@@ -591,7 +724,7 @@ sudog 是处于等待列表中 g 及其数据的一个封装，一个 g 可以�
 
 ## Scheduler GODEBUG
 ```
-GODEBUG=schedtrace=1000 go run main.go
+GODEBUG=schedtrace=1000 ./app
 SCHED 0ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=1 idlethreads=0 runqueue=0 [0 1 2 0 0 0 0 0]
 SCHED 1016ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 [0 1 1 0 0 0 0 0]
 SCHED 2026ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 [0 1 1 0 0 0 0 0]
@@ -606,7 +739,7 @@ SCHED 2026ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0
 * runqueue：GRQ 中的 G 数量，[0 1 2 0 0 0 0 0] 为 P 的 LRQ 中 G 的数量
 
 ```
-GODEBUG=schedtrace=1000,scheddetail=1 go run main.go
+GODEBUG=schedtrace=1000,scheddetail=1 ./app
 SCHED 0ms: gomaxprocs=8 idleprocs=0 threads=9 spinningthreads=0 idlethreads=0 runqueue=0 gcwaiting=0 nmidlelocked=0 stopwait=0 sysmonwait=0
   P0: status=1 schedtick=1 syscalltick=0 m=0 runqsize=0 gfreecnt=0
   P1: status=1 schedtick=3 syscalltick=0 m=3 runqsize=0 gfreecnt=0
@@ -728,7 +861,7 @@ STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
 
 ## GC GODEBUG
 ```
-GODEBUG=gctrace=1 go run main.go
+GODEBUG=gctrace=1 ./app
 gc 1 @0.033s 0%: 0.010+0.74+0.025 ms clock, 0.080+0.39/0.43/0.20+0.20 ms cpu, 4->4->0 MB, 5 MB goal, 8 P
 gc 2 @0.055s 0%: 0.11+0.66+0.18 ms clock, 0.92+0.38/0.45/0.067+1.5 ms cpu, 4->4->0 MB, 5 MB goal, 8 P
 gc 3 @0.065s 1%: 0.016+0.88+0.006 ms clock, 0.12+0.25/0.52/0.22+0.048 ms cpu, 4->4->0 MB, 5 MB goal, 8 P

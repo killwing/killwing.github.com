@@ -89,6 +89,8 @@ https://book.kubebuilder.io/reference/markers/crd-validation
 ### [CEL](https://cel.dev)
 https://kubernetes.io/docs/reference/using-api/cel
 https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation-rules
+[playground](https://playcel.undistro.io)
+
 marker: `+kubebuilder:validation:XValidation`
 
 **rule**
@@ -148,8 +150,6 @@ cost estimation: 通过 `+kubebuilder:validation:MaxItems`(array)、`+kubebuilde
 **optionalOldSelf**
 
 - 如果设为 true，则`oldSelf` 变为 CEL Optional 类型。适用 `oldSelf` 不能确定的场合。
-
-[playground](https://playcel.undistro.io)
 
 # [Controller](https://kubernetes.io/docs/concepts/architecture/controller/)
 ## [client-go](https://github.com/kubernetes/client-go/)
@@ -316,7 +316,7 @@ opt to skip:
 ## Error Handling
 所有错误必须:
 
-- important ops, set to status
+- important ops, set to status conditions
 - other ops, use [event](https://kubernetes.io/blog/2018/01/reporting-errors-using-kubernetes-events/) to record
 - unlikely happen error, api read (get/list) error, timeout error, just return error to retry
 
@@ -327,6 +327,9 @@ opt to skip:
 不可重试错误：return nil
 
 - 必须等 user 重新更新 spec，或相关(watched)资源才能恢复
+- 若完全验证了用户请求，则都需要重试
+
+**Generally, 完全验证用户请求，重试并记录所有错误。**
 
 错误类型：
 
