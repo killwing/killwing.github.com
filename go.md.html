@@ -1463,7 +1463,7 @@ Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/d
 测试时：`go test -bench=. -cpuprofile/-memprofile/-blockprofile out.prof`
 独立程序：`pprof.StartCPUProfile()/pprof.StopCPUProfile()/pprof.WriteHeapProfile()` 或使用 [profile](https://github.com/pkg/profile) `defer profile.Start().Stop()`
 查看：`go tool pprof out.prof`/`go tool pprof -http=:8080 out.prof`
-[使用label](https://rakyll.org/profiler-labels/)：`pprof.Do()`
+[使用 label](https://rakyll.org/profiler-labels/)：`pprof.Do()`
 
 独立程序嵌入http接口：`import _ "net/http/pprof"`，并运行一个server：
 ```
@@ -1486,6 +1486,48 @@ file pprof: `go-torch --binaryname binary.test -b pprof.cpu`
 使用原生[pprof](http://github.com/google/pprof): `pprof -http=:8080 out.prof`
 
 `go tool pprof -http=` 已支持直接查看，不需要 go-torch。
+
+## Monitoring
+使用 [prometheus](https://prometheus.io/docs/guides/go-application/)
+
+metrics:
+```
+go_gc_duration_seconds{quantile="0"} 0
+go_gc_duration_seconds{quantile="0.25"} 0
+go_gc_duration_seconds{quantile="0.5"} 0
+go_gc_duration_seconds{quantile="0.75"} 0
+go_gc_duration_seconds{quantile="1"} 0
+go_gc_duration_seconds_sum 0
+go_gc_duration_seconds_count 0
+go_gc_gogc_percent 100
+go_gc_gomemlimit_bytes 9.223372036854776e+18
+go_goroutines 6
+go_info{version="go1.23.4"} 1
+go_memstats_alloc_bytes 300416
+go_memstats_alloc_bytes_total 300416
+go_memstats_buck_hash_sys_bytes 3669
+go_memstats_frees_total 0
+go_memstats_gc_sys_bytes 1.416688e+06
+go_memstats_heap_alloc_bytes 300416
+go_memstats_heap_idle_bytes 1.564672e+06
+go_memstats_heap_inuse_bytes 2.236416e+06
+go_memstats_heap_objects 466
+go_memstats_heap_released_bytes 1.564672e+06
+go_memstats_heap_sys_bytes 3.801088e+06
+go_memstats_last_gc_time_seconds 0
+go_memstats_mallocs_total 466
+go_memstats_mcache_inuse_bytes 19200
+go_memstats_mcache_sys_bytes 31200
+go_memstats_mspan_inuse_bytes 54720
+go_memstats_mspan_sys_bytes 65280
+go_memstats_next_gc_bytes 4.194304e+06
+go_memstats_other_sys_bytes 1.193707e+06
+go_memstats_stack_inuse_bytes 393216
+go_memstats_stack_sys_bytes 393216
+go_memstats_sys_bytes 6.904848e+06
+go_sched_gomaxprocs_threads 16
+go_threads 6
+```
 
 ## Tracing
 main里加上：
@@ -1556,7 +1598,7 @@ func grow(p *string, c int, a [1000]int) {
 
 ## Other Optimization
 * false sharing (cache line size (byte) /sys/devices/system/cpu/cpu1/cache/index0/coherency_line_size)
-* [field alignment](golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment)
+* [field alignment](https://golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment)
 
 # Comments
 ## Documentation ([doc](https://go.dev/doc/comment) [cmd](http://godoc.org/golang.org/x/tools/cmd/godoc))
@@ -1653,6 +1695,104 @@ type FS interface {
 - `os.DirFS` 表示本地文件系统的一个目录。也实现了 `ReadDirFS`, `ReadFileFS`, `StatFS`
 - `testing/fstest.MapFS` 用于测试的内存文件系统。也实现了全部五种扩展接口。
 - `embed.FS` 嵌入式文件系统。也实现了 `ReadDirFS`, `ReadFileFS`
+
+## iter
+### push iterator (generator)
+提供一致的迭代器形式：range over func，并隐藏迭代的实现逻辑。
+func 是一种 push iterator: 由迭代器自身控制迭代的进度，yield 负责迭代的逻辑，相当于 for range loop + 对 yield 的回调
+range 目前支持 slice/array/map/integer/channel, func:
+
+```
+func(func () bool)
+func(func (K) bool)
+func(func (K, V) bool) // 可以用 V 表示错误返回
+```
+
+iter 中有如下定义：
+`type Seq[V any] func(yield func(V) bool)`
+`type Seq2[K, V any] func(yield func(K, V) bool)`
+可以自定义：
+`type Seq0 func(yield func() bool)`
+
+原理： 如 Backward 创建了一个 iterator 函数，当 yield 返回 false 时，迭代结束，否则继续迭代直到遍历全部元素。
+```
+func Backward[Slice ~[]E, E any](s Slice) iter.Seq2[int, E] {
+	return func(yield func(int, E) bool) {
+		for i := len(s) - 1; i >= 0; i-- {
+			if !yield(i, s[i]) {
+				return
+			}
+		}
+	}
+}
+```
+如果没有根据 yield 为 false 但没有返回终止迭代，则会 panic: runtime error: range function continued iteration after function for loop body returned false
+如果没有根据 yield 为 true 但返回，则终止迭代。
+
+```
+for k, v := range slices.Backward(s) {
+	fmt.Println(k, v)
+    if k == 3 {
+        break
+    }
+    if k == 4 {
+        return
+    }
+}
+```
+就相当于用 range body 替换了 yield 函数的实现：
+```
+var next bool
+it := sliece.Backward(s)
+it(func (k int, v string) bool {
+	fmt.Println(k, v)
+    if i == 3 {
+        return false
+    }
+    if i == 4 {
+        next = true
+        return false
+    }
+    return true
+})
+
+if next {
+  return
+}
+```
+其他复杂的情况: defer, continue, goto 等
+maps, slices 包提供了很多返回迭代器的函数。
+
+无状态：多次对创建的 iterator 进行迭代，每次都会从重新开始，并完整地迭代每个元素。
+有状态(single-use)：多次对创建的 iterator 进行迭代，会从上一次结束开始迭代剩下的数据，无法重头开始迭代（比如读取文件，网络等）。
+
+迭代器组合：[golang.org/x/exp/xiter](https://github.com/golang/go/issues/61898)
+
+### pull iterator
+yield 负责迭代的逻辑，也能通过 next/stop 控制迭代的进度。不能用在 for range 中。
+```
+func Pairs[V any](seq iter.Seq[V]) iter.Seq2[V, V] {
+	return func(yield func(V, V) bool) {
+		next, stop := iter.Pull(seq)
+		defer stop()
+		for {
+			v1, ok1 := next()
+			if !ok1 {
+				return
+			}
+			v2, ok2 := next()
+			// If ok2 is false, v2 should be the
+			// zero value; yield one last pair.
+			if !yield(v1, v2) {
+				return
+			}
+			if !ok2 {
+				return
+			}
+		}
+	}
+}
+```
 	
 ## errors
 `errors.As(err error, target any) bool`: `target` 必须是非空指针，`*target` 必须是一个 interface 或者实现了 error 接口。返回 `*target = err` 赋值是否可行，或者 err 实现了 As(target)。

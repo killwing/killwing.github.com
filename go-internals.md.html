@@ -3,183 +3,12 @@
 <meta charset="utf-8" />
 <title>Go Internals</title>
 <xmp theme="readable" style="display:none;">
-# [Memory](https://github.com/golang/go/blob/master/src/runtime/malloc.go)
-span：67 种规格，分别规定了从 8, 16, ... 到 32k 分配对象的大小，及其页数量（8k 一个页）。每种 span，1-10 个（连续的）页不等，其中含 1-1024 个对象不等。 
-每种规格都有两种类型：scan 包含指针的对象，noscan 不包含指针的对象，有助于 GC。
-
-```
-// class  bytes/obj  bytes/span  objects  tail waste  max waste
-//     1          8        8192     1024           0     87.50%
-//     2         16        8192      512           0     43.75%
-//     3         32        8192      256           0     46.88%
-//     4         48        8192      170          32     31.52%
-//     5         64        8192      128           0     23.44%
-...
-//    62      21760       65536        3         256      6.25%
-//    63      24576       24576        1           0     11.45%
-//    64      27264       81920        3         128     10.00%
-//    65      28672       57344        2           0      4.91%
-//    66      32768       32768        1           0     12.50%
-```
-
-mspan: 管理 span，包含 span 起始地址、span 规格和 span 中页的数量，及分配情况（位图）的双向链表。
-```
-type mspan struct {
-	next *mspan     // next span in list, or nil if none
-	prev *mspan     // previous span in list, or nil if none
-
-	startAddr uintptr // address of first byte of span aka s.base()
-	npages    uintptr // number of pages in span
-
-	spanclass   spanClass  // size class and noscan (uint8)
-    state       mSpanState // mspaninuse etc
-	...
-}
-```
-
-状态：
-
-* inuse: 在堆上分配，可被 GC 回收
-* free: 未分配
-* manual: 手动管理，如分配给 goruntine 的栈空间，可能在系统栈上或堆上
-
-
-[mcache](https://github.com/golang/go/blob/master/src/runtime/mcache.go): 为每个 P 提供的本地缓存，包含所有规格（即 134 种）的 mspan 各一个。当 mspan 中对象分配完时，再向 mcentral 申请一个。
-```
-type mcache struct {
-	alloc [numSpanClasses]*mspan // spans to allocate from, indexed by spanClass
-	...
-}
-```
-
-[mcentral](https://github.com/golang/go/blob/master/src/runtime/mcentral.go): 所有某个规格的 mspan 集合，分为空闲对象的列表和无空闲对象的列表。当分配一个给 mcache 时，从 nonempty 移到 empty（因为假设里面的对象会被 mcache 全部分配完）。准备 gc 的时候，mcache 里的 mspan 全部归还给 mcentral，如果 mspan 中还有未被分配的对象，则从 empty 移回 nonempty。
-```
-type mcentral struct {
-	spanclass spanClass
-	nonempty  mSpanList // list of spans with a free object, ie a nonempty free list
-	empty     mSpanList // list of spans with no free objects (or cached in an mcache)
-	...
-}
-
-type mSpanList struct {
-	first *mspan // first span in list, or nil if none
-	last  *mspan // last span in list, or nil if none
-}
-```
-
-[mheap](https://github.com/golang/go/blob/master/src/runtime/mheap.go): 一个管理堆的全局对象。包含全部 mspan 的列表，各个规格的 mcentral。
-```
-type mheap struct {
-	free      mTreap // free spans
-
-	// allspans is a slice of all mspans ever created. Each mspan
-	// appears exactly once.
-	//
-	// The memory for allspans is manually managed and can be
-	// reallocated and move as the heap grows.
-	//
-	// In general, allspans is protected by mheap_.lock, which
-	// prevents concurrent access as well as freeing the backing
-	// store. Accesses during STW might not hold the lock, but
-	// must ensure that allocation cannot happen around the
-	// access (since that may free the backing store).
-	allspans []*mspan // all spans out there
-
-	// arenas is the heap arena map. It points to the metadata for
-	// the heap for every arena frame of the entire usable virtual
-	// address space.
-	//
-	// Use arenaIndex to compute indexes into this array.
-	//
-	// For regions of the address space that are not backed by the
-	// Go heap, the arena map contains nil.
-	//
-	// Modifications are protected by mheap_.lock. Reads can be
-	// performed without locking; however, a given entry can
-	// transition from nil to non-nil at any time when the lock
-	// isn't held. (Entries never transitions back to nil.)
-	//
-	// In general, this is a two-level mapping consisting of an L1
-	// map and possibly many L2 maps. This saves space when there
-	// are a huge number of arena frames. However, on many
-	// platforms (even 64-bit), arenaL1Bits is 0, making this
-	// effectively a single-level map. In this case, arenas[0]
-	// will never be nil.
-	arenas [1 << arenaL1Bits]*[1 << arenaL2Bits]*heapArena
-
-	// central free lists for small size classes.
-	// the padding makes sure that the mcentrals are
-	// spaced CacheLinePadSize bytes apart, so that each mcentral.lock
-	// gets its own cache line.
-	// central is indexed by spanClass.
-	central [numSpanClasses]struct {
-		mcentral mcentral
-		pad      [cpu.CacheLinePadSize - unsafe.Sizeof(mcentral{})%cpu.CacheLinePadSize]byte
-	}
-	...
-}
-```
-
-heapArena: 系统堆，初始为一个 heapArena 64M （64bit linux），8192 个 8192 字节 mspan （一个页大小，无规格）。
-整个堆 arenas 是 heapArena 的二级映射（大多数系统只有一级）。arena 映射覆盖了一整块连续地址空间，分配器也尽量保持 arena 之间连续，以分配巨大的对象。
-系统堆内存使用 mmap 分配。
-```
-type heapArena struct {
-	// bitmap stores the pointer/scalar bitmap for the words in
-	// this arena. See mbitmap.go for a description. Use the
-	// heapBits type to access this.
-	bitmap [heapArenaBitmapBytes]byte
-
-	// spans maps from virtual address page ID within this arena to *mspan.
-	// For allocated spans, their pages map to the span itself.
-	// For free spans, only the lowest and highest pages map to the span itself.
-	// Internal pages map to an arbitrary span.
-	// For pages that have never been allocated, spans entries are nil.
-	//
-	// Modifications are protected by mheap.lock. Reads can be
-	// performed without locking, but ONLY from indexes that are
-	// known to contain in-use or stack spans. This means there
-	// must not be a safe-point between establishing that an
-	// address is live and looking it up in the spans array.
-	spans [pagesPerArena]*mspan
-	...
-}
-```
-
-对象分配流程（mallocgc）：
-
-* 大于 32K 的大对象直接从 mheap 分配/释放，不走 mcache 和 mcentral。
-* 小于 16B 的使用 mcache 的微型分配器分配。
-* 对象大小在 16B ~ 32K 之间的，首先通过计算使用的大小规格（向上取整），然后使用 mcache 中对应大小规格的对象分配（利用 mspan 的空闲位图找到一个可用的空闲对象）。
-* 如果对应的大小规格 mspan 在 mcache 中没有空闲对象，则向 mcentral 申请一个新的符合规格的有空闲对象的 mspan。
-* 如果 mcentral 中可用 mspan 列表已经为空，则向 mheap 申请一个新的，并根据 BestFit 算法找到最合适的 mspan。如果申请到的 mspan 超出申请大小，将会根据需求进行切分，以返回规格所需的页数。剩余的页构成一个新的 mspan 放回 mheap 的空闲列表。
-* 如果 mheap 中也没有可用的 mspan，则向操作系统申请一系列新的页（最小 1MB）。
-
-对象释放流程 (mspan.sweep)：
-
-* 如果一个 mspan 被（GC）扫到需要释放其中的对象以满足新的分配要求，其被归还给 mcache。
-* 如果不是为了新分配要求，且 mspan 里还有分配着的对象，则放到 mcentral 对应的规格 nonempty 里。
-* 如果 mspan 里所有对象都释放了，则处于 idle 状态，归还给 mheap（不再区分规格）。
-* 如果 mspan 在 mheap 里达到一定时间，则归还其页给操作系统。
-
-## [MemStats](https://golang.org/pkg/runtime/#MemStats)
-
-* HeapAlloc: 已分配的堆中对象大小。
-* HeapInuse: 使用中或部分使用中的 span 大小 （实际分配大小为 HeapAlloc）。
-* HeapIdle: 未使用（没有分配对象）的 span 大小，已经归还给系统（HeapReleased）或保留被重用。
-* HeapSys: 从系统分配堆（虚拟）内存的总大小。（inuse + idle）
-* HeapReleased: 归还给系统的大小。只是建议，并不能直接反应真实情况。
-
-## Ref
-https://blog.learngoprogramming.com/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed / [zh](https://www.linuxzen.com/go-memory-allocator-visual-guide.html) [zh2](https://tonybai.com/2020/02/20/a-visual-guide-to-golang-memory-allocator-from-ground-up/)
-https://deepu.tech/memory-management-in-golang / [zh](https://tonybai.com/2020/03/10/visualizing-memory-management-in-golang/)
-
 # [Scheduler](https://github.com/golang/go/blob/master/src/runtime/proc.go)
 逻辑处理器 (P): 用来处理调度 G 的运行，P 运行时和 M 绑定
 系统线程 (M): 最大创建10000个线程
 Goroutine (G)
 
-Runnable Queue:
+**Runnable** Queue:
 
 * 全局运行队列 (GRQ): GRQ 用于尚未分配给 P 的 G。
 * 本地运行队列 (LRQ): 每个 P 都有一个 LRQ，用于管理分配给在 P 的上下文中执行的 G。
@@ -421,9 +250,9 @@ g0 的其他作用：
 1. 从其他地方取，没有则阻塞，等待下次唤醒 `notewakeup`。
   1. LRQ
   1. GRQ
-  1. netpoll 列表里 (调用`netpoll(false)`)
+  1. netpoll 列表里 (调用`netpoll(0)`)
   1. 从其他 P 的 LRQ 里偷一半到自己的 LRQ，尝试4次
-  1. 进入 stop 流程 （释放 P 回 P 空闲列表，M 放回 M 空闲列表，调用`netpoll(true)`检查，然后阻塞 `notesleep`）
+  1. 进入 stop 流程 （释放 P 回 P 空闲列表，M 放回 M 空闲列表，调用`netpoll(-1)`检查，然后阻塞 `notesleep`）
 1. 执行取得的 G。
 
 M.g0 上调用：`mcall(fn func(*g))`
@@ -431,24 +260,6 @@ M.g0 上调用：`mcall(fn func(*g))`
 * 从 `mcall` 的被调用 goroutine g 转到 g0 上去调用传入函数 fn，栈状态保存在 `g.sched` (gobuf) 上以便以后恢复。
 * fn 永远不应返回，一般先改变 g 的状态为等待，记录 g 在某个数据结构中，使其以后能够被再调度，最后调用 `schedule` （g0 的实际工作）。
 * 当 g 被再次调度时，原在 g 中的 `mcall` 调用返回。
-
-后台监控：`sysmon` 使用一个单独的 M，没有 P
-
-1. 调用 `netpoll(false)` 把 epoll ready 的 G 放入 GRQ。
-2. 定期扫描所有的 P：
-  * 协作式抢占：对于正在 running 的，如果 G 占有时长超过 10 ms，在 G 上设置抢占标记 `stackPreempt`。等到栈扩张（`newstack` 发生函数调用）的时候，实施抢占（G 状态变为 runnable，被放回 GRQ）。
-  * 对于正在 syscall 的，如果超过 10 ms，使 P 变为 idle 状态，转换 `handoffp` 到一个新的 M 上执行，或放回 P 空闲队列。
-
-非协作式抢占（信号抢占）： 只会在垃圾回收扫描任务时触发。
-
-1. 程序启动时，注册 SIGURG 信号的处理函数 `doSigPreempt`
-1. 在触发垃圾回收的栈扫描时会调用 `suspendG` 挂起 G，将 running 状态的 G 标记成可以被抢占(`preemptStop`为true)并调用 `preemptM` 触发抢占
-1. `preemptM` 调用 `signalM` 向线程发送信号 SIGURG, 中断线程执行 `doSigPreempt`
-1. `doSigPreempt` 获取当前的 SP 和 PC 寄存器并调用 `sigctxt.pushCall`
-1. `sigctxt.pushCall` 修改寄存器并在程序回到用户态时执行 `asyncPreempt -> asyncPreempt2 -> preemptPark`
-1. `preemptPark` 修改当前 G 的状态到 preempted 并调用 `schedule` 选择其它 G 执行
-
-网络轮询：`netpoll`
 
 ## P
 ```
@@ -655,7 +466,7 @@ type g struct {
 * 5 moribund_unused: 未使用。
 * 6 dead: 刚初始化或刚退出在空闲列表中，不在执行用户代码，可能分配了栈。
 * 7 enqueue_unused: 未使用。
-* 8 copystack: 其栈正在被移动，不在执行用户代码，不在运行队列中。
+* 8 copystack: 其栈正在由于扩缩容被移动，不在执行用户代码，不在运行队列中。
 * 9 preempted: 由于抢占而被阻塞，不在执行用户代码，不在运行队列中，等待唤醒。
 * 0x1000 scan: 和其他状态（除了 running）联合表示 GC 正在扫描栈，不在执行用户代码。
 
@@ -673,16 +484,17 @@ type g struct {
 调用 `goexit1`，然后在当前 M 的 g0 中调用 `goexit0`，状态从 running 变为 dead，将其放回 P 本地 free 列表，并调用 `schedule` 执行下一轮调度。
 
 主动让出：`gopark`
-在 g0 中调用 `park_m`，状态从 running 变为 waiting（一般由调用者唤醒），并和当前 M 解绑，如果不需要等待解锁，则变为 runnable 继续执行，否则进行下一轮调度。
+在 g0 中调用 `park_m`，状态从 running 变为 waiting（一般由调用者唤醒），并和当前 M 解绑，如果不需要等待解锁，则变为 runnable 继续执行，否则调用 `schedule` 进行下一轮调度。
 
 重新调度: `goready(gp *g, traceskip int)`
 状态从 waiting 变为 runnable，放到 LRQ 的 next 等待执行。如果还有空闲的 P，则创建/唤醒一个 M 来执行。
 
-系统调用(syscall.Syscall)：
+系统调用：
 
-* （从外部）在系统调用上 wrap 了一个 pre/post 逻辑。
-* pre：保存执行现场，状态从 running 变为 syscall（P 也变为 syscall 状态），并将 M 和 P 脱离关联。
-* post: 在 g0 上调用，状态从 syscall 变为 runnable，如果有空闲的 P，则直接执行，否则 G 放回 GRQ，M 放回 M 空闲列表，然后阻塞等待被再次使用。
+* `syscall.Syscall`：在系统调用上 wrap 了一个 pre/post 逻辑。
+  * `entersyscall`：保存执行现场，状态从 running 变为 syscall（P 也变为 syscall 状态），并将 M 和 P 脱离直接关联（还没有 handoff）。
+  * `exitsyscall`: 在 g0 上调用，状态从 syscall 变为 runnable，如果有空闲的 P，则调用 `execute` 直接执行，否则 G 放回 GRQ，M 放回 M 空闲列表，然后阻塞等待被再次使用，调用 `schedule` 进行下一轮调度。
+* `syscall.RawSyscall`：直接阻塞调用，G & P 不会改变状态。一般用于可以立即返回的快速系统调用，如：SYS_EPOLL_CREATE、SYS_EPOLL_WAIT（超时时间为 0）、SYS_TIME 等。[分类参考](https://gist.github.com/draveness/50c88883f30fa99d548cf1163c98aeb1#file-golang-syscall-csv)
 
 goroutine 调度切换：
 
@@ -721,6 +533,25 @@ type sudog struct {
 }
 ```
 sudog 是处于等待列表中 g 及其数据的一个封装，一个 g 可以在多个等待列表中，即多个 sudog 对应一个 g；多个 g 可以等待同一个同步对象，即多个 sudog 对应一个同步对象。
+
+## sysmon
+后台监控：`sysmon` 使用一个单独的 M，没有 P。触发间隔为 10ms。
+
+1. 运行计时器。
+1. 调用 `netpoll(0)` 把 epoll ready 的 G 状态从 waiting 变为 runnable 并放入 GRQ。如果有空闲的 P，则启动 M 来执行。
+1. 扫描所有的 P，进行 `retake`：
+  * 协作式抢占：对于正在 running 的，如果 G 占有时长超过 10 ms，在 G 上设置抢占标记 `stackPreempt`。等到栈扩张（`newstack` 发生函数调用）的时候，实施抢占（G 状态变为 runnable，被放回 GRQ）。
+  * 对于正在 syscall 的，如果超过 10 ms，使 P 从 syscall 变为 idle 状态，转换 `handoffp` 到一个新的 M 上执行，或放回 P 空闲队列。
+1. 触发 GC，将用于 GC 的 G 加入 GRQ。
+
+非协作式抢占（信号抢占）： 只会在垃圾回收扫描任务时触发。
+
+1. 程序启动时，注册 SIGURG 信号的处理函数 `doSigPreempt`
+1. 在触发垃圾回收的栈扫描时会调用 `suspendG` 挂起 G，将 running 状态的 G 标记成可以被抢占(`preemptStop`为true)并调用 `preemptM` 触发抢占
+1. `preemptM` 调用 `signalM` 向线程发送信号 SIGURG, 中断线程执行 `doSigPreempt`
+1. `doSigPreempt` 获取当前的 SP 和 PC 寄存器并调用 `sigctxt.pushCall`
+1. `sigctxt.pushCall` 修改寄存器并在程序回到用户态时执行 `asyncPreempt -> asyncPreempt2 -> preemptPark`
+1. `preemptPark` 修改当前 G 的状态到 preempted 并调用 `schedule` 选择其它 G 执行
 
 ## Scheduler GODEBUG
 ```
@@ -805,10 +636,256 @@ G：
 
 ## Ref
 https://www.ardanlabs.com/blog/2018/08/scheduling-in-go-part1.html
+https://www.ardanlabs.com/blog/2015/02/scheduler-tracing-in-go.html
+
+# [Memory](https://github.com/golang/go/blob/master/src/runtime/malloc.go)
+## mspan
+内存管理基本单元，包含 span 起始地址、span 规格和 span 中页的数量，及分配情况（位图）。
+```
+type mspan struct {
+	next *mspan     // next span in list, or nil if none
+	prev *mspan     // previous span in list, or nil if none
+
+	startAddr uintptr // address of first byte of span aka s.base()
+	npages    uintptr // number of pages in span
+    ...
+
+	// Cache of the allocBits at freeindex. allocCache is shifted
+	// such that the lowest bit corresponds to the bit freeindex.
+	// allocCache holds the complement of allocBits, thus allowing
+	// ctz (count trailing zero) to use it directly.
+	// allocCache may contain bits beyond s.nelems; the caller must ignore
+	// these.
+	allocCache uint64
+
+    // allocBits and gcmarkBits hold pointers to a span's mark and
+	// allocation bits. The pointers are 8 byte aligned.
+	// There are three arenas where this data is held.
+	// free: Dirty arenas that are no longer accessed
+	//       and can be reused.
+	// next: Holds information to be used in the next GC cycle.
+	// current: Information being used during this GC cycle.
+	// previous: Information being used during the last GC cycle.
+	// A new GC cycle starts with the call to finishsweep_m.
+	// finishsweep_m moves the previous arena to the free arena,
+	// the current arena to the previous arena, and
+	// the next arena to the current arena.
+	// The next arena is populated as the spans request
+	// memory to hold gcmarkBits for the next GC cycle as well
+	// as allocBits for newly allocated spans.
+	//
+	// The pointer arithmetic is done "by hand" instead of using
+	// arrays to avoid bounds checks along critical performance
+	// paths.
+	// The sweep will free the old allocBits and set allocBits to the
+	// gcmarkBits. The gcmarkBits are replaced with a fresh zeroed
+	// out memory.
+	allocBits  *gcBits
+    gcmarkBits *gcBits
+    pinnerBits *gcBits // bitmap for pinned objects; accessed atomically
+    ...
+
+	spanclass   spanClass  // size class and noscan (uint8)
+    state       mSpanState // mspaninuse etc
+	...
+}
+```
+
+`spanClass`：[67 种规格](https://github.com/golang/go/blob/master/src/runtime/sizeclasses.go)，分别规定了从 8, 16, ... 到 32k 分配对象的大小，及其页数量（8k 一个页）。每种 span，1-10 个（连续的）页不等（如65号包含10页3个大小为27264的对象），其中含 1-1024 个对象不等。此外，还有 id 为 0 的特殊 class，用于管理大于 32k 的特殊对象。
+每种规格都有两种类型：scan 包含指针的对象，noscan 不包含指针的对象，有助于 GC。
+
+```
+// class  bytes/obj  bytes/span  objects  tail waste  max waste
+//     1          8        8192     1024           0     87.50%
+//     2         16        8192      512           0     43.75%
+//     3         24        8192      341           8     29.24%
+//     4         32        8192      256           0     21.88%
+//     5         48        8192      170          32     31.52%
+...
+//    64      24576       24576        1           0     11.45%
+//    65      27264       81920        3         128     10.00%
+//    66      28672       57344        2           0      4.91%
+//    67      32768       32768        1           0     12.50%
+```
+
+`state` 状态：
+
+* inuse: 在堆上分配，可被 GC 回收
+* free: 未分配
+* manual: 手动管理，如分配给 goruntine 的栈空间，可能在系统栈上或堆上
+
+
+## [mcache](https://github.com/golang/go/blob/master/src/runtime/mcache.go)
+为每个 P 提供的本地缓存，包含所有规格（即 136 种）的 mspan 各一个。初始不包含任何 mspan 对象，需要分配对象时调用 `mcache.refill -> mcentral.cacheSpan` 向 mcentral 申请。
+
+```
+type mcache struct {
+	alloc [numSpanClasses]*mspan // spans to allocate from, indexed by spanClass
+
+    stackcache [_NumStackOrders]stackfreelist
+	...
+}
+```
+
+## [mcentral](https://github.com/golang/go/blob/master/src/runtime/mcentral.go)
+所有某个规格的 mspan 集合，分为有空闲对象的集合和无空闲对象的集合（各有清理过和未清理过两种类型）。
+分配内存时，当未找到可用的 mspan，则调用 `mcentral.grow -> mheap.alloc -> mheap.allocSpan` 从堆中申请新的内存。
+
+```
+type mcentral struct {
+	spanclass spanClass
+
+    // partial and full contain two mspan sets: one of swept in-use
+	// spans, and one of unswept in-use spans. These two trade
+	// roles on each GC cycle. The unswept set is drained either by
+	// allocation or by the background sweeper in every GC cycle,
+	// so only two roles are necessary.
+	//
+	// sweepgen is increased by 2 on each GC cycle, so the swept
+	// spans are in partial[sweepgen/2%2] and the unswept spans are in
+	// partial[1-sweepgen/2%2]. Sweeping pops spans from the
+	// unswept set and pushes spans that are still in-use on the
+	// swept set. Likewise, allocating an in-use span pushes it
+	// on the swept set.
+	//
+	// Some parts of the sweeper can sweep arbitrary spans, and hence
+	// can't remove them from the unswept set, but will add the span
+	// to the appropriate swept list. As a result, the parts of the
+	// sweeper and mcentral that do consume from the unswept list may
+	// encounter swept spans, and these should be ignored.
+	partial [2]spanSet // list of spans with a free object
+	full    [2]spanSet // list of spans with no free objects
+}
+```
+
+## [mheap](https://github.com/golang/go/blob/master/src/runtime/mheap.go)
+一个使用二维稀疏内存管理堆的全局对象。包含全部 mspan 的列表，各个规格的 mcentral，以及系统堆区。
+分配内存时，如果发现堆上的内存不足，则尝试通过 `mheap.grow -> mheap.sysAlloc` 向操作系统申请，创建新的 `heapArena`。
+
+```
+type mheap struct {
+	// allspans is a slice of all mspans ever created. Each mspan
+	// appears exactly once.
+	//
+	// The memory for allspans is manually managed and can be
+	// reallocated and move as the heap grows.
+	//
+	// In general, allspans is protected by mheap_.lock, which
+	// prevents concurrent access as well as freeing the backing
+	// store. Accesses during STW might not hold the lock, but
+	// must ensure that allocation cannot happen around the
+	// access (since that may free the backing store).
+	allspans []*mspan // all spans out there
+
+	// arenas is the heap arena map. It points to the metadata for
+	// the heap for every arena frame of the entire usable virtual
+	// address space.
+	//
+	// Use arenaIndex to compute indexes into this array.
+	//
+	// For regions of the address space that are not backed by the
+	// Go heap, the arena map contains nil.
+	//
+	// Modifications are protected by mheap_.lock. Reads can be
+	// performed without locking; however, a given entry can
+	// transition from nil to non-nil at any time when the lock
+	// isn't held. (Entries never transitions back to nil.)
+	//
+	// In general, this is a two-level mapping consisting of an L1
+	// map and possibly many L2 maps. This saves space when there
+	// are a huge number of arena frames. However, on many
+	// platforms (even 64-bit), arenaL1Bits is 0, making this
+	// effectively a single-level map. In this case, arenas[0]
+	// will never be nil.
+	arenas [1 << arenaL1Bits]*[1 << arenaL2Bits]*heapArena
+
+	// central free lists for small size classes.
+	// the padding makes sure that the mcentrals are
+	// spaced CacheLinePadSize bytes apart, so that each mcentral.lock
+	// gets its own cache line.
+	// central is indexed by spanClass.
+	central [numSpanClasses]struct {
+		mcentral mcentral
+		pad      [cpu.CacheLinePadSize - unsafe.Sizeof(mcentral{})%cpu.CacheLinePadSize]byte
+	}
+	...
+}
+```
+
+`central` 136 种 mcentral 集合。
+`arenas` heapArena 的二级映射（大多数系统如 Linux amd64 只有一级），二维数量 4M，一共可以管理 256 TB 内存。分配器尽量保持 arena 之间连续，以分配巨大的对象。
+系统堆内存使用 mmap 分配。
+
+heapArena: 系统堆，覆盖了一整块 64M 连续地址空间（线性内存）。
+```
+type heapArena struct {
+	// spans maps from virtual address page ID within this arena to *mspan.
+	// For allocated spans, their pages map to the span itself.
+	// For free spans, only the lowest and highest pages map to the span itself.
+	// Internal pages map to an arbitrary span.
+	// For pages that have never been allocated, spans entries are nil.
+	//
+	// Modifications are protected by mheap.lock. Reads can be
+	// performed without locking, but ONLY from indexes that are
+	// known to contain in-use or stack spans. This means there
+	// must not be a safe-point between establishing that an
+	// address is live and looking it up in the spans array.
+	spans [pagesPerArena]*mspan
+	...
+
+    // zeroedBase marks the first byte of the first page in this
+	// arena which hasn't been used yet and is therefore already
+	// zero. zeroedBase is relative to the arena base.
+	// Increases monotonically until it hits heapArenaBytes.
+	//
+	// This field is sufficient to determine if an allocation
+	// needs to be zeroed because the page allocator follows an
+	// address-ordered first-fit policy.
+	//
+	// Read atomically and written with an atomic CAS.
+	zeroedBase uintptr
+}
+```
+
+`spans` 8192 个 8K mspan （一个页大小，无规格）。
+`zeroedBase` 指向了其管理的内存的初始地址。
+
+## alloc & free
+对象分配流程（`mallocgc`）：
+
+* 大于 32K 的大对象直接调用 `mcache.allocLarge -> mheap.alloc` 从 mheap 分配/释放 class 0 的 mspan，不走 mcache 和 mcentral。
+* 小于 16B 的使用 mcache 的微型分配器分配，再尝试 mcache 和 mcentral。
+* 对象大小在 16B ~ 32K 之间的
+  * 首先通过计算使用的大小规格（向上取整），然后调用 `nextFreeFast`, `mcache.nextFree` 使用 mcache 中对应大小规格的对象分配（利用 mspan 的空闲位图找到一个可用的空闲对象）。
+  * 如果对应的大小规格 mspan 在 mcache 中没有空闲对象，调用 `mcache.refill` 则向 mcentral 申请一个新的符合规格的有空闲对象的 mspan，替换无空闲对象的 mspan。
+  * 如果 mcentral 中可用 mspan 列表已经为空，则向 mheap 申请一个新的，并根据 BestFit 算法找到最合适的 mspan。如果申请到的 mspan 超出申请大小，将会根据需求进行切分，以返回规格所需的页数。剩余的页构成一个新的 mspan 放回 mheap 的空闲列表。
+  * 如果 mheap 中也没有可用的 mspan，则向操作系统申请一系列新的页（最小 1MB）。
+
+对象释放流程 (`mspan.sweep`)：
+
+* 如果一个 mspan 被（GC）扫到需要释放其中的对象以满足新的分配要求，其被归还给 mcache。
+* 如果不是为了新分配要求，且 mspan 里还有分配着的对象，则放到 mcentral 对应的规格空闲对象集合里。
+* 如果 mspan 里所有对象都释放了，则处于 idle 状态，归还给 mheap（不再区分规格）。
+* 如果 mspan 在 mheap 里达到一定时间，则归还其页给操作系统。
+
+## [Stack](https://github.com/golang/go/blob/master/src/runtime/runtime2.go)
+```
+type stack struct {
+	lo uintptr
+	hi uintptr
+}
+```
+
+* 初始栈大小为 2K。
+* 栈内存都是调用 `stackalloc` 在堆上分配，并用 mspan 管理的。`stackpool` 全局栈缓存，`stackLarge` 大栈缓存(>32K)，每个 mcache 上也还有栈缓存。
+* 扩容：在函数调用时插入 `morestack` 运行时检查当前 G 的栈内存是否足够。当栈空间不足时，调用 `newstack -> copystack` 初始化一片更大的栈空间并将原栈中的所有值都迁移到新栈中，将指向旧栈对应变量的指针重新指向新栈（指向栈对象的指针不能存在于堆中）。调用 `stackfree` 释放原始栈空间。
+* 缩容：当栈内存使用不足 1/4 时调用 `shrinkstack` 缩容，栈空间变为原来的一半，但不能小于 2K。类似扩容，也是新申请一个更小的新栈。
+
+## Ref
+https://blog.learngoprogramming.com/a-visual-guide-to-golang-memory-allocator-from-ground-up-e132258453ed / [zh](https://www.linuxzen.com/go-memory-allocator-visual-guide.html) [zh2](https://tonybai.com/2020/02/20/a-visual-guide-to-golang-memory-allocator-from-ground-up/)
+https://deepu.tech/memory-management-in-golang / [zh](https://tonybai.com/2020/03/10/visualizing-memory-management-in-golang/)
 
 # [GC](https://github.com/golang/go/blob/master/src/runtime/mgc.go)
-[GC guide](https://go.dev/doc/gc-guide)
-
 根对象：GC 在标记过程中最先扫描的对象。包括全局对象，执行栈，和寄存器中的变量。
 STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
 
@@ -885,21 +962,22 @@ scvg: inuse: 2, idle: 61, sys: 63, released: 58, consumed: 4 (MB)
 `debug.ReadGCStats`
 `runtime.ReadMemStats`
 
+[MemStats](https://golang.org/pkg/runtime/#MemStats):
+
+* HeapObjects: 已分配的堆中对象数量。 
+* HeapAlloc: 已分配的堆中对象大小。
+* HeapInuse: 使用中或部分使用中的 span 大小 （实际分配大小为 HeapAlloc）。
+* HeapIdle: 未使用（没有分配对象）的 span 大小，已经归还给系统（HeapReleased）或保留被重用。
+* HeapSys: 从系统分配堆（虚拟）内存的总大小。（inuse + idle）
+* HeapReleased: 归还给系统的大小。只是建议，并不能直接反应真实情况。
+
 ## Ref
+https://go.dev/doc/gc-guide
 https://www.ardanlabs.com/blog/2018/12/garbage-collection-in-go-part1-semantics.html
 
-# [netpoll](https://github.com/golang/go/blob/master/src/runtime/netpoll.go)
-以 [epoll](https://github.com/golang/go/blob/master/src/runtime/netpoll_epoll.go) 为例：
-
-`netpollinit()` 初始化，创建 epoll fd。
-`netpollopen(fd uintptr, pd *pollDesc) int32` 将 fd 加入 epoll 轮询列表，监听事件为 `_EPOLLIN | _EPOLLOUT | _EPOLLRDHUP | _EPOLLET`，pd 作为 data。
-`netpoll(block bool) gList` 进行一次 epoll 轮询，对有事件发生的 fd 回调 `netpollready(toRun *gList, pd *pollDesc, mode int32)` 返回 g 的列表。调用时机：
-
-* schedule 调度 G 的时候
-* sysmon 循环
-* gc work 时 `gcDrain`
-* gc 恢复 STW 时
-
+# [netpoller](https://github.com/golang/go/blob/master/src/runtime/netpoll.go)
+## netpoll
+`pollDesc` 封装了操作系统的文件描述符。
 ```
 type pollDesc struct {
 	link *pollDesc // in pollcache, protected by pollcache.lock
@@ -927,8 +1005,24 @@ type pollDesc struct {
 }
 ```
 
-`netpollblock(pd *pollDesc, mode int32, waitio bool) bool` 将 pd 状态设为 pdWait，`gopark` 让出（`netpollblockcommit`将状态设为当前 g），g 等待原因 IOWait。非阻塞系统调用返回 EAGAIN 时调用。
-`netpollunblock(pd *pollDesc, mode int32, ioready bool) *g` 将 pd 状态设为 pdReady，返回保存的 g。`netpoll` 有事件 ready 时调用，一般将返回的 g 列表放回 GRQ (`injectglist`)。
+`netpollblock(pd *pollDesc, mode int32, waitio bool) bool` 将 pd 状态设为 pdWait，`gopark` 让出（`netpollblockcommit`将状态设为当前 G），G 等待原因 IOWait。非阻塞系统调用返回 EAGAIN 时调用。
+`netpollunblock(pd *pollDesc, mode int32, ioready bool) *g` 将 pd 状态设为 pdReady，返回保存的 G。`netpoll` 有事件 ready 时调用，sysmon 获取的 G 列表放回 GRQ，其他放回 LRQ (`injectglist`)。
+`poll_runtime_pollSetDeadline` 设置计时器超时，IO 超时（并未使用 `epoll_wait` 超时，而是使用 pd 里面保存的 [timer](https://github.com/golang/go/blob/master/src/runtime/time.go)）。到期时通过设置的回调 `netpoll(Read/Write)Deadline` 调用 `netpollgoready` 唤醒 G。
+
+## [epoll](https://github.com/golang/go/blob/master/src/runtime/netpoll_epoll.go)
+
+`netpollinit()` 初始化 `syscall: epoll_create1`，创建 epoll fd。
+`netpollopen(fd uintptr, pd *pollDesc) unitptr` 将 fd 加入 epoll 轮询列表 `syscall: epoll_ctl`，监听事件为 `_EPOLLIN | _EPOLLOUT | _EPOLLRDHUP | _EPOLLET`，pd 作为 data。
+`netpollclose(fd uintptr) unitptr` 将 fd 从 epoll 轮询列表里面删除 `syscall: epoll_ctl`。
+`netpoll(delay int64) gList` 进行一次 epoll 轮询 `syscall: epoll_wait`，对有事件发生（非break）的 fd 回调 `netpollready(toRun *gList, pd *pollDesc, mode int32)` 返回 G 的列表。调用时机：
+
+  * schedule 调度 G 的时候
+  * sysmon 循环
+  * gc work 时 `gcDrain`
+  * gc 恢复 STW 时
+
+`netpollBreak()` 通知唤醒轮询器，如：计时器向前修改时间时。
+`netpollIsPollDescriptor(fd unitptr)` 检查文件描述符是否被轮询器使用。
 
 # [channel](https://github.com/golang/go/blob/master/src/runtime/chan.go)
 ```
