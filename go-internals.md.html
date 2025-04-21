@@ -897,6 +897,20 @@ STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
 
 扫描开始时，全白。扫描结束时，只有黑和白。扫描：即白->灰->黑的推进过程。
 
+1. 从灰色对象的集合中选择一个并将其标记成黑色；一开始，根对象标记为灰色。
+1. 将黑色对象指向的所有对象都标记成灰色，保证被该对象引用的对象不会被回收。
+1. 重复上述两个步骤直到不存在灰色对象。
+
+## GC 触发
+根据 `gcTrigger.test` 决定是否需要触发 GC，基本条件 — 启用 GC，没有 panic 且没有处于 GC 中。
+三种触发方式：
+
+* gcTriggerHeap — `runtime.mallocgc` 申请内存时根据堆大小，当 `mstats.heap_live` (mcentral 分配，分配大对象，释放 mspan 时更新) > `mstats.gc_trigger` (GC 标记终止阶段更新) 时触发
+* gcTriggerTime — `runtime.sysmon` -> `runtime.forcegchelper` 后台定时触发，默认为 2 分钟(`runtime.forcegcperiod `)
+* gcTriggerCycle — `runtime.GC` 手动触发，阻塞调用，直到完成
+
+`mstats.gc_trigger` 即触发 GC 的大小，根据现在使用的内存大小(`mstats.heap_live`, `mstats.heap_marked`)和一个比例(`gcpercent`)确定。这个比例由 `GOGC` 这个环境变量来控制（或 `debug.SetGCPercent`），默认 100。如果这次使用了 4M，则当使用到大约 8M 的时候（增长100%），执行下次 GC。GC 的开销就和分配成线性关系。
+
 ## GC 阶段
 
 1. Sweep Termination
@@ -906,16 +920,16 @@ STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
 
 1. Mark
 
-	a. 准备标记，**设置阶段从 `_GCoff` 为 `_GCmark`，启用写屏障**，启用辅助 gc，将根标记任务放入工作队列。直到所有的 P 都启用了写屏障（通过 STW），否则不能开始扫描对象。
+	a. `gcStart` 准备标记，**设置阶段从 `_GCoff` 为 `_GCmark`，启用写屏障**，启用辅助 gc，将根标记任务放入工作队列。直到所有的 P 都启用了写屏障（通过 STW），否则不能开始扫描对象。
 	b. **解除 STW**，从此 GC 工作由调度器启动的标记 worker 和作为分配过程中一部分的辅助 gc (`mallocgc`)共同完成。写屏障着色被覆写的指针和新创建的指针。新分配的对象标记为黑色。
 	c. GC 开始执行根标记任务：扫描所有栈，着色所有的全局对象，着色所有 off-heap 数据结构上的堆指针。扫描栈的时候会停止 goroutine，找到并着色栈上所有的指针，然后再继续执行。
 	d. GC 从工作队列中拿出灰色对象，扫描将其变为黑色，着色对象中的找到的所有指针。
-	e. 因为 GC 工作的执行分布在本地 cache 中，使用一个分布式终止算法来检测没有剩余的根标记任务以及灰色对象。至此，GC 转为 Mark Termination 阶段。
+	e. 因为 GC 工作的执行分布在本地 cache 中，使用一个分布式终止算法来检测没有剩余的根标记任务以及灰色对象。至此，`gcMarkDone` GC 转为 Mark Termination 阶段。
 
 1. Mark Termination
 
 	a. **STW**
-	b. **设置阶段为 `_GCmarktermination`**，停止禁用 gc workers 和 assists。
+	b. `gcMarkTermination` **设置阶段为 `_GCmarktermination`**，停止禁用 gc workers 和 assists。
 	c. 清理工作，如刷新 mcache。
 
 1. Sweep
@@ -930,11 +944,6 @@ STW: Stop The World，所有用户代码停止执行，需要抢占 goroutine。
 清扫阶段和程序正常执行是并发执行的。堆的清扫是按一个个 span，同时通过惰性清扫（goroutine 需要一个新的 span 的时候）和并发的一个后台 goroutine 执行（一个 span 接一个清扫）。在 Mark Termination 阶段结束的时候，所有 span 都被标记为需要清扫。
 当 goroutine 需要一个新的 span 的时候，首先通过清扫来回收可用的 span。
 未清扫的 span 不能够被使用。在 GC 过程中，所有的 mcache 被刷新到 central cache 里面，所以它们为空。当一个 goroutine 拿到一个 span 到 mcache 中时，清扫它。当一个 goroutine 显式地释放一个对象，保证其 span 被清扫过。
-
-## GC 频率
-下一次 GC 的时机是根据额外新分配的内存大小和现在使用的内存大小(live heap)的一个比例确定。这个比例由 `GOGC` 这个环境变量来控制（或 `debug.SetGCPercent`），默认 100。如果这次使用了 4M，则当使用到 8M 的时候，执行下次 GC。GC 的开销就和分配成线性关系。
-
-主动触发：`runtime.GC`
 
 ## GC GODEBUG
 ```

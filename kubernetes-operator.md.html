@@ -54,6 +54,7 @@ related marker `+kubebuilder:validation:EmbeddedResource`, `+kubebuilder:pruning
 - `+required` 一般还需加上 `+kubebuilder:validation:MinLength=1` 或 `+kubebuilder:validation:Minimum=1` 表示非空
 - 如果一个 struct 字段是 `+optional`，那么缺省时它的子字段就不会被 validate/default，可以加上 `//+kubebuilder:default:={}`
 
+https://github.com/kubernetes-sigs/kube-api-linter
 https://github.com/openshift/crd-schema-checker
 
 - [ConditionsMustHaveProperSSATags] conditions must match metav1.Conditions with proper SSA tags
@@ -343,6 +344,11 @@ opt to skip:
 
 https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/controller_utils.go#L119-L132
 https://github.com/elastic/cloud-on-k8s/blob/main/pkg/controller/common/expectations/expectations.go
+
+## Fast & Offline Reconciliation
+如果期望状态和当前状态一致，那么 Reconciliation 就应该快速完成，不应该有额外的外部系统 API 调用和 k8s API 写操作。
+对于 k8s 资源，cached client 可以获取当前状态。
+对于外部系统，可以把上一次操作的结果/版本/hash记在 status 里面（没有其他外部修改）。简单情况，可以用 observedGeneration 记录版本，reconcile 的时候比较 metadata.generation 和 status.observedGeneration。
 
 # Projects
 samples:

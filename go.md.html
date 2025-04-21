@@ -263,9 +263,10 @@ type B struct {
 #### alias type
 语法：`type T1 = T2`
 
-* 没有定义新类型，可以理解成字符替换，使用时不需要类型转换。
+* 没有定义新类型，可以理解成宏替换，使用时不需要类型转换。
 * method set 相同，在alias type上定义新方法也会反映到原类型上（如果是非本地类型则无法添加新方法）。
 * 可以通过`type Foo = foo`将package内的非导出类型foo导出为Foo。
+* 可以带类型参数：`type P[T any] = []T`
 
 内置：
 byte: alias for uint8
@@ -1030,20 +1031,23 @@ type ModelX[T any] struct {
     T // error, 不能在接口或结构体里直接嵌入一个类型参数
 }
 
-func (t *Modelx[T]) len() int {
+func (t *ModelX[T]) len() int {
     return len(t.data)
 }
 
-func (t *Modelx[T]) foo(s T) { // 类型的方法中可以使用 struct 本身的类型参数，但不支持其它函数类型参数
+func (t *ModelX[T]) foo(s T) { // 类型的方法中可以使用 struct 本身的类型参数
+}
+
+func (t *ModelX[T]) bar[V any](v V) { // error, 不支持其它函数类型参数
 }
 
 // 初始化
-modelInt := ModelX[int]{Data: []int{1, 2, 3}} // constraint 的 type 不能省
+modelInt := ModelX[int]{data: []int{1, 2, 3}} // constraint 的 type 不能省
 ```
 
 ## type constraint
 一个接口类型可以作为一个值类型使用，也可以作为一个元类型(meta-type)使用。
-元类型接口表示为一个 type constraint 的集合，包含一个 type list，如果接口包含方法，则实参类型必须实现所有这些方法，且泛型参数在使用的时候只能调用这些方法。反之泛型参数如果要调用这些共同方法(共同成员变量无法访问)，必须显式在接口里声明。
+元类型接口表示为一个 type constraint 的集合，包含一个 type list，如果接口包含方法，则实参类型必须实现所有这些方法，且泛型参数在使用的时候只能调用这些方法。反之泛型参数如果要调用这些共同方法(无法访问共同的成员变量)，必须显式在接口里声明。
 含有 type list 的接口(元类型)不能用于普通参数类型(值类型)。type list 里如果有接口类型，则接口类型不能包含方法。
 字面表示时，最外层的 interface{} 可以省略：`[S interface{~[]E}, E interface{}]` 等价于 `[S ~[]E, E interface{}]`
 
@@ -1335,7 +1339,7 @@ plugin可以导出任何类型的包函数和变量，但一般导出接口类�
 * 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。
 * 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
-* 测试工具包: `import "testing"`, 支持logging, error reporting...
+* 测试工具包: `import "testing"`, 支持 context, logging, error reporting...
 * 重写`TestMain`以进行初始化/清理工作。
 ```
 func TestMain(m *testing.M) {
@@ -1449,7 +1453,8 @@ https://github.com/vektra/mockery: mock 生成工具
 查看import及依赖：`go list -json`
 竞态检测：`go run/build/test -race`
 产生coredump：`GOTRACEBACK=crash` （none 不显示堆栈，single 为默认值显示当前堆栈，all 显示 user 堆栈，system 显示 user+runtime 堆栈，crash 生成 coredump）
-GC tune: GOGC环境变量 `goal = reachable * (1 + GOGC/100)`, 内存上限软限制 GOMEMLIMIT, 设置 GOMEMLIMIT 并不能阻止 OOM，但可以避免没来得及 GC 而导致的 OOM。[GC Guide](https://go.dev/doc/gc-guide)
+[GC tune](https://go.dev/doc/gc-guide): GOGC环境变量 `goal = reachable * (1 + GOGC/100)`。
+内存上限**软**限制：GOMEMLIMIT, 设置 GOMEMLIMIT 并不能阻止 OOM，但可以避免没来得及 GC 而导致的 OOM，当程序内存使用接近 GOMEMLIMIT 时会导致频繁 GC (thrashing)。GOMEMLIMIT 只适用平时内存使用不高，但经常短暂突增可能导致 OOM 的程序，所以更多时候不设 GOMEMLIMIT，让程序尽早 OOM 反而是更好的选择。
 
 容器环境自动设置：[automaxprocs](https://github.com/uber-go/automaxprocs), [automemlimit](https://github.com/KimMachineGun/automemlimit)，或手动设置为 limits.cpu, limits.memory (k8s，最好预留5%-10%)
 
@@ -1726,8 +1731,8 @@ func Backward[Slice ~[]E, E any](s Slice) iter.Seq2[int, E] {
 	}
 }
 ```
-如果没有根据 yield 为 false 但没有返回终止迭代，则会 panic: runtime error: range function continued iteration after function for loop body returned false
-如果没有根据 yield 为 true 但返回，则终止迭代。
+如果 yield 为 false 但没有返回终止迭代，则会 *panic: runtime error: range function continued iteration after function for loop body returned false*
+如果 yield 为 true 但返回，则终止迭代。
 
 ```
 for k, v := range slices.Backward(s) {
@@ -1761,7 +1766,7 @@ if next {
 }
 ```
 其他复杂的情况: defer, continue, goto 等
-maps, slices 包提供了很多返回迭代器的函数。
+strings, maps, slices 包提供了很多返回迭代器的函数。
 
 无状态：多次对创建的 iterator 进行迭代，每次都会从重新开始，并完整地迭代每个元素。
 有状态(single-use)：多次对创建的 iterator 进行迭代，会从上一次结束开始迭代剩下的数据，无法重头开始迭代（比如读取文件，网络等）。
@@ -2075,6 +2080,7 @@ object|map[string]interface{}
 `json:"-"` 忽略这个字段
 `json:"myName"` 在json里key为myName
 `json:"myName,omitempty"` 如果字段为空值则忽略
+`json:"myName,omitzero"` 如果字段为空值则忽略(对空 struct 有效，会根据 `IsZero` 判断)
 `json:",string"` 数值，布尔类型在json里转为string编码。如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)从而不丢失精度，进而转为数值类型。
 
 ## text/template
