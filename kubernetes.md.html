@@ -750,7 +750,7 @@ memory limit: memory.limit_in_bytes
 memory request: 根据`experimental-qos-reserved=memory`参数在 [besteffort/burstable] cgroup 进行预留控制
 
 cpuset
-`--cpu-manager-policy` 设为 static（默认none）后，如果 Guaranteed 且是数量是整数，则会使用 cpuset cgroup 绑定到固定的核数上。
+`--cpu-manager-policy` 设为 static（默认none）后，如果 Guaranteed 且是数量是整数，则会使用 cpuset cgroup 绑定到固定的 vCPUs(Thread) 上。`full-pcpus-only` option 可以独占 pCPUs(Core)。Check CPU info: `lscpu`
 
 ### Eviction
 自愿：受 PDB 保护，遵守 terminationGracePeriodSeconds
@@ -766,6 +766,18 @@ by kubelet:
 * Pod limit: 内存超限，临时存储超限
 
 Evict (自愿) 受 PDB 限制，也是相比 delete 的主要区别。
+
+## Node
+Capacity = Allocatable + System-Reserved + Kube-Reserved + Eviction-Thresholds
+for: cpu, memory, ephemeral storage, rootfs storage
+默认 system-reserved 和 kube-reserved 未加入 cgroups (kubelet - `systemReservedCgroup: /system.slice` & `enforceNodeAllocatable`)，资源使用超出无影响。
+
+|                | default | kubelet config|
+|-               | - | - |
+|System-Reserved | 0 | --system-reserved|
+|Kube-Reserved | 0 | --kube-reserved|
+|Eviction-Thresholds | Memory: 100Mi, Ephemeral-Storage: 10% | --eviction-hard|
+
 
 ## Deployment
 部署策略

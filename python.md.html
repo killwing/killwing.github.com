@@ -3,14 +3,18 @@
 <meta charset="utf-8" />
 <title>Python</title>
 <xmp theme="readable" style="display:none;">
-v3.0
+https://docs.python.org/3/
 
-## 1.Basic
-### 1.1 注释
+# venv
+创建 `python3 -m venv .venv`
+激活 `. .venv/bin/activate`
+
+# Basic
+## 注释
 注释以"#"起始，直至行尾。
 字符串中的#符号只是#符号本身。
 
-### 1.2 数值
+## 数值
 赋值(=), 一个值可以同时赋给几个变量, eg: `x = y = z = 0`
 多项赋值(a, b = 1, 2), 右边的表达式在赋值之前首先被完全解析(从左向右计算)。
 整数和浮点数的混合计算中，整数会被转换为浮点数。
@@ -18,37 +22,38 @@ v3.0
 复数支持：虚部以"i"或"j"结尾。
 交互模式下，最近一次表达式输出被赋给变量`_`(只读)。
 
-### 1.3 字符串
+## 字符串
 字符串用单引号或双引号标识，如果字符串中只有单引号没有双引号，就用双引号标识否则用单引号。
-转义符"\"，raw字符串使用前缀"r"不会转义，eg: `s = r"abc\ndef\"ghi"`
+转义符"\"，raw字符串使用前缀`r`不会转义，eg: `s = r"abc\ndef\"ghi"`
+使用前缀`f`可以直接引用变量：`f"value = {var}"`
 三重引号`"""`或`'''`来标识全部原始格式。
 字符串可以用加号+连接(相邻的字符串会自动连接，但不能用于字符串表达式)，也可以用乘号`*`循环。
 字符串可以用下标查询(s[x])，x从0开始，可以是负数计数从右边开始，s[-1]为最后一个字符；字符串不可改变，索引位置不可赋值。
 切割检索(`s[a:b]`，对应值为s[a,b))，a默认为0，b默认是字符串的长度(可用len()获得)。`s[:i] + s[i:]`等于s。
 
-### 1.4 运算符
+## 运算符
 算数运算符: 加减乘除`+, -, *, /, +=, -=, *=, /=`，取整`//`, eg: `7//3`。
 关系运算符: `<, >, ==, <=, >=, !=, in, not in, is, is not`, 内部不能赋值，可以串联，eg：`a < b == c`
 逻辑运算符: and, or, not；短路操作，表达式返回值通常是计算的最后一个变量。
 任何长度不为0的东西都是True，None，0和空序列为False。
 
-### 1.5 Unicode
+## Unicode
 掩码序列\uNNNN表示在给定位置插入编码为0xNNNN的字符，eg: `Hello\u0020World!`。
 encode()方法将字符串转为指定编码的字节序列，eg: `"abcd".encode('utf-8')`。
 
-### 1.6 类型
+## 类型
 用`type()`检查类型。
 `is`判断是否为同一个对象（地址一样），`==`值相等。
 `in` 使用 `==` 比较。
 
-## 2.Control Flow
-### 2.1 while
+# Control Flow
+## while
 ```
 while a > 0:
     print(a)
 ```
 
-### 2.2 if
+## if
 ```
 if x < 0:
     x = 0
@@ -60,32 +65,47 @@ elif x == 1:
 else:
     print('More')
 ```
+
 ```
 ## 条件表达式被放在了中间，如果为真那么就取最前面的值否则取最后的else后面的值
 x = true_value if condition else false_value
 ```
 
-### 2.3 for
+## for
 for语句依据任意序列（链表或字符串）中的子项，按它们在序列中的顺序来进行迭代。
 在循环中修改序列被迭代的部分不安全。如果需要修改，应该迭代它的复本（使用切割）。
+
 ```
 for x in a[:]:
     if len(x) > 6: a.insert(0, x)
 ```
 
-### 2.4 Misc
-range()生成一个数值序列用于迭代，`list(range(n))`创建列表。
-break用于跳出最近的for或while循环，continue跳转到循环的下一个迭代过程。
-循环语句可以有一个else分支；当for循环穷尽它循环的列表或者while循环条件变为False，而非通过break语句中止时，它会执行。
+## match (switch)
+case 会自动跳出，无需加 break
+```
+match resource:
+    case "reskindA" | "reskindB":
+        handleAorB()
+    case "reskindC":
+        handleC()
+    case _:
+        raise Exception(f"Resource {resource} not supported")
+```
+
+## Misc
+`range()` 生成一个数值序列用于迭代，`list(range(n))`创建列表。
+`break` 用于跳出最近的 for 或 while 循环，`continue` 跳转到循环的下一个迭代过程。
+`pass` 空语句，用于占位。
+循环语句可以有一个 else 分支；当 for 循环穷尽它循环的列表或者 while 循环条件变为 False，而非通过 break 语句中止时，它会执行。
+
 ```
 for i in range(10):
     print(i)
 else:
     print('end for.')
 ```
-pass用于占位。
 
-### 2.5 Function
+# Function
 ```
 def fib(n):    # write Fibonacci series up to n
     """Print a Fibonacci series up to n."""
@@ -108,6 +128,7 @@ def f(a, b):
 f(b=1, b=2)
 ```
 
+## 字典参数
 引入一个形如`**name`的参数时，它接收参数成为一个字典。
 `*name`(必须在`**name之前`)接收参数成为一个元组，包含了所有没有出现在形式参数列表中的参数值，任何`*name`之后的参数都是keyword-only参数，只能通过关键字而非位置''使用''。
 `*`操作符来自动把参数列表拆开，`**`操作符可以把字典传递给关键字参数。
@@ -127,9 +148,10 @@ m = {'name': 'alice', 'age': 26}
 foo(0, *l, **m)
 ```
 
-lambda可以用于任何需要的函数对象(lambda x: x+n)，可以接收任意多个参数并且返回单个表达式的值(包含的表达式不能超过一个，不能包含命令，可以从包含范围内引用变量)。
+## lamba
+lambda 可以用于任何需要的函数对象 `(lambda x: x+n)`，可以接收任意多个参数并且返回单个表达式的值(包含的表达式不能超过一个，不能包含命令，可以从包含范围内引用变量)。
 
-### 2.6 作用域
+## 作用域
 尽管作用域是静态定义，在使用时他们都是动态的。
 每次执行时，至少有三个命名空间可以直接访问（读取，设置的时候不会搜索）的作用域嵌套在一起：首先搜索最里面的作用域，包含局部命名；其次搜索的是中层的作用域，这里包含了同级的函数；最后搜索最外面的作用域，它包含内置命名。
 有函数作用域，没有块作用域。
@@ -191,13 +213,13 @@ After global assignment: nonlocal spam
 In global scope: global spam
 ```
 
-## 3.Data Structure
-### 3.1 tuple ()
+# Data Structure
+## tuple ()
 元组由若干逗号分隔的值组成，像字符串不可改变，输出时总是有括号的，输入时可能有或没有括号。
 一对空的括号可以创建空元组`t=()`，要创建一个单元素元组可以在值后面跟一个逗号`t=(1,)`。
 可变参数是元组封装和序列拆封的一个结合，拆封要求个数相同。
 
-### 3.2 list []
+## list []
 就像字符串索引，list索引从0开始，list可以被切割，连接，而且每个元素可以被修改，可以给一部分切割结果赋值，可以改变尺寸或整个清空，可以嵌套。
 每个列表推导式都在表达式之后跟一个for，然后有零到多个for或if子句。
 
@@ -214,22 +236,23 @@ In global scope: global spam
 `del`可以从一个列表中依索引而不是值来删除一个元素，也可以用del删除实体变量。
 `enumerate()`函数遍历时同时获取下标。
 
-### 3.3 set {}
+## set {}
 set是一个无序不重复元素的集，用`{a, b, ...}`或`set()`创建一个set，如果要创建一个空集合，必须用`set()`而不是`{}`（空字典）。
 关系运算：union（联合|），intersection（交&），difference（差-）和 sysmmetric difference（对称差集^）。
+check: `in`, `not in`
 
-### 3.4 dictionary {:}
+## dictionary {:}
 字典(可以理解为map)以互不相同的关键字为索引，关键字可以是任意不可变类型，通常用字符串或数值；`{}`创建一个空的字典。
 `keys()`方法返回由所有关键字组成的list；`dict()`函数直接从键值对元组列表中构建字典；遍历时，关键字和对应的值可以使用`items()`方法同时解读出来。
 
 `get()`: 读取值，不存在返回default=None
 `setdefault()` 不存在时设置default值
 
-### 3.5 Misc
+## Misc
 遍历序列(以上结构都可以称为序列)时，索引位置和对应值可以使用`enumerate()`函数同时得到；同时遍历两个或更多的序列，可以使用`zip()`函数；反向遍历一个序列，使用`reversesd()`函数；要按顺序遍历一个序列，使用`sorted()`函数返回一个已排序的序列。
 序列对象可以与相同类型的其它对象比较，比较操作按字典序进行。
 
-## 4 Module
+# Module
 模块就是拥有Python定义和声明的文件，文件名就是模块名称(`__name__`)，以.py结尾。
 导入模块：`import modname`或`from modname import itemname1, itemname2`。
 使用形如`import item.subitem.subsubitem`这种导入形式，除了最后一项，都必须是包，而最后一项则可以是模块或者是包，但是不可以是类，函数或者变量，使用时必须带全路径`item.subitem.subsubitem`。
@@ -240,7 +263,7 @@ sys.path(如果定义了从环境变量PYTHONPATH，则从其中取得)定义了
 如果包定义文件`__init__.py`存在一个叫做`__all__`的列表变量，那么在使用`from package import *`的时候就把这个列表中的所有名字作为包内容导入，如果未定义`__all__`，则不导入任何模块。推荐使用`from package import specific_submodule`, 而不使用`*`，package可以用1个点来表示当前模块所属的包，2个点表示当前包的上一级。
 `python -m pkg/module` 直接运行package（根目录下的`__main__.py`文件），或module（`if __name__ == "__main__":`用判断）。
 
-## 5.IO
+# IO
 函数`str()`用于将值转化为适于人阅读的形式，而`repr()`转化为供解释器读取的形式。
 函数`vars()`返回一个包含所有局部变量的字典，`print()`可以按格式中的名字引用变量输出`%(name)format`:
 ```
@@ -258,7 +281,27 @@ print('Jack: %(Jack)d; Sjoerd: %(Sjoerd)d; Dcab: %(Dcab)s' % table)
 
 持久化对象: 封装到文件f: `pickle.dump(x, f)`；拆封: `x = pickle.load(f)`。
 
-## 6.Exception
+# Logging
+创建一个同时输出 stdout 和文件的 logger：
+```
+def create_logger():
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s %(levelname)-7s %(message)s")
+
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    fh = logging.FileHandler(
+        os.path.basename(__file__).rsplit(".", 1)[0] + ".log", encoding="utf-8"
+    )
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    return logger
+```
+
+# Exception
 ```
 def divide(x, y):
     try:
@@ -277,17 +320,17 @@ def divide(x, y):
     finally:	#无论在任何情况下都会执行(清理行为)
         print("executing finally clause")
 ```
-发生的异常其类型如果是except子句中列出的类，或者是其派生类，那么它们就是相符的（反之不能）。
-创建一个新的exception类，应该直接或间接继承Exception类，并依标准的异常命名以"Error"结尾。
-一些对象定义了标准的清理行为，无论系统是否成功的使用了它，一旦不需要它了，那么这个标准的清理行为就会执行。with语句就可以保证诸如文件之类的对象在使用完之后一定会正确的执行他的清理方法。
+发生的异常其类型如果是 except 子句中列出的类，或者是其派生类，那么它们就是相符的（反之不能）。
+创建一个新的 exception 类，应该直接或间接继承 `Exception` 类，并依标准的异常命名以 "Error" 结尾。
+一些对象定义了标准的清理行为，无论系统是否成功的使用了它，一旦不需要它了，那么这个标准的清理行为就会执行。with 语句就可以保证诸如文件之类的对象在使用完之后一定会正确的执行他的清理方法。
 ```
 with open("myfile.txt") as f:
     for line in f:
         print(line)
 ```
 
-## 7 Types and Objects
-### 7.1 concepts
+# Types and Objects
+## concepts
 Everything is an object.
 
 * identity(判断是否同一个obejct: is/is not)
@@ -313,7 +356,7 @@ class and instance: 如果D继承B，B继承F，d是D的一个实例，那么：
 
 Instantiation: metaclass(继承自type, types) -> class(继承自object, types) -> instance(non-types).
 
-### 7.2 subtyping - class & instantiating - ()
+## subtyping - class & instantiating - ()
 类(class)的定义就像函数定义，要先执行才能生效。类定义完成时（正常退出），就创建了一个类对象。
 实例方法(bound)的特别之处在于实例对象作为函数的第一个参数传给了函数: x是MyClass的实例，调用x.f()相当于MyClass.f(x)。
 继承(默认继承自object)：`class DerivedClassName(BaseClassName):`，多重继承：`class DerivedClassName(Base1, Base2, Base3):`。在父类中搜索继承属性的解析顺序，会先解析同级的基类；super()返回`self.__class__.__mro__`（包含了自己的type以及一定顺序的所有supertypes）中自己的下一个类型，第一个参数总是应该是使用它的类。
@@ -356,7 +399,7 @@ base bar 100
 
 类变量和成员变量：类变量属于类本身，以类名直接引用。创建对象时复制一份到对象中作为成员变量，直接修改类变量不会影响已创建的对象中的成员变量，但是对象如果没更新过这个成员则能看见修改（写时复制）。
 
-### 7.3 descriptor
+## descriptor
 user-provided attributes: 又称dynamic attributes，在`__dict__`中能查到，一些objects如built-in types及其instances没有`__dict__`，所以不能自设attributes。
 python-provided attribute: 如`__dict__`, `__bases__`, `__class__`，是否是python-provided取决于具体的object。
 dir()可以列出所有attributes。
@@ -474,7 +517,7 @@ class C:
     stcMethod = staticmethod(stcMethod)
 ```
 
-### 7.4 iterator & generator
+## iterator & generator
 迭代器是一个包含有 `__iter__()` 和 `__next__()` 的对象。
 `iter(obj)` 调用 `obj.__iter__()` 创建一个迭代器。
 `next(iter_obj)` 调用 `iter_obj.__next__()` 返回下一个值。
@@ -514,7 +557,7 @@ list(reverse('golf'))
 list(data[i] for i in range(len('golf')-1, -1, -1))
 ```
 
-## Decorator
+# Decorator
 decorator一般返回一个wrapper函数供调用，否则被装饰的函数就不能再被调用(NoneType)。
 
 decorator是函数声明:
@@ -637,12 +680,12 @@ def fib(n):
     return fib(n - 1) + fib(n - 2)
 ```
 
-### 类方法
+## 类方法
 `@staticmethod`: 完全不依赖类和对象的方法，第一个参数不是`self`/`cls`，不需要对象，直接以类名调用（用对象也可以调用）。
 `@classmethod`: 绑定在类上而不是对象上的方法，第一个参数是类本身`cls`，可以使用类变量，直接以类名调用。（类似C++静态方法中使用静态成员）
 `@abc.abstractmethod`: `abc`模块的抽象方法，类似接口（可以有默认实现，子类通过`super()`来调用），父类无法实例化（须继承自`abc.ABC`），子类必须实现接口（名字相同，参数可以任意）。
 
-## Python 2 vs 3
+# Python 2 vs 3
 [The key differences between Python 2.7.x and Python 3.x with examples](http://sebastianraschka.com/Articles/2014_python_2_3_key_diff.html) [(zh)](https://segmentfault.com/a/1190000000618286)
 [Python3 cookbook](https://python3-cookbook.readthedocs.io)
 

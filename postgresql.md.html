@@ -3,9 +3,9 @@
 <meta charset="utf-8" />
 <title>PostgreSQL</title>
 <xmp theme="readable" style="display:none;">
-http://www.postgresql.org | v9.3
+http://www.postgresql.org
 
-## 安装
+# 安装
 客户端：`apt-get install postgresql-client`
 服务器：`apt-get install postgresql`，默认生成名为postgres的DB，DB用户，系统用户。
 GUI: `apt-get install pgadmin3`
@@ -14,8 +14,9 @@ GUI: `apt-get install pgadmin3`
 管理工具：`createuser`, `createdb`, `dropdb`, `pg_ctl`, `pg_dump`
 配置文件位置：`/etc/postgresql/<ver>/main/`
 
-## 用户认证
+# 用户认证
 配置文件：`pg_hba.conf`，`pg_ctl reload`重新加载配置。
+服务器默认只监听本地`127.0.0.1:5432`，改配置`postgresql.conf`监听所有地址`listen_addresses = '*'`。
 Field: `TYPE  DATABASE  USER  CIDR-ADDRESS  METHOD`
 
 * TYPE: `local`使用本地域套接字，`host`使用TCP连接，`hostssl`使用SSL连接。
@@ -29,24 +30,58 @@ Field: `TYPE  DATABASE  USER  CIDR-ADDRESS  METHOD`
     * `trust` 无密码信任认证，只适用非`local`类型。
     * `reject` 拒绝认证。
 
+# 日常操作
+## psql
 `psql`不带参数`-h`为local认证（默认为`ident`方式），`-h`则使用TCP连接。
 `psql`的`-U`是指定DB用户，如果是local ident认证，必须切换为相同的系统用户。
-服务器默认只监听本地`127.0.0.1:5432`，改配置`postgresql.conf`监听所有地址`listen_addresses = '*'`。
 
-## 日常操作
-创建用户和DB：
+psql env:
+```
+PGHOST
+PGPORT
+PGPASSWORD
+PGUSER
+PGDATABASE
+PGSSLROOTCERT
+PGSSLMODE
+```
+
+## 创建用户和DB
 ```
 CREATE USER tester WITH PASSWORD '123456';
 CREATE DATABASE testdb OWNER tester;
 GRANT ALL PRIVILEGES ON DATABASE testdb to tester;
 ```
+或者使用 `createdb` 命令。
 
-数据库导出与恢复：
-`pg_dump testdb > testdb.sql`
-`psql testdb < testdb.sql`
+## 导出与恢复
+backup all:
+```
+pg_dumpall | gzip > pgall.gz
+```
 
+restore:
+```
+gunzip pgall.gz
+psql -f pgall template1
+```
 
-## 常用命令
+backup one db:
+```
+pg_dump dbname > dbname.sql
+```
+
+restore:
+```
+createdb dbname
+psql dbname < dbname.sql
+```
+
+## docker
+create: `docker run --rm --detach --name test-postgres --publish "5432:5432" -e "POSTGRES_PASSWORD=postgres" postgres`
+delete: `docker rm --force --volumes test-postgres`
+
+# 常用命令
 `\h` SQL语句帮助，如`\h select`
 `\?` 命令帮助
 `\l` 列出数据库
@@ -60,17 +95,17 @@ GRANT ALL PRIVILEGES ON DATABASE testdb to tester;
 `\g` 在语句后表示输出到管道，如`select * from t \g | vim -`
 
 
-## SQL
+# SQL
 ![img](http://www.zentut.com/wp-content/uploads/2012/10/sqlcheatsheet.jpg)
 语句不区分大小写，以分号结束。
 更多详细：[SQL in one page](http://www.sql.su/), [W3School SQL](http://www.w3school.com.cn/sql/)
 
-## 存储过程/函数
+# 存储过程/函数
 查看结构：`\d pg_proc`
 查看定义: `SELECT prosrc FROM pg_proc WHERE proname = 'function';`
 运行：`SELECT function;`
 
-## [SchemaSpy](http://schemaspy.sourceforge.net/)
+# [SchemaSpy](http://schemaspy.sourceforge.net/)
 图形化数据库Schema，需要[graphviz](http://www.graphviz.org/)，以及[JDBC Driver](http://jdbc.postgresql.org/download.html)。
 
 用法：
@@ -79,7 +114,7 @@ GRANT ALL PRIVILEGES ON DATABASE testdb to tester;
 例如：
 `java -jar schemaSpy_5.0.0.jar -t pgsql -db dbName -s public -u user -host localhost -dp ./postgresql-9.3-1101.jdbc3.jar -o out-dir`
 
-## Reference
+# Reference
 [中文Wiki](https://wiki.postgresql.org/wiki/Chinese)
 
 </xmp>

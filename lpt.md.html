@@ -259,6 +259,9 @@ Linux 4.4.0-116-generic (ubuntu) 	07/21/2019 	_x86_64_	(2 CPU)
 
 
 # CPU
+## lscpu
+`cat /proc/cpuinfo`
+
 ## mpstat
 CPU 性能指标 `cat /proc/stat | grep ^cpu`
 ```
@@ -378,6 +381,11 @@ Swap:          974M
   * (block) buff: 块设备缓存
   * (page) cache: 页（文件系统）缓存
 * available: 可用内存（未使用内存+可回收缓存）
+
+free pagecache: `echo 1 > /proc/sys/vm/drop_caches`
+free reclaimable slab objects (includes dentries and inodes): `echo 2 > /proc/sys/vm/drop_caches`
+free slab objects and pagecache: `echo 3 > /proc/sys/vm/drop_caches`
+`sync` first to flush dirty objects.
 
 # Networking
 ## iftop

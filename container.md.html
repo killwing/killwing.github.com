@@ -196,6 +196,21 @@ perf_event: 对cgroup进行性能监控
 https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/sec-memory
 http://blog.chinaunix.net/uid-20321537-id-3465943.html
 
+[v2](https://man7.org/linux/man-pages/man7/cgroups.7.html#CGROUPS_VERSION_2)
+主要控制文件
+`cpu.max`
+`cpu.weight`
+`cpuset.cpus`
+`memory.min`
+`memory.max`
+`memory.high`
+`memory.low`
+`memory.swap.high`
+`memory.swap.low`
+
+`memory.current` = `memory.stat.anno (rss) + memory.stat.file (cache) + memory.stat.kernel + memory.stat.sock`
+`memory.stat.file` = `memory.stat.active_file + memory.stat.inactive_file + memory.stat.shmem (tmpfs)`
+
 ## tools
 cgset
 cgget
@@ -227,6 +242,10 @@ systemd 服务可在 unit 文件里面限制：
 CPUShares=200
 MemoryLimit=100M
 ```
+
+查看：
+systemd-cgls
+systemd-cgtop
 
 # rootfs
 一个操作系统所包含的文件和目录，但不包含内核。
