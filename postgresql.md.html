@@ -46,13 +46,26 @@ PGSSLROOTCERT
 PGSSLMODE
 ```
 
+常用命令
+`\h` SQL语句帮助，如`\h select`
+`\?` 命令帮助
+`\l` 列出数据库
+`\c <db>` 连接其他数据库
+`\dt [pattern]` 列出当前数据库的表, 列出非 public schema 的表: `\dt private.*`
+`\d <table>` 列出某个表格的结构
+`\du` 列出用户
+`\password` 设置密码
+`\q` 退出
+`\x` 对结果以竖向显示
+`\g` 在语句后表示输出到管道，如`select * from t \g | vim -`
+
+
 ## 创建用户和DB
 ```
 CREATE USER tester WITH PASSWORD '123456';
 CREATE DATABASE testdb OWNER tester;
 GRANT ALL PRIVILEGES ON DATABASE testdb to tester;
 ```
-或者使用 `createdb` 命令。
 
 ## 导出与恢复
 backup all:
@@ -68,11 +81,12 @@ psql -f pgall template1
 
 backup one db:
 ```
-pg_dump dbname > dbname.sql
+pg_dump --clean dbname > dbname.sql
 ```
 
 restore:
 ```
+dropdb dbname # 如果没有 --clean，需先 drop
 createdb dbname
 psql dbname < dbname.sql
 ```
@@ -80,20 +94,6 @@ psql dbname < dbname.sql
 ## docker
 create: `docker run --rm --detach --name test-postgres --publish "5432:5432" -e "POSTGRES_PASSWORD=postgres" postgres`
 delete: `docker rm --force --volumes test-postgres`
-
-# 常用命令
-`\h` SQL语句帮助，如`\h select`
-`\?` 命令帮助
-`\l` 列出数据库
-`\c <db>` 连接其他数据库
-`\d` 列出当前数据库的表
-`\d <table>` 列出某个表格的结构
-`\du` 列出用户
-`\password` 设置密码
-`\q` 退出
-`\x` 对结果以竖向显示
-`\g` 在语句后表示输出到管道，如`select * from t \g | vim -`
-
 
 # SQL
 ![img](http://www.zentut.com/wp-content/uploads/2012/10/sqlcheatsheet.jpg)

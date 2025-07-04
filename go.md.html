@@ -1266,6 +1266,19 @@ require: 依赖包
 exclude: 只作用于当前 module
 replace: 只作用于当前 module
 
+replace with local:
+```
+require example.com/othermodule v1.2.3
+replace example.com/othermodule => ../othermodule
+```
+要求 `v1.2.3`，但用本地目录替换所有版本。`v1.2.3` 不起实际作用，可以改成 `v0.0.0`
+
+```
+require example.com/othermodule v1.2.5
+replace example.com/othermodule v1.2.5 => ../othermodule
+```
+要求 `v1.2.5`，用本地目录只替换`v1.2.5`。如果要求别的版本，就会远程拉取。
+
 当一个 module 依赖 package A 时，它就直接依赖 A 所在的 module B，间接依赖 A 所依赖的其他 module。但不依赖 A 中 test 所依赖的 module，也不依赖 module B 其他未使用 package 所依赖的 module。go.mod 文件中就是所有直接依赖和间接依赖的 module 所有列表。
 
 ### command
@@ -1336,7 +1349,7 @@ plugin可以导出任何类型的包函数和变量，但一般导出接口类�
 
 # Testing ([pkg](http://golang.org/pkg/testing/))
 ## Test
-* 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。
+* 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。`-count=1` 禁止cache。
 * 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
 * 测试工具包: `import "testing"`, 支持 context, logging, error reporting...
