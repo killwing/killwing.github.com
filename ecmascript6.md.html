@@ -349,8 +349,8 @@ add = (a, b) => { // 多行
 
 ## Spread Operator
 `...x`
-作为左值将多个值接收为一个数组变量x，作为函数参数或Destructing赋值时只能为最后一个参数(rest参数)。
-作为右值将可迭代的对象x扩展为多个值。
+作为左值将多个值接收为一个数组或对象变量x，作为函数参数或 Destructing 赋值时只能为最后一个元素(rest)。
+作为右值将可迭代的对象x扩展为多个值。可以在数组或对象中展开。
 
 ## Destructing
 数组：
@@ -360,8 +360,8 @@ add = (a, b) => { // 多行
 ```
 let [a, [[b], c]] = [1, [[2], 3]]
 let [a, [b], d] = [1, [2, 3], 4] // a:1, b:2, d:4
-let [a, ...b] = [1, 2, 3, 4]   // b为[2,3,4]
-let [x, y = 'm', z = 'n'] = ['a', undefined, null] // x:'a', y:'m', z:null  只有===undefined才是空位
+let [a, ...b] = [1, 2, 3, 4]   // b为rest: [2,3,4]
+let [x, y = 'm', z = 'n'] = ['a', undefined, null] // x:'a', y:'m', z:null  只有 ===undefined 才是空位
 let [a,b,c,d,e,f] = 'string'
 ```
 
@@ -370,8 +370,9 @@ let [a,b,c,d,e,f] = 'string'
 ```
 let {a, b} = {a:1, b:2} // {a:a, b:b} = {a:1, b:2}
 let {a:c, b:d} = {a:1, b:2} // c:1, d:2
-let {a:x=1} = {b:2} // 当右值对象中a===undefined时，x取默认值1
+let {a:x=1} = {b:2} // 当右值对象中 a===undefined 时，x取默认值1
 let {toString: s} = 111; // 111先转为对象
+let {x, ...restObj } = { x: 10, y: 20, z: 30 }; // restObj 里只有 y, z
 ```
 
 ## Default Function Parameters

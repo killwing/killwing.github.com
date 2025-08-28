@@ -190,6 +190,21 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 
 重置一般用来覆盖暂存区，而检出一般用来覆盖工作区。
 
+## restore & switch
+这两个命令用来替代 reset 和 checkout 的大部分功能。
+
+restore: 只针对文件
+```
+--source=COMMIT (-s)  → where to copy from
+--staged        (-S)  → where to copy to (index)
+--worktree      (-W)  → where to copy to (working dir)
+```
+
+省略 -s: 如果有 -S 则从 HEAD，否则从 stage
+省略 -SW: 默认仅到 working dir
+
+switch: 只针对分支
+
 ## 存档
 `git stash` 保存当前工作状态为一个存档，分别对workspace和stage进行保存，然后把当前状态恢复为修改前的样子（使用了`git reset --hard HEAD`）。`apply/pop --index`应用存档被暂存的更改。`branch`创建一个新的分支来重新应用存档的更改。
 还没有加入版本控制的文件不能被保存。

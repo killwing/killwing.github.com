@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+<title>Svelte</title>
+<xmp theme="readable" style="display:none;">
+https://svelte.dev
+
+# Basic
+## Reactivity
+让一个变量具有 reactivity，要使用 `$state(...)` rune。当其改变（包括重新赋值和直接修改）时，HTML 中的引用才会随之变化。
+如果有依赖其他 state：`let total = $derived(numbers.reduce((t, n) => t + n, 0))`
+state 不能直接输出，要使用 snapshot: `console.log($state.snapshot(numbers))`。直接使用 inpsect 当 state 变化时打印日志: `$inspect(numbers).with(console.trace)`
+rune 可以在非组件的普通 JS 中使用 `export const counter = $state({ count: 0 })`，但文件名必须以 `.svelte.js` 结尾。
+
+`$effect` rune 根据 state 的变化触发。DOM 的变化可以看作是内部的 effect。
+返回一个清理函数，在每次 effect 重新调用之前或组件销毁时被调用。
+```
+$effect(() => {
+	const id = setInterval(() => {
+		elapsed += 1;
+	}, interval);
+
+	return () => {
+		clearInterval(id);
+	};
+});
+```
+
+## 组件
+可敷用的包含 HTML, CSS, JS 代码块，文件名以 `.svelte` 后缀。
+CSS scope 仅限于本组件。
+导入其他组件 `import Nested from './Nested.svelte'`，使用 `<Nested />`
+`$props` 接收从组件使用者传入的变量，可以有默认值：`let { answer = 'default value' } = $props()`，使用 `<Nested answer={42} />`
+传递 CSS 变量给组件 `<Nested --color="red" />`,  组件中定义变量 `background-color: var(--color, #ddd)` 
+```
+<script>
+	let name = 'Rick Astley';
+	let src = '/tutorial/image.gif';
+    let string = `this string contains some <strong>HTML!!!</strong>`;
+</script>
+
+<h1>Hello {name.toUpperCase()}!</h1>
+<img {src} alt="{name} dances." />
+<p>This is a string contains html: {@html string}</p>
+
+<style>
+	p {
+		color: goldenrod;
+		font-family: 'Comic Sans MS', cursive;
+		font-size: 2em;
+	}
+</style>
+```
+
+## 模版
+HTML 中可以用大括号引用 JS 中的变量。
+如果属性名和变量名一样，如`src={src}`，可以简写为`{src}`。
+使用 `{@html ...}` 嵌入 HTML 变量，不会转义。
+
+### Logic
+**if**
+```
+{#if count > 10}
+	<p>{count} is greater than 10</p>
+{:else if count < 5}
+	<p>{count} is less than 5</p>
+{:else}
+	<p>{count} is between 0 and 10</p>
+{/if}
+```
+
+**each**
+```
+<div>
+	{#each colors as color (color.id), i}
+		<button
+			style="background: {color}"
+			aria-label={color}
+			aria-current={selected === color}
+			onclick={() => selected = color}
+		>{i + 1}</button>
+	{/each}
+</div>
+```
+使用 key (color.id) 以避免删除元素带来的问题。
+
+**await** `let promise = $state(...)`
+```
+{#await promise}
+	<p>...rolling</p>
+{:then number}
+	<p>you rolled a {number}!</p>
+{:catch error}
+	<p style="color: red">{error.message}</p>
+{/await}
+```
+
+**key** 当 i 变化时，销毁并重新创建内容
+```
+{#key i}
+	<p in:typewriter={{ speed: 10 }}>
+		{messages[i] || ''}
+	</p>
+{/key}
+```
+
+### Events
+默认在冒泡阶段触发，如要在捕获阶段触发需在事件名后加上`capture`
+```
+<div onpointermove={onpointermove}>
+	The pointer is at {Math.round(m.x)} x {Math.round(m.y)}
+</div>
+
+<div
+	onpointermove={(event) => {
+		m.x = event.clientX;
+		m.y = event.clientY;
+	}}
+>The pointer is at {m.x} x {m.y}</div>
+
+<div onkeydowncapture={(e) => alert(`<div> ${e.key}`)} role="presentation">
+	<input onkeydowncapture={(e) => alert(`<input> ${e.key}`)} />
+</div>
+```
+
+### Bindings `bind:`
+value 的变化也同步到变量。
+```
+<input bind:value={name}>
+<input type="checkbox" bind:checked={yes}>
+<input type="radio" name="scoops" value={number} bind:group={scoops} />
+<input type="checkbox" name="flavours" value={flavour} bind:group={flavours} />
+<select bind:value={selected} onchange={() => answer = ''}>
+<select multiple bind:value={flavours}> {#each ['cookies and cream', 'mint choc chip', 'raspberry ripple'] as flavour} <option>{flavour}</option> {/each} </select>
+<textarea bind:value={value}></textarea>
+```
+
+### Styles `style:`
+使用数组或对象作为 class 属性值，可以使用变量名作为 class 名字。当其为真时，自动加上 class。
+```
+<button class="card {flipped ? 'flipped' : ''}" onclick={() => flipped = !flipped}>
+<button class={["card", { flipped }]} onclick={() => flipped = !flipped}>
+<button class={{"card": true, flipped }} onclick={() => flipped = !flipped}>
+<button class="card" style="transform: {flipped ? 'rotateY(0)' : ''}; --bg-1: palegoldenrod; --bg-2: black; --bg-3: goldenrod" onclick={() => flipped = !flipped}>
+<button class="card" style:transform={flipped ? 'rotateY(0)' : ''} style:--bg-1="palegoldenrod" style:--bg-2="black" style:--bg-3="goldenrod" onclick={() => flipped = !flipped}>
+```
+
+### Actions `use:`
+action 是一个函数，里面实现有一个 effect。
+```
+function tooltip(node, fn) {
+	$effect(() => {
+		const tooltip = tippy(node, fn());
+
+		return tooltip.destroy;
+	});
+}
+```
+
+当这个 node mount 到 DOM 的时候调用，unmount 的时候调用清理函数。
+```
+<button use:tooltip={() => ({ content })}> Hover me </button>
+```
+
+### Transition `transition:` `in:` `out:`
+默认 transition 只作用于直接的元素创建和销毁时，加上 `global` 使包含其的元素创建和销毁时也能触发。
+```
+<p transition:fade> Fades in and out </p>
+<p in:fly={{ y: 200, duration: 2000 }} out:fade> Flies in, fades out </p>
+<p
+	transition:fly={{ y: 200, duration: 2000 }}
+	onintrostart={() => status = 'intro started'}
+	onoutrostart={() => status = 'outro started'}
+	onintroend={() => status = 'intro ended'}
+	onoutroend={() => status = 'outro ended'}
+> Flies in and out </p>
+<div transition:slide|global> {item} </div>
+```
+
+</xmp>
+<script src="js/strapdown.js"></script>
+</html>
