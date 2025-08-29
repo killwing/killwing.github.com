@@ -177,6 +177,163 @@ function tooltip(node, fn) {
 <div transition:slide|global> {item} </div>
 ```
 
+# SvelteKit
+## Routing
+基本页面(page):
+`src/routes/+page.svelte` -> `/`
+`src/routes/about/+page.svelte` -> `/about`
+`src/routes/blog/[slug]/+page.svelte` -> `/blog/{name}`
+
+共享页面(layout): 作用于基本相邻页面和基本/共享子页面(children)，可以嵌套。
+`src/routes/+layout.svelte`
+```
+<script>
+	let { children } = $props();
+</script>
+
+<nav>
+	<a href="/">home</a>
+	<a href="/about">about</a>
+</nav>
+
+{@render children()}
+```
+
+## Data
+执行在 server 端，需要导出`load()`函数
+`src/routes/blog/+page.server.js`
+```
+import { posts } from './data.js';
+
+export function load() {
+	return {
+		summaries: posts.map((post) => ({
+			slug: post.slug,
+			title: post.title
+		}))
+	};
+}
+```
+
+page 使用：
+```
+<script>
+	let { data } = $props();
+</script>
+<h1>blog</h1>
+<ul>
+	{#each data.summaries as { slug, title }}
+		<li><a href="/blog/{slug}">{title}</a></li>
+	{/each}
+</ul>
+```
+
+共享数据源：基本或共享（相邻或子）页面可以引用共享数据源，但共享页面引用不到（相邻）普通数据源的数据。
+`src/routes/blog/+layout.server.js`
+
+page 使用：
+```
+<script>
+	let { data, children } = $props();
+</script>
+
+<div class="layout">
+	<main>
+		{@render children()}
+	</main>
+
+	<aside>
+		<h2>More posts</h2>
+		<ul>
+			{#each data.summaries as { slug, title }}
+				<li>
+					<a href="/blog/{slug}">{title}</a>
+				</li>
+			{/each}
+		</ul>
+	</aside>
+</div>
+```
+
+## API
+`src/routes/roll/+server.js` -> `GET /roll`
+```
+import { json } from '@sveltejs/kit';
+
+export function GET() {
+	const number = Math.floor(Math.random() * 6) + 1;
+	return json(number);
+}
+```
+
+## Errors
+expected error: 正常返回错误内容给用户。
+```
+import { error } from '@sveltejs/kit';
+
+export function load() {
+	error(420, 'Enhance your calm');
+}
+```
+
+unexpected error: 返回 500 ‘Internal Error’
+```
+export function load() {
+	throw new Error('Kaboom!');
+}
+```
+
+error 页面：属于基本页面，在 layout 页面中显示。
+`src/routes/+error.svelte`
+```
+<script>
+	import { page } from '$app/state';
+	import { emojis } from './emojis.js';
+</script>
+
+<h1>{page.status} {page.error.message}</h1>
+<span style="font-size: 10em">
+	{emojis[page.status] ?? emojis[500]}
+</span>
+```
+
+load data 出错，则 fallback 到 global 错误页面。
+`src/error.html`
+```
+<h1>Game over</h1>
+<p>Code %sveltekit.status%</p>
+<p>%sveltekit.error.message%</p>
+```
+
+## Redirect
+`src/routes/a/+page.server.js` -> `/b`
+```
+import { redirect } from '@sveltejs/kit';
+
+export function load() {
+	redirect(307, '/b');
+}
+```
+
+## Shared modules
+`$lib`: `src/lib` 下面的 module 都可以用 `$lib` 引用。
+`$app/state`: 当前页面状态:
+
+* page
+  * url
+  * params
+  * route
+  * status
+  * error
+  * data: 所有 load 的数据
+  * form
+* navigating
+  * from
+  * to
+  * type
+* updated: 页面重新部署更新状态
+  * current
+
 </xmp>
 <script src="js/strapdown.js"></script>
 </html>
