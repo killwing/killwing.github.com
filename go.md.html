@@ -1352,7 +1352,7 @@ plugin可以导出任何类型的包函数和变量，但一般导出接口类�
 * 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。`-count=1` 禁止cache。
 * 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
-* 测试工具包: `import "testing"`, 支持 context, logging, error reporting...
+* 测试工具包: `import "testing"`, 支持 context, logging, error reporting, setenv, cleanup ...
 * 重写`TestMain`以进行初始化/清理工作。
 ```
 func TestMain(m *testing.M) {
@@ -1444,6 +1444,7 @@ examples也是测试，通过stdout输出和`Output:`注释比较来判断测试
 ## util packages
 `net/http/httptest`: 测试http
 `testing/iotest`：模拟io读写错误等
+`testing/synctest`: 模拟同步测试
 `testing/quick`: 产生随机数做黒盒测试，[详解](http://blog.matttproud.com/2015/06/testingquick-blackbox-testing-in-go-for.html)
 https://github.com/dvyukov/go-fuzz : 随机数据测试
 https://github.com/stretchr/testify : 辅助测试工具
@@ -1882,6 +1883,7 @@ type Context interface {
 `func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc)` 当超过某段时间时，ctx得到通知。
 `func WithDeadline(parent Context, deadline time.Time) (Context, CancelFunc)` 当某个时间点到达时，ctx得到通知。
 `func WithValue(parent Context, key interface{}, val interface{}) Context` 用于设置请求相关参数。用`ctx.Value()`取得值，如果找不到也会到父Context中查找。一般用于传递auth信息，请求ID等。
+`func AfterFunc(ctx Context, f func()) (stop func() bool)` 在 ctx cancel 的时候调用 f，如果已经 cancel 会立即调用。返回一个 stop 函数用于解除关联。
 注意不同包间使用 key 时可能会冲突，一般将 key 定义为自定义类型`type ctxKey struct{}`，这样不同包的 key 类型就肯定不一样，即使值一样也代表不同的 key。
 
 http中使用`Request.WithContext`，net中使用`Dialer.DialContext`
@@ -2184,6 +2186,49 @@ c.L.Unlock()
 
 ## log
 `log.Fatal*()`和`log.Panic*()`会导致进程退出和panic。
+
+## [testing/synctest](https://go.dev/blog/testing-time)
+在一个隔离环境(bubble)中运行测试 `synctest.Test`：
+
+* 时钟是模拟的，总是从 `2000-01-01 00:00:00 +0000 UTC` 开始。用 `time.Sleep` 推进时间。
+* `synctest.Wait` 等待后台活动全部停止。
+* `synctest.Test` 等所有 goroutine 退出才会退出，但测试 func 一旦退出，模拟时钟就停止工作。
+
+```
+func TestWithDeadlineAfterDeadline(t *testing.T) {
+    synctest.Test(t, func(t *testing.T) {
+        deadline := time.Now().Add(1 * time.Second)
+        ctx, _ := context.WithDeadline(t.Context(), deadline)
+
+        time.Sleep(time.Until(deadline))
+        synctest.Wait()
+        if err := ctx.Err(); err != context.DeadlineExceeded {
+            t.Fatalf("context not canceled after deadline")
+        }
+    })
+}
+```
+
+“Durably blocking” 是 synctest 中的一个核心概念: 当一个 goroutine 不仅被阻塞，而且只能被同一个 bubble 中的另一个 goroutine 唤醒时，它就是**持久阻塞（durably blocked）**的。
+常见的有：
+
+* `time.Sleep`
+* 在同一 bubble 创建的 channels 上 send 或 receive 
+* `sync.WaitGroup` 属于同一 bubble
+* `sync.Cond.Wait`
+* `select{}`
+
+非 durably blocking:
+
+* I/O (files, pipes, network connections, etc.)
+* syscalls, cgo calls, anything that isn’t Go
+* Mutexes
+
+当 bubble 中的所有 goroutine 都处于持久阻塞状态时：
+
+* `synctest.Wait` 会返回。即有等待任何外部条件，就不会返回。
+* 如果当前没有正在执行的 `synctest.Wait` 调用，模拟时间会立即前进到下一个能够唤醒 goroutine 的时间点。
+* 如果即使推进时间也没有任何 goroutine 能被唤醒，那么这个 bubble 就进入死锁，测试失败。
 
 ## unsafe
 ### Pointer

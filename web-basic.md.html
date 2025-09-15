@@ -255,9 +255,9 @@ selector|name|description|example
 `:checked`, `:indeterminate` 选中，部分选中状态
 `:placeholder-shown` 有 placeholder 属性，但元素没有值的状态
 `:valid`, `:invalid`, `:in-range`, `:required`, `:optional` 有效，无效，范围有效，必选，可选状态，结合元素的 `pattern`, `min`, `max`, `required` 属性
-`:first-child`, `:last-child`, `:nth-child(n)` 第一个，最后一个，第n个子元素, n也可以是even, odd, An+B的形式
+`:first-child`, `:last-child`, `:nth-child(n)` 当其是第一个，最后一个，第n个子元素, n也可以是even, odd, An+B的形式
 `:only-child` 没有相邻元素的子元素
-`div:first-of-type`, `div:last-of-type`, `div:nth-of-type(n)` 第一个，最后一个，第n个带类型的子元素
+`div:first-of-type`, `div:last-of-type`, `div:nth-of-type(n)` 当其是第一个，最后一个，第n个符合这个 div 类型的子元素。
 `div:only-of-type` 没有相邻元素的带类型子元素
 `:empty` 没有子元素及内容
 `:is(h2, li, img)` 选择子元素
@@ -275,7 +275,7 @@ selector|name|description|example
 
 
 ### 盒模型
-![img](https://web-dev.imgix.net/image/VbAJIREinuYvovrBzzvEyZOpw5w1/ECuEOJEGnudhXW5JEFih.svg)
+![img](https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics/Box_model/box-model-devtools.png)
 
 * 位置：元素内容(content) - 内边距(padding) - 边框(border) - 外边距(margin)。
   * margin: `top right bottom left`, 简写 `top-bottom left-right`。`auto` 值会占据容器内剩余可用空间，比如 `margin: 0 auto;` 水平居中。
@@ -364,12 +364,12 @@ https://www.joshwcomeau.com/css/interactive-guide-to-grid/
 
 * 容器为 block display。`display: inline-grid;` 使容器可以 inline display。
 * 布局的元素
-  * 容器(container)顶层的直接子元素称为项目(item)
+  * 容器(container)顶层的直接子元素称为 item。
   * 水平区域称为行(row track)，垂直区域称为列(column track)，区域之间的间隙称为 gap
   * 行列交叉区域称为单元格(cell)，多个 cell 组成 area
   * 划分网格的线称为网格线(line)，包括边框
   * 使用 grid-template-columns, grid-template-rows 定义的称为 explicit grid，自动设置的为 implicit grid，其中的 track 称为 implicit track
-* 使用网格布局后，项目的布局定位属性都失效。项目按顺序依次按照 cell 布局。
+* 使用网格布局后， item 的布局定位属性都失效。 item 按顺序依次按照 cell 布局。
 * track size
   * `min-content` 尽可能小而内容不 overflow，最长的单词或最宽的图片
   * `max-content` 尽可能大，最长的句子或最宽的图片
@@ -382,9 +382,9 @@ https://www.joshwcomeau.com/css/interactive-guide-to-grid/
   * `100px 100px 100px;` 具体大小
   * `33.33% 33.33% 33.33%;` 比例（硬比例，基于 area 计算）
   * `repeat(3, 33.33%);` 重复比例
-  * `repeat(auto-fill, 100px);` 尽量填充项目
-  * `repeat(auto-fit, minmax(100px, 1fr));` 尽量填充项目并适应宽度
-  * `150px 1fr 2fr;` 相对比例（软比例，基于除去 gap 等的剩余空间计算，可以被伸缩而不小于项目最小宽度，也不会超出 area）
+  * `repeat(auto-fill, 100px);` 尽量填充 item 
+  * `repeat(auto-fit, minmax(100px, 1fr));` 尽量填充 item 并适应宽度
+  * `150px 1fr 2fr;` 相对比例（软比例，基于除去 gap 等的剩余空间计算，可以被伸缩而不小于 item 最小宽度，也不会超出 area）
   * `1fr 1fr minmax(0, 1fr);` 最小最大范围
   * `100px auto 100px;` 尽量填充大小
   * `[c1] 100px [c2] 100px [c3] auto [c4];` 定义网格线名称
@@ -392,33 +392,33 @@ https://www.joshwcomeau.com/css/interactive-guide-to-grid/
 * grid-row-gap 行间距
 * grid-column-gap 列间距
 * grid-gap 简写 `<grid-row-gap> <grid-column-gap>;` 等同于 gap
-* grid-template-areas 指定项目区域布局，用多个连续的`.`表示不用区域，重复名字来扩展区域。每个区域的起始网格线，会自动命名为区域名-start，终止网格线自动命名为区域名-end。
+* grid-template-areas 指定 item 区域布局，用多个连续的`.`表示不用区域，重复名字来扩展区域。每个区域的起始网格线，会自动命名为区域名-start，终止网格线自动命名为区域名-end。
 ```
     "....... header header header"
     "sidebar content content content"
     "sidebar footer footer footer";
 ```
 * grid-template 简写 `<grid-template-columns> <grid-template-rows> <grid-template-areas>;`
-* grid-auto-flow 项目排列顺序
+* grid-auto-flow  item 排列顺序
   * `row`（默认） 先行后列
   * `column` 先列后行
-  * `row dense` 尽量紧密填充行项目
-  * `column dense` 尽量紧密填充列项目
-* justify-items 项目本身水平对齐，相当于对所有项目应用 justify-self
+  * `row dense` 尽量紧密填充行 item 
+  * `column dense` 尽量紧密填充列 item 
+* justify-items  item 本身水平对齐，相当于对所有 item 应用 justify-self
   * `start` 对齐起始边缘
   * `end` 对齐结束边缘
   * `center` 内部居中
   * `stretch`（默认）拉伸，占满整个宽度
-* align-items 项目本身的垂直对齐，相当于对所有项目应用 align-self
+* align-items  item 本身的垂直对齐，相当于对所有 item 应用 align-self
 * place-items 简写 `<align-items> <justify-items>;`
 * justify-content columns 在容器里面的水平分布
   * `start`（默认）对齐容器的起始边框
   * `end` 对齐容器的结束边框
   * `center` 容器内部居中
   * `stretch` 拉伸，占满整个宽度
-  * `space-around` 每个项目两侧的间隔相等
-  * `space-between` 项目与项目的间隔相等，项目与容器边框之间没有间隔。
-  * `space-evenly` 项目与项目，项目与容器边框的间隔相等。
+  * `space-around` 每个 item 两侧的间隔相等
+  * `space-between`  item 与 item 的间隔相等， item 与容器边框之间没有间隔。
+  * `space-evenly`  item 与 item ， item 与容器边框的间隔相等。
 * align-content rows 在容器里面的垂直分布
 * place-content 简写 `<align-content> <justify-content>;`
 * grid-auto-columns implicit track 的列宽
@@ -433,17 +433,17 @@ https://www.joshwcomeau.com/css/interactive-guide-to-grid/
 * content: columns / rows 的分布
 * items: item 本身的对齐
 
-**项目属性:**
+** item 属性:**
 
-* grid-column-start 左边框所在的垂直网格线（从1开始，可以是负数，表示从最右边开始），用 `span` 可以表示跨越网格数，如果项目重叠用 `z-index` 指定顺序
+* grid-column-start 左边框所在的垂直网格线（从1开始，可以是负数，表示从最右边开始），用 `span` 可以表示跨越网格数，如果 item 重叠用 `z-index` 指定顺序
 * grid-column-end 右边框所在的垂直网格线
 * grid-row-start 上边框所在的水平网格线
 * grid-row-end 下边框所在的水平网格线
 * grid-column 简写 `<grid-column-start> / <grid-column-end>;` end 可省，表示 start 开始的一个 column
 * grid-row 简写 `<grid-row-start> / <grid-row-end>;`
-* grid-area 定义项目的区域名称，或用 `<row-start> / <column-start> / <row-end> / <column-end>;` 表示
-* justify-self 项目本身的水平位置，值同 justify-items
-* align-self 项目本身的垂直位置，值同 align-items
+* grid-area 定义 item 的区域名称，或用 `<row-start> / <column-start> / <row-end> / <column-end>;` 表示
+* justify-self  item 本身的水平位置，值同 justify-items
+* align-self  item 本身的垂直位置，值同 align-items
 * place-self 简写 `<align-self> <justify-self>;`
 
 #### flexbox
@@ -451,9 +451,9 @@ https://www.joshwcomeau.com/css/interactive-guide-to-flexbox
 
 `display: flex;`:
 
-* 用于单向布局，且项目元素（包含的直接子元素，且并不继承）不再是原默认 display（比如 div 不再是 block）。
-* 默认水平排列在容器开始位置，项目具有相同的高度且撑满容器高度。
-* 项目的 width 是基础假设宽度（basis），受限于容器宽度。
+* 用于单向布局，且 item 元素（包含的直接子元素，且并不继承）不再是原默认 display（比如 div 不再是 block）。
+* 默认水平排列在容器开始位置， item 具有相同的高度且撑满容器高度。
+*  item 的 width 是基础假设宽度（basis），受限于容器宽度。
 * 容器为 block display。`display: inline-flex;` 使容器可以 inline display。
 
 **容器属性:**
@@ -463,24 +463,24 @@ https://www.joshwcomeau.com/css/interactive-guide-to-flexbox
   * `column` primary 轴为 column, cross 轴则为 row
   * `row-reverse`
   * `column-reverse`
-* flex-wrap 控制换行，当容器宽度改变时，项目不会收缩而改为换行（当 primary 轴上只剩一个项目时，还是会收缩），相当于有多条 primary 轴
+* flex-wrap 控制换行，当容器宽度改变时， item 不会收缩而改为换行（当 primary 轴上只剩一个 item 时，还是会收缩），相当于有多条 primary 轴
 * flex-flow 简写 `<flex-direction> <flex-wrap>;`
-* justify-content 所有项目在 primary 轴上的分布
-  * `flex-start`
-  * `center`
-  * `flex-end`
+* justify-content 所有 item 在 primary 轴上的分布
+  * `flex-start` 默认，全部靠左/上
+  * `center` 居中
+  * `flex-end` 全部靠右/下
   * `space-between` 靠边的 item 边上没有空白
   * `space-around` item 两边都有空白
   * `space-evenly` item 中间的空白重叠，使得间距相等
 * align-content 仅当 flex-wrap 时，所有行在 cross 轴上的分布，值同 justify-content
 * place-content 同时设置 justify-content 和 align-content
-* align-items 所有项目沿 cross 轴对齐（基于项目的基线），相当于对所有项目 `align-self`
+* align-items 所有 item 沿 cross 轴对齐（基于 item 的基线），相当于对所有 item  `align-self`
   * `flex-start`
   * `center`
   * `flex-end`
-  * `stretch`
+  * `stretch` 默认
   * `baseline`
-* gap 项目间隔
+* gap: item 间隔
 
 命名：
 
@@ -489,25 +489,25 @@ https://www.joshwcomeau.com/css/interactive-guide-to-flexbox
 * content: 分布
 * items: 对齐
 
-**项目属性:**
+** item 属性:**
 
-* flex-grow 当容器宽度改变时，是否可以大于 flex-basis。
+* flex-grow: 当容器宽度改变时，是否可以大于 flex-basis。
   * `0` 默认
-  * `1` 可以伸展，是个比例值（相对其他item）
-* flex-shrink 当容器宽度改变时，是否可以小于 flex-basis
+  * `1` 可以伸展整个 item，是个比例值（相对其他item）。而`margin: auto` 是占据容器剩余空间，加到自己的 margin 中。
+* flex-shrink: 当容器宽度改变时，是否可以小于 flex-basis
   * `0`
-  * `1` 默认，可以收缩，是个比例值（相对其他item），但不能小于最小大小(min-width，默认auto，每种元素有自己的最小大小)。项目本身原有的宽度也会影响伸缩的比例。
-* flex-basis 基础宽度，随 direction 改变方向，除了一些例外情况可以认为和 width 等价（ width 不随 direction 改变方向）
+  * `1` 默认，可以收缩，是个比例值（相对其他item），但不能小于最小大小(min-width，默认auto，每种元素有自己的最小大小)。 item 本身原有的宽度也会影响伸缩的比例。
+* flex-basis: 基础宽度，随 direction 改变方向，除了一些例外情况可以认为和 width/height 等价 (width/height 不随 direction 改变方向)
   * `30px` 指定大小
   * `auto` 原有自身大小
   * `0` 忽略自身大小
-* flex 简写 `<flex-grow> <flex-shrink> <flex-basis>;`
+* flex: 简写 `<flex-grow> <flex-shrink> <flex-basis>;`
   * `auto` 1 1 auto
   * `1` 1 1 0%
   * `2` 2 1 0% (可以按不同比例显示)
   * `none` 0 0 auto
-* order 项目的显示顺序
-* align-self 项目内容 cross 轴基于基线对齐
+* order: item 的显示顺序
+* align-self: item 内容 cross 轴基于基线对齐，值和 align-items 一样。
 
 ### 函数
 * `:is()`, `:not()` 伪类
