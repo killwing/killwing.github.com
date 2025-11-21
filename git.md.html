@@ -143,6 +143,7 @@ ID的计算：`sha1(对象类型<space>对象长度<null>对象内容)`，例如
 * `:path/to/file`: stage中的文件对象。
 * `:/"commit xxx"`: 日志里含有字符串的提交。
 * 如果A是含附注说明的tag，则`A^{}`, `A^{commit}`, `A^0`, `A~0`指它对应的提交。其他类似：`A^{tree}`, `A:path/to/file`。
+* `ORIG_HEAD`: 上一次修改 HEAD (如 rebase, merge, or reset) 之前的位置。可以用 `reset --hard ORIG_HEAD` 回到修改之前。
 
 ### 提交范围
 
@@ -195,7 +196,7 @@ detached HAED状态下的提交不被任何分支跟踪到，当reflog中含有�
 
 restore: 只针对文件
 ```
---source=COMMIT (-s)  → where to copy from
+--source=COMMIT (-s)  → where to copy from (并不改变当前 HEAD，注意和 reset 区别)
 --staged        (-S)  → where to copy to (index)
 --worktree      (-W)  → where to copy to (working dir)
 ```

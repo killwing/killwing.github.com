@@ -216,23 +216,30 @@ mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 
 # [API Methods](https://kubernetes.io/docs/reference/using-api/api-concepts/)
 ## Update
-`Update` 不能更新 status，不报错，会忽略。注意：update会覆盖传入的object（包括**status**,**resourceversion**）为当前 object，和create，get类似。
+`Update` 不能更新 status，不报错，会忽略。注意：(controller-runtime client) create/update会覆盖传入的object（包括**status**,**resourceversion**）为当前 object，和直接get类似。
 
-`status.Update` 不能更新非status，且generation不会增加 (generation只有更新spec或~~annotations~~才会增加)
+`status.Update` 不能更新非status，且generation不会增加 (generation只有更新spec或~~annotations~~才会增加，删除时也会增加)
 
 ## Delete
 DeletionPropagation: 不管是哪个选项，DELETE API 都不会阻塞。
 
-- Foreground: 添加 forgroundDeletion finalizer，等子资源(blockOwnerDeletion=true)删完之后再删除。
-- Background: 直接删除，子资源由 GC 删除。
-- Orphan: 先添加 orphan finalizer，由 GC 删除，保留子资源并移除 ownerreference。
+- Foreground: 先给 owner 添加 forgroundDeletion finalizer，等子资源(blockOwnerDeletion=true)删完之后，再由 GC 移除 finalizer 并删除 owner。
+- Background: 直接删除，子资源由 GC 删除(忽略blockOwnerDeletion=true)。
+- Orphan: 先给 owner 添加 orphan finalizer，保留子资源并移除 ownerreference 后，再由 GC 移除 finalizer 并删除 owner。
 
 CRD 删除时必须所有 CR 都已删除。没有 finalizers 的CR都会自动删除。
+owner reference 中 owner 已经不存在的对象由 GC 定期删除。
 
 ## Watch
 watchlist:
 https://kubernetes.io/blog/2024/12/17/kube-apiserver-api-streaming/
 https://kubernetes.io/docs/reference/using-api/api-concepts/#streaming-lists
+
+watch 时使用 [resourceversion=""(unset)](https://kubernetes.io/docs/reference/using-api/api-concepts/#semantics-for-watch) 模拟 list: 先返回全量数据(ADD)，再发送变更事件。
+
+* apiserver 直接穿透缓存从 etcd 读全量，对内存造成很大压力。
+* 重启恢复时，list 和 watch 之间可能丢失事件。
+* 没有 list 部分的结束标志，无法区分存量事件和后续变更。
 
 bookmark: 
 https://kubernetes.io/docs/reference/using-api/api-concepts/#watch-bookmarks

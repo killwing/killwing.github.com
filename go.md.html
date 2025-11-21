@@ -1038,7 +1038,7 @@ func (t *ModelX[T]) len() int {
 func (t *ModelX[T]) foo(s T) { // 类型的方法中可以使用 struct 本身的类型参数
 }
 
-func (t *ModelX[T]) bar[V any](v V) { // error, 不支持其它函数类型参数
+func (t *ModelX[T]) bar[V any](v V) { // error, 不支持其它函数类型参数 (泛型 method)
 }
 
 // 初始化
@@ -1353,6 +1353,7 @@ plugin可以导出任何类型的包函数和变量，但一般导出接口类�
 * 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
 * 测试工具包: `import "testing"`, 支持 context, logging, error reporting, setenv, cleanup ...
+* `t.Cleanup` 用来登记一个清理函数，这个函数会在测试或子测试全部跑完之后执行（测试函数已返回，且此时 `t.Context` 已取消）。 如果注册了多个清理函数，它们会按照后进先出（LIFO）的顺序依次调用。
 * 重写`TestMain`以进行初始化/清理工作。
 ```
 func TestMain(m *testing.M) {
@@ -1506,6 +1507,28 @@ file pprof: `go-torch --binaryname binary.test -b pprof.cpu`
 
 `go tool pprof -http=` 已支持直接查看，不需要 go-torch。
 
+## Tracing
+main里加上：
+```
+func main() {
+    _ = trace.Start(os.Stdout)
+    defer trace.Stop
+    ...
+}
+```
+
+使用 [profile](https://github.com/pkg/profile):
+`defer profile.Start(profile.TraceProfile, profile.ProfilePath(".")).Stop()`
+
+`go run main.go > trace.out`/`go test -bench=. -trace=trace.out`
+`go tool trace trace.out`
+
+[Flight Recorder](https://go.dev/blog/flight-recorder)
+
+Tools:
+[gotraceui](https://gotraceui.dev/)
+[gotrace](https://github.com/divan/gotrace) 3D 可视化
+
 ## Monitoring
 使用 [prometheus](https://prometheus.io/docs/guides/go-application/)
 
@@ -1547,24 +1570,6 @@ go_memstats_sys_bytes 6.904848e+06
 go_sched_gomaxprocs_threads 16
 go_threads 6
 ```
-
-## Tracing
-main里加上：
-```
-func main() {
-    _ = trace.Start(os.Stdout)
-    defer trace.Stop
-    ...
-}
-```
-
-使用 [profile](https://github.com/pkg/profile):
-`defer profile.Start(profile.TraceProfile, profile.ProfilePath(".")).Stop()`
-
-`go run main.go > trace.out`/`go test -bench=. -trace=trace.out`
-`go tool trace trace.out`
-
-使用 [gotrace](https://github.com/divan/gotrace) 3D 可视化。
 
 ## Escape Analysis
 https://www.ardanlabs.com/blog/2017/05/language-mechanics-on-stacks-and-pointers.html
@@ -1810,7 +1815,27 @@ func Pairs[V any](seq iter.Seq[V]) iter.Seq2[V, V] {
 ```
 	
 ## errors
-`errors.As(err error, target any) bool`: `target` 必须是非空指针，`*target` 必须是一个 interface 或者实现了 error 接口。返回 `*target = err` 赋值是否可行，或者 err 实现了 As(target)。
+`errors.Is(err error, target error) bool`: 可比较时，返回 `err == target`，或者 err (会 unwrap 检查) 实现了 `Is(target)`。
+
+```
+type MyError struct {
+	msg string
+}
+
+func (e *MyError) Error() string {
+	return e.msg
+}
+
+func (e *MyError) Is(target error) bool {
+	_, ok := target.(*MyError)
+	return ok
+}
+
+// true: `errors.Is(fmt.Errorf("an error %w", &MyError{msg: "my test error"}), &MyError{msg: "my test error with different msg"}))`
+```
+	
+
+`errors.As(err error, target any) bool`: `target` 必须是非空指针，`*target` 必须是一个 interface 或者实现了 error 接口。返回 `*target = err` 赋值是否可行，或者 err 实现了 `As(target)`。
 
 check by error pointer:
 ```
@@ -2090,8 +2115,8 @@ object|map[string]interface{}
 ### struct tag
 `json:"-"` 忽略这个字段
 `json:"myName"` 在json里key为myName
-`json:"myName,omitempty"` 如果字段为空值则忽略
-`json:"myName,omitzero"` 如果字段为空值则忽略(对空 struct 有效，会根据 `IsZero` 判断)
+`json:"myName,omitempty"` 如果字段为空值(nil, 0长度 slice，map 等，空 struct 不是空值)则忽略
+`json:"myName,omitzero"` 如果字段为0值(0长度 slice, map 不是0值，空 struct 是0值，会根据 `IsZero` 判断)则忽略。
 `json:",string"` 数值，布尔类型在json里转为string编码。如果是json里为数值，可以用`Decoder.UseNumber`decode为json.Number类型(string)从而不丢失精度，进而转为数值类型。
 
 ## text/template
