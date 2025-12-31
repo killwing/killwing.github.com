@@ -1187,8 +1187,8 @@ func main() {
 // dtor
 ```
 
-`panic`: 类似抛出异常，一直向上传递，并终止程序（不能跨越goroutine的边界，只能触发当前goroutine的defer）。参数类型为`interface{}`，可接受任何参数。一些运行时错误比如数组越界，引用空指针也会引发panic。defer函数中可以再次panic。
-`recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。没有捕获到panic则返回nil。
+`panic`: 类似抛出异常，一直向上传递，并终止进程（不能跨越goroutine的边界，只能触发当前goroutine的defer）。参数类型为`interface{}`，可接受任何参数。一些运行时错误比如数组越界，引用空指针也会引发panic。defer函数中可以再次panic。
+`recover`: 终止panic展开，返回最后一个的panic的参数，只能在defer函数中**直接**调用。没有捕获到panic，则返回nil。
 
 不能被 recover 的情况：
 
@@ -1350,11 +1350,13 @@ plugin可以导出任何类型的包函数和变量，但一般导出接口类�
 # Testing ([pkg](http://golang.org/pkg/testing/))
 ## Test
 * 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。`-count=1` 禁止cache。
-* 文件名: `*_test.go`，里面定义的变量在非测试时不可用。
+* 文件名: `*_test.go`，只在测试时编译，里面定义的变量在非测试文件中不可用，即使 public 也不能被其他包的测试调用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
 * 测试工具包: `import "testing"`, 支持 context, logging, error reporting, setenv, cleanup ...
 * `t.Cleanup` 用来登记一个清理函数，这个函数会在测试或子测试全部跑完之后执行（测试函数已返回，且此时 `t.Context` 已取消）。 如果注册了多个清理函数，它们会按照后进先出（LIFO）的顺序依次调用。
-* 重写`TestMain`以进行初始化/清理工作。
+* 重写`TestMain`以进行初始化/清理工作。每个包都有自己的 TestMain，编译为独立测试 binary，独立进程，互不影响，且是并发执行的。
+* 每个包中的 cases 是顺序执行的，除非用 `t.Parallel()` 指定。`-parallel N` 指定并发数，默认 `GOMAXPROCS`。
+* `t.FailNow` (或 `testify.Require`) 调用的是 `runtime.Goexit`，只会退出当前 goroutine 并调用对应的 defer 函数（类似 panic），不影响其他 goroutine，所以一般只在 test 主 goroutine 中调用。
 ```
 func TestMain(m *testing.M) {
     // do setup
@@ -1959,15 +1961,46 @@ func main() {
 ```
 
 ### 超时
-http://www.oschina.net/translate/the-complete-guide-to-golang-net-http-timeouts
+default: 使用 `DefaultClient`(`&Client{}`) 或没有设置 transport。
+```
+var DefaultTransport RoundTripper = &Transport{
+	Proxy: ProxyFromEnvironment,
+	DialContext: defaultTransportDialContext(&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}),
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+}
+```
 
-* 服务端：对于不需要返回流的服务器，使用http.Server并设置ReadTimeout和WriteTimeout。（http.ListenAndServe无法设置）
-* 客户端：对于 API 请求，使用 http.Client 设置超时，从发起连接到接收响应结束。对于流式请求，使用默认 transport + ResponseHeaderTimeout，从发起请求到收到 header。
+[![img](https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6vTKS6Y5QPbl52ONtLm9WQ/b0047898381acad412621dbd464d7aab/the-complete-guide-to-golang-net-http-timeouts.png)](https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts)
+
+* 服务端：对于不需要返回流的服务器，使用 `http.Server` 并设置 ReadTimeout 和 WriteTimeout。（`http.ListenAndServe` 无法设置）
+* 客户端：
+  * 原则上 `Client Idle Timeout < Infrastructure Idle Timeout (LoadBalancers, 一般60s) < Server KeepAlive Timeout`，所以将 IdleConnTimeout 设为 30s。否则LB先超时，客户端发生"unexpected end of stream"错误。
+  * 如果没有非流式请求，再设置 `http.Client` 全局(包括连接+读写)超时。
 
 ```
-tr := http.DefaultTransport.(*http.Transport).Clone()
-tr.ResponseHeaderTimeout = 10 * time.Second
+&Transport{
+    Proxy: ProxyFromEnvironment,
+    DialContext: (&net.Dialer{
+        Timeout:   10 * time.Second, // 默认 30 太长
+        KeepAlive: 30 * time.Second,
+    }).DialContext,
+    ForceAttemptHTTP2:     true,
+    MaxIdleConns:          100,
+    MaxIdleConnsPerHost:   10, // 默认 2 太小
+    IdleConnTimeout:       30 * time.Second, // 默认 90 太长
+    TLSHandshakeTimeout:   10 * time.Second,
+    ExpectContinueTimeout: 1 * time.Second,
+    ResponseHeaderTimeout: 10 * time.Second,
+}
 ```
+
 
 使用timeout transport控制超时：
 ```
@@ -2216,8 +2249,8 @@ c.L.Unlock()
 在一个隔离环境(bubble)中运行测试 `synctest.Test`：
 
 * 时钟是模拟的，总是从 `2000-01-01 00:00:00 +0000 UTC` 开始。用 `time.Sleep` 推进时间。
-* `synctest.Wait` 等待后台活动全部停止。
-* `synctest.Test` 等所有 goroutine 退出才会退出，但测试 func 一旦退出，模拟时钟就停止工作。
+* `synctest.Wait` 等待后台活动全部停止(所有 goroutine durably blocked 或退出)。如有等待任何外部条件，就不会返回。
+* `synctest.Test` 等所有 goroutine 退出才会退出，但测试 func 一旦退出，模拟时钟就停止工作(会导致其他 goroutine 的时钟停止而阻塞)。
 
 ```
 func TestWithDeadlineAfterDeadline(t *testing.T) {
@@ -2251,8 +2284,8 @@ func TestWithDeadlineAfterDeadline(t *testing.T) {
 
 当 bubble 中的所有 goroutine 都处于持久阻塞状态时：
 
-* `synctest.Wait` 会返回。即有等待任何外部条件，就不会返回。
-* 如果当前没有正在执行的 `synctest.Wait` 调用，模拟时间会立即前进到下一个能够唤醒 goroutine 的时间点。
+* `synctest.Wait` 会返回。
+* 如果当前没有正在执行的 `synctest.Wait` 调用，模拟时间会立即自动前进到下一个能够唤醒 goroutine 的时间点(前提是测试 func 没有退出)。
 * 如果即使推进时间也没有任何 goroutine 能被唤醒，那么这个 bubble 就进入死锁，测试失败。
 
 ## unsafe

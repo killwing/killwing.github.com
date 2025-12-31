@@ -51,7 +51,7 @@ Host github.com
 ### 本地端口转发
 `local$ ssh -L 8080:target:80 middle` (-L [本地地址:]本地端口:目标主机:目标主机端口)
 在本机上监听8080端口，并通过middle转发到target的80端口上。
-e.g.: 本机上通过curl访问 `curl --proxy 127.0.0.1:8080 http://target/index.html`
+e.g.: 本机上通过curl访问 `curl http://localhost:8080/index.html`
 
 `local$ ssh -L 8080:localhost:80 middle`
 当target是localhost，即middle就是目标主机，将local的8080端口映射到middle的80端口。
