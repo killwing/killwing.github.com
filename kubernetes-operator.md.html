@@ -177,9 +177,124 @@ More about informer:
 ## [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime)
 [![img](https://miro.medium.com/v2/resize:fit:1400/format:webp/1*yFz1zQiUweDtm6s8_2bnIw.png)](https://nakamasato.medium.com/kubernetes-operator-series-1-controller-runtime-aa50d1d93c5c)
 
+Source: 数据源
+
+Kind/TypedKind(custom request): 以 informer 为数据源
+Channel/TypedChannel(custom object, custom request): 以 channel 为数据源，只接收 Generic event
+
+Handler: 事件处理，将 request 放入 workerqueue
+
+- EnquueRequestForObject/TypedEnqueueRequestForObject
+- EnquueRequestForOwner/TypedEnqueueRequestForOwner
+- EnqueueRequestsFromMapFunc/TypedEnqueueRequestsFromMapFunc(custom object, custom request)
+
+### Custom Source
+自定义外部事件源。
+```
+type MyObject struct {
+	Namespace string
+}
+
+func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	mapToReq := func(ctx context.Context, obj *MyObject) []reconcile.Request {
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{
+				Name: obj.Namespace,
+			},
+		}}
+	}
+
+    // external event source
+	events := make(chan event.TypedGenericEvent[*MyObject])
+	go func() {
+		ticker := time.NewTicker(15 * time.Minute)
+		for range ticker.C {
+			events <- event.TypedGenericEvent[*MyObject]{Object: &MyObject{Namespace: "default"}}
+		}
+	}()
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&corev1.Namespace{}).
+		WatchesRawSource(
+			source.Channel(events, handler.TypedEnqueueRequestsFromMapFunc(mapToReq)),
+		).
+		Complete(r)
+}
+```
+
+### Custom Request
+利用 `TypedBuilder` 创建 `TypedReconciler`，以使用自定义 Request。
+```
+type MyRequest struct {
+    Key string
+}
+
+err := builder.TypedControllerManagedBy[MyRequest](mgr).
+    Named("simple-controller").
+    WatchesRawSource(
+        source.TypedKind(
+            mgr.GetCache(),
+            &corev1.ConfigMap{},
+            handler.TypedEnqueueRequestsFromMapFunc(
+                func(ctx context.Context, cm *corev1.ConfigMap) []MyRequest {
+                    return []MyRequest{{Key: cm.Name}}
+                },
+            ),
+        ),
+    ).
+    Complete(reconcile.TypedFunc[MyRequest](
+        func(ctx context.Context, req MyRequest) (reconcile.Result, error) {
+            // Reconcile logic inline
+            log.Info("Reconciling", "key", req.Key)
+            return reconcile.Result{}, nil
+        },
+    ))
+```
+
+### Cache Option
+[Selectors At Cache](https://github.com/kubernetes-sigs/controller-runtime/blob/main/designs/use-selectors-at-cache.md)
+当 watch 的资源量可能巨大时(比如Secret, ConfigMap, CRD)，减少内存占用: ByObject (fine-grained (by ns, label etc.) type-specific cache, others use default cache)
+```
+mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+    Scheme: scheme,
+    NewCache: cache.BuilderWithOptions(cache.Options{
+        ByObject: cache.ByObject{
+            &core.Pod{}: {
+                Label: labels.SelectorFromSet(labels.Set{
+                    myLabelKey,
+                    myLabelVal,
+                }),
+            },
+            &grpv1alpha1.Mykind{}: {},
+        },
+    }),
+})
+```
+
+
+Enable cache for `Unstructured`: manager options -> client options -> cache options -> unstructured = true
+```
+Client: client.Options{
+	Cache: &client.CacheOptions{
+		Unstructured: true,
+	},
+}
+```
+
+### Re-Sync
+全局设置，应用到所有 controllers (shared cache)，可以有 ByObject (GVK) 设置。
+只针对意外(bug)丢失事件，对于只需要 poll 一般用 `reconcile.Result{RequeueAfter: t}` 在具体的 controller 上。
+```
+Client: client.Options{
+    Cache: &client.CacheOptions{
+        SyncPeriod: &duration, // default 10h
+    },
+}
+```
+
 ### Error Back-Off
 informer: watch events 不受 rate limit 限制，调用 `workqueue.add`
-reconcile: 返回 error 或 `result.Requeue: true` 是 exp backoff, 调用 `workqueue.addRateLimited`, per request object
+reconcile: 返回 error 或 `result.Requeue: true` 是 exp backoff, 调用 `workqueue.AddRateLimited`, per request object. `workqueue.Forget` 重置 rate limiter 状态，`result.requeueAfter` 没有记录状态，每次返回触发一次。
 
 设置: [RateLimiter](https://github.com/kubernetes-sigs/controller-runtime/blob/91e102ffc63c9b415b177eee448316556fa8d315/pkg/controller/controller.go#L69)
 
@@ -195,24 +310,6 @@ reconcile: 返回 error 或 `result.Requeue: true` 是 exp backoff, 调用 `work
 
 ### [Priority Queue](https://github.com/kubernetes-sigs/controller-runtime/blob/main/designs/priorityqueue.md)
 
-### [Selectors At Cache](https://github.com/kubernetes-sigs/controller-runtime/blob/main/designs/use-selectors-at-cache.md)
-当 watch 的资源量可能巨大时(比如Secret, ConfigMap, CRD)，减少内存占用
-```
-mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-    Scheme: scheme,
-    NewCache: cache.BuilderWithOptions(cache.Options{
-        SelectorsByObject: cache.SelectorsByObject{
-            &core.Pod{}: {
-                Label: labels.SelectorFromSet(labels.Set{
-                    myLabelKey,
-                    myLabelVal,
-                }),
-            },
-            &grpv1alpha1.Mykind{}: {},
-        },
-    }),
-})
-```
 
 # [API Methods](https://kubernetes.io/docs/reference/using-api/api-concepts/)
 ## Update
@@ -221,6 +318,8 @@ mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 `status.Update` 不能更新非status，且generation不会增加 (generation只有更新spec或~~annotations~~才会增加，删除时也会增加)
 
 ## Delete
+`Delete` 只需要 namespace/name，不需要完整 CR。
+
 DeletionPropagation: 不管是哪个选项，DELETE API 都不会阻塞。
 
 - Foreground: 先给 owner 添加 forgroundDeletion finalizer，等子资源(blockOwnerDeletion=true)删完之后，再由 GC 移除 finalizer 并删除 owner。
@@ -315,11 +414,13 @@ When to reconcile:
 - reference object change (not own, may be shared with others)
 - self healing (for resources not watched)
 
+注意：一般 generation/annotation predicate 只针对主对象，对于依赖对象不做过滤，因为需要追踪依赖对象的 status 变更。
+
 Predicates: 只要有一个（对应事件）返回false，就skip，可以用 Predicate.And/Or。
 
-opt to skip:
-
-- status.observedGeneration == metadata.generation
+Predicates for change 只针对 update 事件处理，不过滤 add 事件，如果 pod 重启，会产生大量 reconcile。解决(skip)：
+- 对于 annotation(或 label 如需要): 记录所有 annotation 的 hash 到一个 annotaion 上，然后与当前新计算的 hash 比较(除了 hash annotation 自己)。
+- 对于 spec：status.observedGeneration == metadata.generation
 
 ## Error Handling
 所有错误必须:
