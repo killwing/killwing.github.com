@@ -1488,7 +1488,7 @@ Debugger: [GDB](https://golang.org/doc/gdb): v7.1+, [delve](https://github.com/d
 * debug: 禁止内联和优化 `-gcflags "-N -l"`。(查看全部`go tool compile -help`)
 * release: 删除调试信息和符号表 `-ldflags "-w -s"`。
 
-Print diff: https://github.com/google/go-cmp/cmp
+Print diff: https://github.com/google/go-cmp
 
 ## [Profiling](http://blog.golang.org/profiling-go-programs) ([cmd](http://golang.org/cmd/pprof/) [pkg](https://golang.org/pkg/runtime/pprof/))
 测试时：`go test -bench=. -cpuprofile/-memprofile/-blockprofile out.prof`
@@ -2398,6 +2398,11 @@ func MyFunction(arg1, arg2 int, arg3 string) int64 {...}
 ```
 extern int64 MyFunction(int arg1, int arg2, GoString arg3);
 ```
+
+# Skills
+https://github.com/JetBrains/go-modern-guidelines
+https://github.com/spf13/go-skills
+https://github.com/samber/cc-skills-golang/tree/main/skills/golang-samber-lo
 
 # Reference
 https://go.dev

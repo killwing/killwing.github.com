@@ -330,19 +330,25 @@ CRD 删除时必须所有 CR 都已删除。没有 finalizers 的CR都会自动�
 owner reference 中 owner 已经不存在的对象由 GC 定期删除。
 
 ## Watch
-watchlist:
+[watchlist](https://kubernetes.io/docs/reference/using-api/api-concepts/#streaming-lists) (`sendInitialEvents=true&allowWatchBookmarks=true&resourceVersionMatch=NotOlderThan`)
 https://kubernetes.io/blog/2024/12/17/kube-apiserver-api-streaming/
-https://kubernetes.io/docs/reference/using-api/api-concepts/#streaming-lists
 
-watch 时使用 [resourceversion=""(unset)](https://kubernetes.io/docs/reference/using-api/api-concepts/#semantics-for-watch) 模拟 list: 先返回全量数据(ADD)，再发送变更事件。
+一开始不带 resourceversion:
 
-* apiserver 直接穿透缓存从 etcd 读全量，对内存造成很大压力。
+- apiserver Consistent Read from Cache
+- list 结束标志：带有 `k8s.io/initial-events-end: "true"` 及最新 resourceversion 的 BOOKMARK event。
+
+区别：如果普通 watch 时使用 [resourceversion=""(unset)](https://kubernetes.io/docs/reference/using-api/api-concepts/#semantics-for-watch) 模拟 list: 先返回全量数据(ADD)，再发送变更事件。会导致：
+
+* apiserver 直接穿透缓存从 etcd 读全量 (Quorum Read)，对内存造成很大压力。
 * 重启恢复时，list 和 watch 之间可能丢失事件。
 * 没有 list 部分的结束标志，无法区分存量事件和后续变更。
 
-bookmark: 
-https://kubernetes.io/docs/reference/using-api/api-concepts/#watch-bookmarks
-https://stackoverflow.com/questions/66080942/what-k8s-bookmark-solves
+[bookmark](https://kubernetes.io/docs/reference/using-api/api-concepts/#watch-bookmarks) (`allowWatchBookmarks=true`): 
+
+- 是一种带有最近resourceversion的心跳/checkpoint。
+- 心跳：通过网关连接 apiserver，如果长时间(通常 1 or 5 Minute)没有读写，可能会导致超时断开连接。
+- checkpoint: Client 以此更新记录的 resourceversion。因为冷门资源长期没有更新 event，一旦重连此时保存的 resourceversion 已经很旧，再以此继续 watch 可能 apiserver 返回 410 Gone，导致重头 list & watch。
 
 ## [Server Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply)
 client usage: https://kubernetes.io/blog/2021/08/06/server-side-apply-ga/
