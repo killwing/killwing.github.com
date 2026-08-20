@@ -2229,6 +2229,25 @@ https://golang.org/pkg/regexp/syntax/
 https://github.com/StefanSchroeder/Golang-Regex-Tutorial
 
 ## sync
+### noCopy
+不能阻止编译，但能被 `go vet` 检查到。
+```
+type noCopy struct{}
+
+// Lock is a no-op used by -copylocks checker from `go vet`.
+func (*noCopy) Lock()   {}
+func (*noCopy) Unlock() {}
+```
+
+使用：
+```
+type Mutex struct {
+	_ noCopy
+
+	mu isync.Mutex
+}
+```
+
 ### Cond
 条件变量：有一个关联锁，当条件改变的时候（保护条件检查相关数据），及调用 Wait 的时候必须持有这个锁。
 ```

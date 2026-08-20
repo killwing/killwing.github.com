@@ -133,8 +133,8 @@ class A {
         console.log('this is bar');
     }
 
-    get x() { return this.x; }
-    set x(a) { this.x = a; }
+    get x() { return this.x; } // getter: y = a.x
+    set x(a) { this.x = a; } // setter: a.x = 1
     *gen() { ... }
     [x+y]() { ... } // 表达式方法名
 }
@@ -148,6 +148,7 @@ class A {
 表达式形式定义（类似函数）：`let A = class { ... }`
 静态函数由类名直接调用，在函数里不要引用`this`。[没法定义静态数据成员](http://stackoverflow.com/questions/22528967/es6-class-variable-alternatives)（可以直接`A.xxx`）。
 私有成员不能在 class 外部访问和修改。
+当成员函数被赋值调用时 this 会丢失，可以用箭头函数解决。如 `foox = a.foo; foox(); // undefined this` 改定义成 `foo = () => { ... this.x }`
 
 ### 继承
 ```
@@ -393,7 +394,7 @@ Promise表示执行异步操作的结果，遵循[Promises/A+规范](https://pro
 `new Promise(function(resolve, reject) { ... });` 构造函数传入异步操作，成功调用`resolve`(resolved/fulfilled)，失败调用`reject`(rejected)，最后用`then`取得结果。
 Promise构造时异步操作就开始执行，调用`then`时如果没有执行完成，则等待以取得结果。`resolve`保存异步操作的结果，本身并不等待，参数可以是另一个Promise对象，并且`then`取结果时也要等这个对象的异步操作先执行完成（`reject`不会等待）。
 
-![promises](https://mdn.mozillademos.org/files/8633/promises.png)
+[![promises](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/promises.png)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
 
 实例方法：
 `then(onResolved, onRejected)` onResolved对应resolve的结果，onRejected对应reject的结果或抛出的异常。返回一个新的Promise对象，可以链式调用，onResolved/onReject的return的结果会作为这个新的promise onResolved的参数传入。如果return的是一个promise对象，then返回的promise对象状态由其决定（可以理解为同一个promise）。
@@ -449,7 +450,7 @@ tagfunc`this is ECMAScript ${ver + 1}!`
 
 ## Arrow Functions
 参数 => 返回值
-箭头函数自己没有this，this绑定定义时外部函数的this，call/apply/bind方法也无效。
+箭头函数自己没有this，this绑定定义时外部函数的this（而不是像普通函数一样调用时绑定），call/apply/bind方法也无效。
 ```
 f = v => v
 f = () => 3
