@@ -27,14 +27,14 @@ https://svelte.dev
 
 script module
 
-- 只在初始化时执行一次，而不带 module 的 script 在每个组件实例中都会执行。
+- 只在初始化时执行一次，而不带 `module` 属性的 script 在每个组件实例中都会执行。
 - 里面的变量在组件内其他地方都可以被引用，反之则不行。
 - 一般直接写在 `$lib` 下 js module。
 
 CSS scope 仅限于本组件。
 
 导入组件 `import Nested from './Nested.svelte'`，使用 `<Nested />` （组件名首字母大写）
-`$props` 接收从组件使用者传入的变量，可以有默认值：`let { answer = 'default value' } = $props()`，使用 `<Nested answer={42} />`
+传递变量给组件，使用 `$props`。
 传递 CSS 变量给组件 `<Nested --color="red" />`,  组件中定义变量 `background-color: var(--color, #ddd)` 
 
 ```
@@ -57,9 +57,39 @@ CSS scope 仅限于本组件。
 </style>
 ```
 
+### Lifecycle
+客户端导航（非浏览器直接修改）：不会重建组件(没有 onMount 事件，需使用 afterNavigate)。
+
+- 点击链接：`<a href="/?t=2">改变参数</a>` (或者改变 path，但 layout 没变，则 page 重建，layout 不重建)
+- 代码跳转：`import { goto } from '$app/navigation'; goto('/?t=2');`
+- 浏览器前进 / 后退按钮
+
+当页面刷新，手动地址栏改变参数或 path，页面会重新加载及 onMount。(snapshot / sessionStorage 只有 tab 关闭才会清除，刷新不会)
+注意浏览器的 Back-Forward Cache（仅发生在前进后退），所有都会保存和恢复。
+
+所以，
+
+- 全局状态：全局 `$state()` module。
+- 页面状态：snapshot。
+- 临时状态（刷新重置）：local 普通变量。
+
+组件生命周期事件顺序(child 是 page 里的组件)：
+
+1. layout loaded
+1. page loaded
+1. child loaded
+1. child mounted
+1. page mounted
+1. layout mounted
+1. child after navigate
+1. page after navigate
+1. layout after navigate
+
+注意这只是事件触发顺序，它们不会互相 block 调用（当其中有 await 调用 yeild 出去的时候）。
+
 ## Reactivity/Rune
 ### $state
-让一个变量具有 reactivity，要使用 `$state(...)` rune。当其改变（包括重新赋值和直接修改）时，HTML 中的引用才会随之变化。
+让一个变量具有 reactivity，要使用 `$state(...)` rune。当其改变（包括重新赋值和直接修改）时，HTML 中的引用才会随之变化。一旦被标记，即使重新赋值新对象(如 `a = {}`)，仍具有 reactivity。
 Deep reactivity: 可以作用于数组或对象，`$state([...])`, `$state({...})`，但单独解构取出的成员不具有 reactivity。这种作用是递归的，直到遇到非简单对象(如由 class or Object.create 创建的对象)。不能作用于 class 实例，可以作用于 class 成员(用 state 初始化)。`svelte/reactivity` 有一些 built-in 的 reactivity class。
 
 `$state.raw` 作用的对象不能修改（无效果），主要是为了提高性能。
@@ -72,7 +102,7 @@ Deep reactivity: 可以作用于数组或对象，`$state([...])`, `$state({...}
 rune 可以在非组件的普通 JS 中使用 `export const counter = $state({ count: 0 })` (直接具有 reactivity, 不需要用 `svelte/store`)，但文件名必须以 `.svelte.js` 结尾。可以直接导出，但不要对其重新赋值。
 
 ### $derived
-必须有一个变量接收，如果有依赖（读取）state 变化，则触发：
+必须有一个变量接收，如果有依赖（读取）state 变化(not deep)，则触发：
 ```
 let count = $state(0);
 let doubled = $derived(count * 2);
@@ -116,12 +146,90 @@ $effect(() => {
 `$effect.pending` 表示在当前 boundary 下有多少 promises 在等待状态。
 `$effect.root` 创建一个不会自动清理的 effect（独立于组件）。
 
+经典用法：
+
+```
+<script>
+	import { tick } from 'svelte';
+
+	let div = $state();
+	let messages = $state([]);
+
+	$effect.pre(() => {
+		if (!div) return; // not yet mounted
+
+		// 监控消息长度：reference `messages` array length so that this code re-runs whenever it changes
+		messages.length;
+
+        // 读取当前（旧 DOM）的滚动位置，判断用户是否已经贴近底部
+		if (div.offsetHeight + div.scrollTop > div.scrollHeight - 20) {
+            // 等待 Svelte 将新消息渲染到 DOM 中
+			tick().then(() => { 
+                // DOM 已经包含了新消息（scrollHeight 已经变成了最新的高度），再精准滚动到最新的底部
+				div.scrollTo(0, div.scrollHeight);
+			});
+		}
+	});
+</script>
+
+<div bind:this={div}>
+	{#each messages as message}
+		<p>{message}</p>
+	{/each}
+</div>
+```
+
+### $props
+`$props` 接收从组件使用者传入的变量，可以有默认值：`let { answer = 'default value' } = $props()`，使用 `<Nested answer={42} />`
+当父组件值变化，子组件对应值也会变化。子组件可以对变量重新赋值（不会同步到父组件，除非使用 `$bindable`），但不要修改其属性。
+
+### $bindable
+可以让子组件的值变化通过 $props 同步到父组件。
+
+### $inspect
+`$inspect` 当 state 变化时(deep)，使用 `console.log` 输出。
+
+`$inspect(...).with` 可以使用自定义函数替换 `console.log` 输出。
+
+`$inspect.trace`: 用在 effect 或 derived 里面，可以打印出谁触发了这个 effect/derived。
+```
+$effect(() => {
+	$inspect.trace("effect A");
+	state.value;
+});
+```
+
+### $host
+用于 "custom element" 发送自定义事件。
+
 ## 模版
 HTML 中可以用大括号引用 JS 中的变量或表达式，不需要加引号（会自动 string coercion）。
+布尔属性是否设置，看值是否为 truthy，其他属性是否设置看值是否为 nullish (null/undefined)。
 如果属性名和变量名一样，如`src={src}`，可以简写为`{src}`。
 
-使用 `{@html ...}` 嵌入 HTML 变量，不会转义。
-`{@debug user}` 当变量变化时，打印到 console，并当 devtool 打开时，会暂停执行。不支持表达式。`{@debug}` 监控任意 state 变化。
+`{@render ...}` 用来渲染 `#snippet`
+`{@html ...}` 嵌入 HTML 变量，不会转义。scoped style 不起作用，需要用 global。
+`{@debug user}` 当变量变化时，打印到 console，并当 devtool 打开时，会暂停执行。可以是列表，不支持表达式。`{@debug}` 监控任意 state 变化。
+`{let/const ...}` 定义本地变量。可以直接引用 `<script />` 里的变量。
+```
+{#each boxes as box}
+	{const area = box.width * box.height}
+	{box.width} * {box.height} = {area}
+{/each}
+```
+`{@attach ...}` 相当于把一个 effect 加到一个元素上，在元素 mount 到 DOM 的时候（或者函数里依赖的 state 变化时）调用。
+
+```
+<script>
+	function myAttachment(element) {
+		console.log(element.nodeName); // 'DIV'
+		return () => {
+			console.log('cleaning up');
+		};
+	}
+</script>
+<div {@attach myAttachment}>...</div>
+```
 
 ### Logic
 **if**
@@ -145,10 +253,32 @@ HTML 中可以用大括号引用 JS 中的变量或表达式，不需要加引�
 			aria-current={selected === color}
 			onclick={() => selected = color}
 		>{i + 1}</button>
+    {:else}
+	    <p>No colors!</p>
 	{/each}
 </div>
 ```
-使用 key (color.id) 以避免删除元素带来的问题。
+使用 key (color.id) 以避免迭代时增加或删除元素带来的问题。
+
+无需具体元素，仅按次数迭代：
+```
+<div class="chess-board">
+	{#each { length: 8 }, rank}
+		{#each { length: 8 }, file}
+			<div class:black={(rank + file) % 2 === 1}></div>
+		{/each}
+	{/each}
+</div>
+```
+
+**key** 当 i 变化时，销毁并重新创建内容
+```
+{#key i}
+	<p in:typewriter={{ speed: 10 }}>
+		{messages[i] || ''}
+	</p>
+{/key}
+```
 
 **await** `let promise = $state(...)`
 ```
@@ -161,16 +291,19 @@ HTML 中可以用大括号引用 JS 中的变量或表达式，不需要加引�
 {/await}
 ```
 
-**key** 当 i 变化时，销毁并重新创建内容
+**snippet** 定义可重用的代码块
 ```
-{#key i}
-	<p in:typewriter={{ speed: 10 }}>
-		{messages[i] || ''}
-	</p>
-{/key}
+{#snippet figure(image)}
+	<figure>
+		<img src={image.src} alt={image.caption} width={image.width} height={image.height} />
+		<figcaption>{image.caption}</figcaption>
+	</figure>
+{/snippet}
 ```
 
 ### Events
+`onxxx` 监听 xxx 事件（大小写敏感），在 binding 事件之后触发 (bind:value -> oninput)。有的事件直接使用 `addEventListener`，有些则被委托。
+使用 `import { on } from 'svelte/events'` (它使用委托，而避免直接使用 `addEventListener`)，可以让事件依赖声明顺序，`stopPropagation` 也能正确地被处理。
 默认在冒泡阶段触发，如要在捕获阶段触发需在事件名后加上`capture`
 ```
 <div onpointermove={onpointermove}>
@@ -190,18 +323,58 @@ HTML 中可以用大括号引用 JS 中的变量或表达式，不需要加引�
 ```
 
 ### Bindings `bind:`
-value 的变化也同步到变量。
+value 的变化也同步到变量。同名可以省略`={...}`。
 ```
-<input bind:value={name}>
+<input bind:value={value}>
+<input bind:value>
 <input type="checkbox" bind:checked={yes}>
 <input type="radio" name="scoops" value={number} bind:group={scoops} />
 <input type="checkbox" name="flavours" value={flavour} bind:group={flavours} />
 <select bind:value={selected} onchange={() => answer = ''}>
 <select multiple bind:value={flavours}> {#each ['cookies and cream', 'mint choc chip', 'raspberry ripple'] as flavour} <option>{flavour}</option> {/each} </select>
 <textarea bind:value={value}></textarea>
+<details bind:open={isOpen}></details>
+<div contenteditable="true" bind:innerHTML={html}></div>
 ```
 
+用 get / set 函数，可以做检查和转换。
+```
+<input bind:value={
+	() => value,
+	(v) => value = v.toLowerCase()} />
+```
+
+`<audio> / <video> / <img>` 也有一些可以双向绑定或 readyonly 的属性。所有可视元素都有一些关于尺寸的 readyonly 属性可以绑定。
+
+`bind:this` 可以绑定 DOM 元素，但在 mount 之前值是 undefined（可以放到 effect 里操作）。
+```
+<canvas bind:this={canvas}></canvas>
+```
+
+绑定组件时可以调用导出的方法。
+```
+<ShoppingCart bind:this={cart} />
+<button onclick={() => cart.empty()}> Empty shopping cart </button>
+```
+
+可以绑定组件的属性 `<Keypad bind:bindableProperty={pin} />`，但必须用 `$bindable` 声明。
+```
+<script> let { readonlyProperty, bindableProperty = $bindable() } = $props(); </script>
+```
+
+
+
 ### Styles `style:`
+设置 style，可以有多个。相同属性合并的时候，前面的优先。
+```
+<!-- These two are equivalent -->
+<div style:color="red">...</div>
+<div style="color: red;">...</div>
+<div style:color>...</div>
+<div style:color|important="red">...</div>
+<div style:--columns={columns}>...</div>
+```
+
 使用数组或对象作为 class 属性值，可以使用变量名作为 class 名字。当其为真时，自动加上 class。
 ```
 <button class="card {flipped ? 'flipped' : ''}" onclick={() => flipped = !flipped}>
@@ -211,7 +384,7 @@ value 的变化也同步到变量。
 <button class="card" style:transform={flipped ? 'rotateY(0)' : ''} style:--bg-1="palegoldenrod" style:--bg-2="black" style:--bg-3="goldenrod" onclick={() => flipped = !flipped}>
 ```
 
-### Actions `use:`
+### Actions `use:` (deprecated, use `@attach`)
 action 是一个函数，里面实现有一个 effect。
 ```
 function tooltip(node, fn) {
@@ -228,7 +401,7 @@ function tooltip(node, fn) {
 <button use:tooltip={() => ({ content })}> Hover me </button>
 ```
 
-### Transition `transition:` `in:` `out:`
+### Transition `transition:` `in:` `out:` `animate:`
 默认 transition 只作用于直接的元素创建和销毁时，加上 `global` 使包含其的元素创建和销毁时也能触发。
 ```
 <p transition:fade> Fades in and out </p>
@@ -242,6 +415,28 @@ function tooltip(node, fn) {
 > Flies in and out </p>
 <div transition:slide|global> {item} </div>
 ```
+
+animate 当一个元素增加或删除时，它并不执行。它只作用于 keyed each 的直接子元素上，当子元素变化时执行。
+```
+<!-- When `list` is reordered the animation will run -->
+{#each list as item, index (item)}
+	<li animate:flip>{item}</li>
+{/each}
+```
+
+### await
+若要在下面地方使用 await，需要设置配置参数 `experimental.async`：
+
+- `<script>` 顶层
+- `$derived(...)` 声明内
+- 模版内
+
+## Library
+svelte onMount: 当一个组件 mount 到 DOM 的时候调用，就像 `$effect`，不过只调用一次。可用于组件初始化。可以返回一个函数以在 unmount 的时候被调用。SSR 的时候不会执行。
+svelte onDestroy: 在组件 unmount 的时候调用，唯一一个只运行在 SSR 的。
+svelte tick: 返回一个 promise，在任何等待的状态被应用到 DOM 后，resolve。
+svelte settled: 类似 tick，但要等更新导致的所有后续异步操作完成。
+
 
 # SvelteKit
 ## Routing
@@ -333,23 +528,28 @@ export function GET() {
 ```
 
 ## Errors
-expected error: 正常返回错误内容给用户。
+expected error: 正常返回具体错误内容给用户。
 ```
 import { error } from '@sveltejs/kit';
 
 export function load() {
 	error(420, 'Enhance your calm');
+    // or
+    error(404, {
+    	message: 'Not found',
+    	code: 'NOT_FOUND'
+    });
 }
 ```
 
-unexpected error: 返回 500 ‘Internal Error’
+unexpected error: 其他异常则返回一个 general error `{ "message": "Internal Error" }`
 ```
 export function load() {
 	throw new Error('Kaboom!');
 }
 ```
 
-error 页面：属于基本页面，在 layout 页面中显示。
+两者都会导致渲染 error 页面：属于基本页面，在 layout 页面中显示。
 `src/routes/+error.svelte`
 ```
 <script>
@@ -363,12 +563,21 @@ error 页面：属于基本页面，在 layout 页面中显示。
 </span>
 ```
 
-load data 出错，则 fallback 到 global 错误页面。
+如果错误导致 error 页面无法渲染，则 fallback 到 global 错误页面。
 `src/error.html`
 ```
-<h1>Game over</h1>
-<p>Code %sveltekit.status%</p>
-<p>%sveltekit.error.message%</p>
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>%sveltekit.error.message%</title>
+	</head>
+	<body>
+		<h1>My custom error page</h1>
+		<p>Status: %sveltekit.status%</p>
+		<p>Message: %sveltekit.error.message%</p>
+	</body>
+</html>
 ```
 
 ## Redirect
@@ -381,8 +590,26 @@ export function load() {
 }
 ```
 
+## Hooks
+`src/hooks.server.js` 只在 server 端调用
+`src/hooks.client.js` 只在 client 端调用
+`src/hooks.js` both
+
+`export async function handle()` (server) 当服务端收到请求的时候。
+`export async function init()` (both) 只调用一次，用于初始化。
+
+## Snapshots
+当页面 navigates 离开时可以自动保存数据，以及返回时恢复。(entry 关联在 history stack，数据保存在 sessionStorage)
+**只能用在 +page.svelte / +layout.svelte 中。** 如果组件要用，可以让其暴露 capture/restore 方法。
+```
+export const snapshot = {
+	capture: () => comment,
+	restore: (value) => comment = value
+};
+```
+
 ## Shared modules
-`$lib`: `src/lib` 下面的 module 都可以用 `$lib` 引用。
+`$lib`: `src/lib` 下面的 module 都可以用 `$lib` 前缀引用导入。
 `$app/state`: 当前页面状态:
 
 * page
@@ -399,6 +626,10 @@ export function load() {
   * type
 * updated: 页面重新部署更新状态
   * current
+
+`$app/navigation`:
+
+- afterNavigate: 当 onMount 或 url 变化时调用。
 
 </xmp>
 <script src="js/strapdown.js"></script>

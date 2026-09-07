@@ -522,6 +522,7 @@ type D struct {
 	*C
 }
 var d = D{B{1, 2}, 3, &C{"xyz"}}
+d = D{a: 1}         // 直接赋值嵌入成员
 fmt.Println(d.a)    // 1
 fmt.Println(d.b)    // 3
 fmt.Println(d.B)    // {1,2}
@@ -612,7 +613,7 @@ foo(100, append([]int{101}, a...)...) // 复制了a的元素，效率低
 无论接收者是值类型还是指针类型的方法，用值或指针实例都可以进行调用（编译器会转成接收者对应的类型），但只有用指针接收者的形式才能避免值拷贝传递以及做修改（类似函数参数）。
 用值调用指针接收方法时，值要可以取址。有着非指针类型struct元素值的Map如`m[1]`不可取址（slice却可以），也不能直接赋值`m[1].x=2`，必须使用临时变量。
 只有struct没有class，method是一种特殊的函数，不支持重载，接收者（相当于this）是方法签名的一部分。
-Accessor方法命名惯例直接用属性名表示get，“set属性名”表示set。
+Accessor方法命名惯例直接用属性名表示get，“set属性名”表示set。update/mutate 方法如果还有一个原地修改版本，则可命名为 "updateXXXWith"。
 ```
 type Point struct { x, y float64 }
 func (p Point) Abs() float64 {
@@ -1030,7 +1031,7 @@ func (t *ModelX[T]) len() int {
 func (t *ModelX[T]) foo(s T) { // 类型的方法中可以使用 struct 本身的类型参数
 }
 
-func (t *ModelX[T]) bar[V any](v V) { // error, 不支持其它函数类型参数 (泛型 method)
+func (t *ModelX[T]) bar[V any](v V) { // 泛型 method
 }
 
 // 初始化
@@ -1341,7 +1342,7 @@ plugin可以导出任何类型的包函数和变量，但一般导出接口类�
 
 # Testing ([pkg](http://golang.org/pkg/testing/))
 ## Test
-* 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。`-count=1` 禁止cache。
+* 命令: `go test`, 运行所有测试文件。`go help testflag`查看测试相关参数。`-run regexp` 运行指定测试函数。`-count=1` 禁止cache。`--failfast` 有一个测试失败，就停止后续测试。
 * 文件名: `*_test.go`，只在测试时编译，里面定义的变量在非测试文件中不可用，即使 public 也不能被其他包的测试调用。
 * 用例函数签名: `func TestXxxx(t *testing.T)`，如果调用了`t.Error`, `t.Fail`则测试失败。
 * 测试工具包: `import "testing"`, 支持 context, logging, error reporting, setenv, cleanup ...
