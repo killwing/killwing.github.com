@@ -58,13 +58,14 @@ CSS scope 仅限于本组件。
 ```
 
 ### Lifecycle
-客户端导航（非浏览器直接修改）：不会重建组件(没有 onMount 事件，需使用 afterNavigate)。
+客户端导航改变查询参数（非浏览器直接修改）：不会重建组件(local 变量继续保持，没有 onMount 事件，需使用 afterNavigate)。
+(或者改变 path，但 layout 没变，则 page 重建，layout 不重建)。
 
-- 点击链接：`<a href="/?t=2">改变参数</a>` (或者改变 path，但 layout 没变，则 page 重建，layout 不重建)
+- 点击链接：`<a href="/?t=2">改变参数</a>`
 - 代码跳转：`import { goto } from '$app/navigation'; goto('/?t=2');`
 - 浏览器前进 / 后退按钮
 
-当页面刷新，手动地址栏改变参数或 path，页面会重新加载及 onMount。(snapshot / sessionStorage 只有 tab 关闭才会清除，刷新不会)
+当页面刷新，手动地址栏改变参数或 path，整个 app 重新初始化，页面会重新加载及 onMount。(snapshot / sessionStorage 只有 tab 关闭才会清除，刷新不会)
 注意浏览器的 Back-Forward Cache（仅发生在前进后退），所有都会保存和恢复。
 
 所以，
@@ -549,7 +550,7 @@ export function load() {
 }
 ```
 
-两者都会导致渲染 error 页面：属于基本页面，在 layout 页面中显示。
+主要处理 SvelteKit 管理的生命周期中的错误（只有在 load 中调用）才会渲染 error 页面（属于基本页面，在 layout 页面中显示）。
 `src/routes/+error.svelte`
 ```
 <script>
@@ -563,7 +564,7 @@ export function load() {
 </span>
 ```
 
-如果错误导致 error 页面无法渲染，则 fallback 到 global 错误页面。
+load data 出错，则 fallback 到 global 错误页面。
 `src/error.html`
 ```
 <!DOCTYPE html>
